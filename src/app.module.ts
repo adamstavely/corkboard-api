@@ -11,18 +11,21 @@ import configuration from './config/configuration';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { MeController } from './me/me.controller';
+import { MembersController } from './orgs/members.controller';
+import { MembersService } from './orgs/members.service';
 import { OrgsService } from './orgs/orgs.service';
 import { SearchController } from './search/search.controller';
 import { SearchIndex } from './search/search-index';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), DbModule],
-  controllers: [HealthController, MeController, BoardsController, SearchController],
+  controllers: [HealthController, MeController, BoardsController, SearchController, MembersController],
   providers: [
     { provide: KEY_SOURCE, useValue: discoveredKeys },
     TokenVerifier,
     UsersService,
     OrgsService,
+    MembersService,
     BoardsService,
     SearchIndex,
     CollabService,
