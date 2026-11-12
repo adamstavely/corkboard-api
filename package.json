@@ -22,6 +22,7 @@
     "search:reindex": "ts-node scripts/reindex.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.8.0",
     "@elastic/elasticsearch": "8.19.2",
     "@hocuspocus/extension-database": "4.8.0",
     "@hocuspocus/server": "4.8.0",
