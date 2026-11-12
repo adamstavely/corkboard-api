@@ -12,8 +12,6 @@ async function bootstrap() {
   if (!config.getOrThrow<OidcConfig>('oidc').issuer) {
     throw new Error('OIDC_ISSUER is required (local dev: http://localhost:8280/realms/corkboard)');
   }
-  // Board documents are sent whole until real-time sync arrives (see BoardsService.MAX_DOCUMENT_BYTES; base64 adds a third).
-  app.useBodyParser('json', { limit: '15mb' });
   app.enableShutdownHooks();
   SwaggerModule.setup('docs', app, buildOpenApi(app), { jsonDocumentUrl: 'docs/openapi.json' });
   await app.listen(config.getOrThrow<number>('port'));

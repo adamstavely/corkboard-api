@@ -1,4 +1,5 @@
-# Local dev: Postgres and a Keycloak to sign in with. Host ports are offset (5440, 8280) to stay clear of other apps.
+# Local dev: Postgres, Elasticsearch for search, and a Keycloak to sign in with. Host ports are offset (5440, 9210,
+# 8280) to stay clear of other apps.
 services:
   postgres:
     image: postgres:17-alpine
@@ -16,6 +17,23 @@ services:
       timeout: 5s
       retries: 20
 
+  # Search only (Postgres is the source of truth); security off here only.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.2
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9210:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
   # Realm "corkboard" with the UI's client and two people to sign in as (keycloak/corkboard-realm.json).
   # Dev only: start-dev, an in-memory database and the admin/admin console at http://localhost:8280.
   keycloak:
@@ -32,3 +50,4 @@ services:
 
 volumes:
   pgdata:
+  esdata:

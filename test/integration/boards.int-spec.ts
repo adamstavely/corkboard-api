@@ -51,7 +51,7 @@ describe('Boards', () => {
     await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: 'x', owner: 'y' }).expect(400);
   });
 
-  it('starts a board empty, then returns the document it was saved with', async () => {
+  it('starts a board with an empty document, and takes no writes over HTTP', async () => {
     const subject = randomUUID();
     const orgId = await workspaceOf(subject);
     const server = t.app.getHttpServer();
@@ -59,16 +59,8 @@ describe('Boards', () => {
 
     const empty = await request(server).get(`/boards/${board.id}/document`).set(await as(subject)).expect(200);
     expect(empty.body).toEqual({ state: '' });
-
-    const state = Buffer.from([1, 2, 3, 250, 0, 7]).toString('base64');
-    await request(server).put(`/boards/${board.id}/document`).set(await as(subject)).send({ state }).expect(204);
-    await request(server).put(`/boards/${board.id}/document`).set(await as(subject)).send({ state }).expect(204);
-    const saved = await request(server).get(`/boards/${board.id}/document`).set(await as(subject)).expect(200);
-    expect(saved.body).toEqual({ state });
-
-    // Saving counts as a change, so the board moves to the top of the list.
-    const after = await request(server).get(`/boards/${board.id}`).set(await as(subject)).expect(200);
-    expect(new Date(after.body.updatedAt).getTime()).toBeGreaterThan(new Date(board.updatedAt).getTime());
+    // Editing goes through the collaboration socket (see collab.int-spec.ts).
+    await request(server).put(`/boards/${board.id}/document`).set(await as(subject)).send({ state: '' }).expect(404);
   });
 
   it("hides other workspaces' boards as if they didn't exist", async () => {
@@ -81,7 +73,6 @@ describe('Boards', () => {
 
     await request(server).get(`/boards/${board.id}`).set(await as(stranger)).expect(404);
     await request(server).get(`/boards/${board.id}/document`).set(await as(stranger)).expect(404);
-    await request(server).put(`/boards/${board.id}/document`).set(await as(stranger)).send({ state: '' }).expect(404);
     await request(server).delete(`/boards/${board.id}`).set(await as(stranger)).expect(404);
     await request(server).get(`/orgs/${orgId}/boards`).set(await as(stranger)).expect(404);
     await request(server).post(`/orgs/${orgId}/boards`).set(await as(stranger)).send({ title: 'x' }).expect(404);

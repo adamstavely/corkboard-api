@@ -1,4 +1,4 @@
-import { IsBase64, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class BoardDto {
   id!: string;
@@ -24,7 +24,5 @@ export class UpdateBoardDto {
 
 /** A board's content: its Yjs document encoded as a single update, in base64. Empty for a new board. */
 export class BoardDocumentDto {
-  @IsString()
-  @IsBase64()
   state!: string;
 }

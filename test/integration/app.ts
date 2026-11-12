@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type KeyLike } from 'jose';
 import { randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 import { AppModule } from '../../src/app.module';
 import { KEY_SOURCE } from '../../src/auth/token-verifier';
 
@@ -10,6 +11,8 @@ export const AUDIENCE = 'corkboard-ui';
 
 export interface TestApp {
   app: INestApplication;
+  /** The collaboration socket, e.g. ws://127.0.0.1:1234/collab. */
+  collabUrl: string;
   /** A signed access token for a person; `claims` overrides the defaults (issuer, audience, expiry, name). */
   token(subject: string, claims?: Record<string, unknown>): Promise<string>;
   /** Signed with a key the API doesn't trust. */
@@ -31,7 +34,9 @@ export async function createTestApp(): Promise<TestApp> {
     .useValue(() => Promise.resolve(jwks))
     .compile();
   const app = moduleRef.createNestApplication();
-  await app.init();
+  // Listening for real, so tests can open the collaboration socket.
+  await app.listen(0, '127.0.0.1');
+  const { port } = app.getHttpServer().address() as AddressInfo;
 
   const sign = (key: KeyLike, subject: string, claims: Record<string, unknown> = {}) =>
     new SignJWT({ name: `Person ${subject}`, email: `${subject}@corkboard.test`, ...claims })
@@ -45,6 +50,7 @@ export async function createTestApp(): Promise<TestApp> {
 
   return {
     app,
+    collabUrl: `ws://127.0.0.1:${port}/collab`,
     token: (subject, claims) => sign(privateKey, subject, claims),
     foreignToken: (subject) => sign(foreign.privateKey, subject),
   };
