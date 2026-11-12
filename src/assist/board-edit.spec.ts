@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { addNotes, FRAME_PADDING, FRAME_TITLE, frameGroups, framesOf, inFrame, NOTE_SIZE, notesOf, setColors } from './board-edit';
+import { addNotes, FRAME_PADDING, FRAME_TITLE, frameGroups, framesOf, inFrame, makeTimeline, NOTE_SIZE, notesOf, setColors } from './board-edit';
 import { fragmentText } from '../boards/board-text';
 
 describe('board edits', () => {
@@ -82,5 +82,40 @@ describe('board edits', () => {
     expect(framesOf(doc).map((f) => f.title).sort()).toEqual(['Keep', 'Second']);
     expect(framesOf(doc).find((f) => f.title === 'Second')).toMatchObject({ x: 0, y: 0 });
     expect(framesOf(doc).find((f) => f.title === 'Keep')).toEqual(keep);
+  });
+
+  it('lays a plan out as a timeline: periods left to right inside one frame, steps top to bottom', () => {
+    const doc = new Y.Doc();
+    const [design, build, launch] = addNotes(doc, ['Design', 'Build', 'Launch'].map((text) => ({ text, color: 'yellow' as const })), []);
+    const result = makeTimeline(doc, 'Launch plan', [
+      { label: 'May', items: [{ noteId: design }, { text: 'Write the brief', color: 'blue' }] },
+      { label: 'June', items: [{ noteId: build }, { noteId: design }, { noteId: 'missing' }] },
+      { label: 'July', items: [{ noteId: launch }] },
+    ]);
+    expect(result).toMatchObject({ frames: 4, moved: 3, added: 1, replaced: 0 });
+
+    const frames = framesOf(doc);
+    const plan = frames.find((f) => f.title === 'Launch plan')!;
+    const [may, june, july] = ['May', 'June', 'July'].map((t) => frames.find((f) => f.title === t)!);
+    expect(plan).toMatchObject({ x: 0, y: 0 });
+    expect(may.x).toBeLessThan(june.x);
+    expect(june.x).toBeLessThan(july.x);
+    // Every column is as tall as the longest, and all inside the timeline.
+    expect(new Set([may.h, june.h, july.h]).size).toBe(1);
+    for (const column of [may, june, july]) expect(inFrame(column, plan)).toBe(true);
+    expect(plan.x + plan.w).toBe(july.x + july.w + FRAME_PADDING);
+
+    const notes = notesOf(doc);
+    expect(notes.find((n) => n.id === design)).toMatchObject({ frame: 'May', x: may.x + FRAME_PADDING, y: may.y + FRAME_TITLE });
+    expect(notes.find((n) => n.text === 'Write the brief')).toMatchObject({ frame: 'May', color: 'blue', y: may.y + FRAME_TITLE + NOTE_SIZE.h + 24 });
+    expect(notes.find((n) => n.id === build)!.frame).toBe('June');
+    expect(notes.find((n) => n.id === launch)!.frame).toBe('July');
+  });
+
+  it('puts a timeline of only new notes to the right of the board', () => {
+    const doc = new Y.Doc();
+    addNotes(doc, [{ text: 'Elsewhere', color: 'yellow' }], []);
+    makeTimeline(doc, 'Plan', [{ label: 'Week 1', items: [{ text: 'Kick off', color: 'blue' }] }]);
+    expect(framesOf(doc).find((f) => f.title === 'Plan')!.x).toBeGreaterThan(NOTE_SIZE.w);
   });
 });
