@@ -115,9 +115,13 @@ function paragraphs(text: string): Y.XmlElement[] {
 /**
  * Lays out groups of notes, each in a new titled frame, and moves the notes into them. Frames go where the notes they
  * hold were (the notes are leaving), unless that would cover something else on the board; then to the right of it all.
- * Returns the frames' ids and how many notes moved. A note named in two groups goes in the first.
+ * A frame all of whose notes move is the grouping being replaced, so it goes. Returns the new frames' ids, how many
+ * notes moved and how many old frames were removed. A note named in two groups goes in the first.
  */
-export function frameGroups(doc: Y.Doc, groups: { title: string; noteIds: string[] }[]): { frameIds: string[]; moved: number } {
+export function frameGroups(
+  doc: Y.Doc,
+  groups: { title: string; noteIds: string[] }[],
+): { frameIds: string[]; moved: number; replaced: number } {
   const nodes = nodesOf(doc);
   const taken = new Set<string>();
   const kept = groups
@@ -131,7 +135,21 @@ export function frameGroups(doc: Y.Doc, groups: { title: string; noteIds: string
       }),
     }))
     .filter((g) => g.ids.length);
-  if (kept.length === 0) return { frameIds: [], moved: 0 };
+  if (kept.length === 0) return { frameIds: [], moved: 0, replaced: 0 };
+
+  // Frames left empty by the move.
+  const notes: (Rect & { id: string })[] = [];
+  nodes.forEach((node, id) => {
+    if (node instanceof Y.Map && node.get('kind') === 'note') notes.push({ id, ...rectOf(node) });
+  });
+  const emptied = new Set(
+    framesOf(doc)
+      .filter((f) => {
+        const inside = notes.filter((n) => inFrame(n, f));
+        return inside.length > 0 && inside.every((n) => taken.has(n.id));
+      })
+      .map((f) => f.id),
+  );
 
   // Each frame's size, then a layout of rows starting at (0, 0).
   const sized = kept.map((g) => {
@@ -164,9 +182,9 @@ export function frameGroups(doc: Y.Doc, groups: { title: string; noteIds: string
   // Everything that stays put: other notes, and frames.
   const others: Rect[] = [];
   nodes.forEach((node, id) => {
-    if (node instanceof Y.Map && !taken.has(id)) others.push(rectOf(node));
+    if (node instanceof Y.Map && !taken.has(id) && !emptied.has(id)) others.push(rectOf(node));
   });
-  const moving = [...taken].map((id) => rectOf(nodes.get(id)!));
+  const moving = [...[...taken].map((id) => rectOf(nodes.get(id)!)), ...framesOf(doc).filter((f) => emptied.has(f.id))];
   let origin = { x: Math.min(...moving.map((r) => r.x)), y: Math.min(...moving.map((r) => r.y)) };
   if (others.some((r) => overlaps(r, { ...origin, w: width, h: height }))) {
     origin = { x: Math.max(...others.map((r) => r.x + r.w), ...moving.map((r) => r.x + r.w)) + FRAME_GAP, y: origin.y };
@@ -174,6 +192,7 @@ export function frameGroups(doc: Y.Doc, groups: { title: string; noteIds: string
 
   const frameIds: string[] = [];
   doc.transact(() => {
+    for (const id of emptied) nodes.delete(id);
     // Frames sit under notes whatever their z, so theirs only orders them among themselves.
     let z = topZ(doc);
     for (const f of layout) {
@@ -199,7 +218,7 @@ export function frameGroups(doc: Y.Doc, groups: { title: string; noteIds: string
       });
     }
   });
-  return { frameIds, moved: taken.size };
+  return { frameIds, moved: taken.size, replaced: emptied.size };
 }
 
 /**

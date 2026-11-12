@@ -70,4 +70,17 @@ describe('board edits', () => {
     const first = (fragment.get(0) as Y.XmlElement).get(0) as Y.XmlText;
     expect(first.toDelta()).toEqual([{ insert: 'Ada', attributes: { bold: {} } }]);
   });
+
+  it('replaces a grouping: frames emptied by the move go, and the new ones take their place', () => {
+    const doc = new Y.Doc();
+    const [a, b, c] = addNotes(doc, ['a', 'b', 'c'].map((text) => ({ text, color: 'yellow' as const })), []);
+    frameGroups(doc, [{ title: 'First', noteIds: [a, b] }, { title: 'Keep', noteIds: [c] }]);
+    const keep = framesOf(doc).find((f) => f.title === 'Keep')!;
+
+    const { replaced } = frameGroups(doc, [{ title: 'Second', noteIds: [b, a] }]);
+    expect(replaced).toBe(1);
+    expect(framesOf(doc).map((f) => f.title).sort()).toEqual(['Keep', 'Second']);
+    expect(framesOf(doc).find((f) => f.title === 'Second')).toMatchObject({ x: 0, y: 0 });
+    expect(framesOf(doc).find((f) => f.title === 'Keep')).toEqual(keep);
+  });
 });

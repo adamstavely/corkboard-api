@@ -177,12 +177,13 @@ export class AssistService {
               title: (g['title'] as string).trim().slice(0, 200) || 'Untitled',
               noteIds: (g['note_ids'] as unknown[]).filter((id): id is string => typeof id === 'string'),
             }));
-          let result = { frameIds: [] as string[], moved: 0 };
+          let result = { frameIds: [] as string[], moved: 0, replaced: 0 };
           await edit((d) => (result = frameGroups(d, groups)));
           if (result.frameIds.length === 0) throw new Error('None of those notes exist; use ids from <board>.');
           framesAdded += result.frameIds.length;
           notesMoved += result.moved;
-          return `Made ${result.frameIds.length} frames and moved ${result.moved} notes into them.`;
+          const replaced = result.replaced ? ` Removed ${result.replaced} old frames they left empty.` : '';
+          return `Made ${result.frameIds.length} frames and moved ${result.moved} notes into them.${replaced}`;
         }
         if (name === 'add_action_items') {
           const items = (Array.isArray(args['items']) ? args['items'] : [])
