@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { and, asc, eq } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
 import { orgMembers, orgs, type OrgRole } from '../db/schema';
+import { atLeast, needs, type Role } from '../access/roles';
 import { OrgDto } from './orgs.dto';
 
 @Injectable()
@@ -28,9 +29,10 @@ export class OrgsService {
     return row.role;
   }
 
-  async requireAdmin(userId: string, orgId: string): Promise<void> {
-    if ((await this.roleIn(userId, orgId)) !== 'admin') {
-      throw new ForbiddenException('Only workspace admins can do that');
-    }
+  /** The user's role, if it's at least `min`; otherwise 403 (or 404 outside the org). */
+  async require(userId: string, orgId: string, min: Role): Promise<OrgRole> {
+    const role = await this.roleIn(userId, orgId);
+    if (!atLeast(role, min)) throw new ForbiddenException(needs(min));
+    return role;
   }
 }

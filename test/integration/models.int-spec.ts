@@ -39,16 +39,16 @@ describe('Model connections and the assistant', () => {
     return { subject, auth, orgId: me.body.orgs[0].id as string, email: `${subject}@corkboard.test` };
   }
 
-  /** A second person, joined to `admin`'s workspace as a member. */
+  /** A second person, joined to `admin`'s workspace as an updater. */
   async function memberOf(admin: Awaited<ReturnType<typeof person>>) {
     const server = t.app.getHttpServer();
     const p = await person();
-    const { body: invite } = await request(server).post(`/orgs/${admin.orgId}/invites`).set(admin.auth).send({ email: p.email, role: 'member' });
+    const { body: invite } = await request(server).post(`/orgs/${admin.orgId}/invites`).set(admin.auth).send({ email: p.email, role: 'updater' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(p.auth).expect(201);
     return p;
   }
 
-  it('lets admins connect models, keeps keys to itself, and shows members the list', async () => {
+  it('lets owners connect models, keeps keys to itself, and shows members the list', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
     const grace = await memberOf(ada);

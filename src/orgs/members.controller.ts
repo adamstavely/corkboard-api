@@ -18,7 +18,7 @@ export class MembersController {
     return this.members.list(user, orgId);
   }
 
-  /** Admins: change someone's role. The last admin can't step down. */
+  /** Owners: change someone's role. The last owner can't step down. */
   @Patch('orgs/:orgId/members/:userId')
   @HttpCode(204)
   async changeRole(
@@ -30,7 +30,7 @@ export class MembersController {
     await this.members.changeRole(user, orgId, userId, body.role);
   }
 
-  /** Admins: remove someone. Anyone: leave (their own id). The last admin can't go. */
+  /** Owners: remove someone. Anyone: leave (their own id). The last owner can't go. */
   @Delete('orgs/:orgId/members/:userId')
   @HttpCode(204)
   async remove(

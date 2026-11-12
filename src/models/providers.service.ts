@@ -38,7 +38,7 @@ export class ProvidersService {
   }
 
   async create(user: User, orgId: string, body: CreateProviderDto): Promise<ProviderDto> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     const baseUrl = this.#baseUrl(body.baseUrl);
     const [row] = await this.db
       .insert(modelProviders)
@@ -56,7 +56,7 @@ export class ProvidersService {
   }
 
   async update(user: User, orgId: string, id: string, body: UpdateProviderDto): Promise<ProviderDto> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     await this.#find(orgId, id);
     const [row] = await this.db
       .update(modelProviders)
@@ -72,14 +72,14 @@ export class ProvidersService {
   }
 
   async remove(user: User, orgId: string, id: string): Promise<void> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     await this.#find(orgId, id);
     await this.db.delete(modelProviders).where(eq(modelProviders.id, id));
   }
 
   /** Asks the model for a one-word reply, so an admin knows the connection works before anyone relies on it. */
   async test(user: User, orgId: string, id: string): Promise<ProviderTestDto> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     const model = await this.modelFor(orgId, id);
     const started = Date.now();
     const latencyMs = () => Date.now() - started;

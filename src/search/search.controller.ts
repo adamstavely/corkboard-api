@@ -2,7 +2,7 @@ import { Controller, Get, Param, ParseUUIDPipe, Query, ServiceUnavailableExcepti
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { OrgsService } from '../orgs/orgs.service';
+import { BoardsService } from '../boards/boards.service';
 import { SearchIndex } from './search-index';
 import { SearchHitDto, SearchQueryDto } from './search.dto';
 
@@ -11,20 +11,20 @@ import { SearchHitDto, SearchQueryDto } from './search.dto';
 @Controller('orgs/:orgId/search')
 export class SearchController {
   constructor(
-    private readonly orgs: OrgsService,
+    private readonly boards: BoardsService,
     private readonly index: SearchIndex,
   ) {}
 
-  /** Boards in the workspace whose title or notes match the query. */
+  /** Boards in the workspace whose title or notes match the query, leaving out any kept from the person. */
   @Get()
   async search(
     @CurrentUser() user: User,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Query() { q }: SearchQueryDto,
   ): Promise<SearchHitDto[]> {
-    await this.orgs.roleIn(user.id, orgId);
+    const hidden = await this.boards.hiddenFrom(user, orgId);
     try {
-      return await this.index.search(orgId, q.trim());
+      return await this.index.search(orgId, q.trim(), hidden);
     } catch {
       throw new ServiceUnavailableException('Search is unavailable right now');
     }

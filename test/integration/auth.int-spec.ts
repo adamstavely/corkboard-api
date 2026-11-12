@@ -37,7 +37,7 @@ describe('Sign-in', () => {
     expect(a.status).toBe(200);
     expect(b.body.id).toBe(a.body.id);
     expect(a.body).toMatchObject({ name: 'Ada Lovelace', email: `${subject}@corkboard.test` });
-    expect(a.body.orgs).toEqual([{ id: expect.any(String), name: "Ada Lovelace's workspace", role: 'admin' }]);
+    expect(a.body.orgs).toEqual([{ id: expect.any(String), name: "Ada Lovelace's workspace", role: 'owner' }]);
 
     const again = await request(server).get('/me').set(auth).expect(200);
     expect(again.body.orgs).toHaveLength(1);

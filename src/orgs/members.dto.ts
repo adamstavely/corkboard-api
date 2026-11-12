@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsIn, MaxLength } from 'class-validator';
+import { ROLES } from '../access/roles';
 import type { OrgRole } from '../db/schema';
 
-const ROLES = ['admin', 'member'] as const;
 
 export class MemberDto {
   userId!: string;
