@@ -30,13 +30,16 @@ export function fragmentText(fragment: Y.XmlFragment | Y.XmlElement): string {
 }
 
 /**
- * The text of every note on a board, read from its Yjs document. The UI's BoardDoc keeps nodes in the `nodes` map,
- * each note's rich text under `text`.
+ * The text of every note and frame title on a board, read from its Yjs document. The UI's BoardDoc keeps nodes in the
+ * `nodes` map, each note's rich text under `text` and each frame's title under `title`.
  */
 export function boardText(doc: Y.Doc): NoteText[] {
   const notes: NoteText[] = [];
   doc.getMap<Y.Map<unknown>>('nodes').forEach((node, id) => {
-    if (!(node instanceof Y.Map) || node.get('kind') !== 'note') return;
+    if (!(node instanceof Y.Map)) return;
+    const title = node.get('title');
+    if (node.get('kind') === 'frame' && typeof title === 'string' && title.trim()) notes.push({ id, text: title.trim() });
+    if (node.get('kind') !== 'note') return;
     const fragment = node.get('text');
     const text = fragment instanceof Y.XmlFragment ? fragmentText(fragment) : '';
     if (text) notes.push({ id, text });
