@@ -82,7 +82,7 @@
             "bearer": []
           }
         ],
-        "summary": "A workspace's boards, most recently changed first.",
+        "summary": "The workspace's boards the person can open, most recently changed first.",
         "tags": [
           "boards"
         ]
@@ -230,6 +230,100 @@
             "bearer": []
           }
         ],
+        "summary": "Board owners: delete the board, for everyone.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
+    "/boards/{id}/members": {
+      "get": {
+        "operationId": "BoardsController_members",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BoardMemberDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Who's in the board's workspace and what each may do on this board.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
+    "/boards/{id}/members/{userId}": {
+      "put": {
+        "operationId": "BoardsController_setRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBoardRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardMemberDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Board owners: give someone a role on this board, or (null) return them to their workspace role.",
         "tags": [
           "boards"
         ]
@@ -313,7 +407,7 @@
             "bearer": []
           }
         ],
-        "summary": "Boards in the workspace whose title or notes match the query.",
+        "summary": "Boards in the workspace whose title or notes match the query, leaving out any kept from the person.",
         "tags": [
           "search"
         ]
@@ -396,7 +490,7 @@
             "bearer": []
           }
         ],
-        "summary": "Admins: change someone's role. The last admin can't step down.",
+        "summary": "Owners: change someone's role. The last owner can't step down.",
         "tags": [
           "members"
         ]
@@ -431,7 +525,7 @@
             "bearer": []
           }
         ],
-        "summary": "Admins: remove someone. Anyone: leave (their own id). The last admin can't go.",
+        "summary": "Owners: remove someone. Anyone: leave (their own id). The last owner can't go.",
         "tags": [
           "members"
         ]
@@ -957,8 +1051,10 @@
         "properties": {
           "role": {
             "enum": [
-              "admin",
-              "member"
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
             ],
             "type": "string"
           },
@@ -1005,6 +1101,16 @@
       "BoardDto": {
         "type": "object",
         "properties": {
+          "role": {
+            "description": "What the person asking may do on this board.",
+            "enum": [
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -1024,6 +1130,7 @@
           }
         },
         "required": [
+          "role",
           "id",
           "orgId",
           "title",
@@ -1053,6 +1160,81 @@
         },
         "required": [
           "title"
+        ]
+      },
+      "BoardMemberDto": {
+        "type": "object",
+        "properties": {
+          "workspaceRole": {
+            "enum": [
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
+          "boardRole": {
+            "nullable": true,
+            "description": "Set on this board, replacing the workspace role; null when it follows the workspace.",
+            "enum": [
+              "none",
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
+          "role": {
+            "nullable": true,
+            "description": "What they may do here; null when they can't open the board.",
+            "enum": [
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "workspaceRole",
+          "boardRole",
+          "role",
+          "userId",
+          "name",
+          "email"
+        ]
+      },
+      "SetBoardRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "nullable": true,
+            "description": "A role for this board only (`none` keeps them out), or null to follow their workspace role.",
+            "enum": [
+              "none",
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
         ]
       },
       "BoardDocumentDto": {
@@ -1098,8 +1280,10 @@
         "properties": {
           "role": {
             "enum": [
-              "admin",
-              "member"
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
             ],
             "type": "string"
           },
@@ -1126,8 +1310,10 @@
         "properties": {
           "role": {
             "enum": [
-              "admin",
-              "member"
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
             ],
             "type": "string"
           },
@@ -1180,8 +1366,10 @@
         "properties": {
           "role": {
             "enum": [
-              "admin",
-              "member"
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
             ],
             "type": "string"
           }
@@ -1195,8 +1383,10 @@
         "properties": {
           "role": {
             "enum": [
-              "admin",
-              "member"
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
             ],
             "type": "string"
           },
@@ -1216,8 +1406,10 @@
         "properties": {
           "role": {
             "enum": [
-              "admin",
-              "member"
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
             ],
             "type": "string"
           },

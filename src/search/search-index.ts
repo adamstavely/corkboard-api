@@ -97,13 +97,14 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
   }
 
   /** Boards in a workspace whose title or notes match, best first. */
-  async search(orgId: string, query: string, size = 20): Promise<SearchHit[]> {
+  async search(orgId: string, query: string, hidden: readonly string[] = [], size = 20): Promise<SearchHit[]> {
     const res = await this.#es.search<BoardSearchDoc>({
       index: BOARDS_INDEX,
       size,
       query: {
         bool: {
           filter: [{ term: { orgId } }],
+          must_not: hidden.length ? [{ ids: { values: [...hidden] } }] : [],
           must: [{ multi_match: { query, fields: ['title^2', 'notes'], fuzziness: 'AUTO', operator: 'and' } }],
         },
       },

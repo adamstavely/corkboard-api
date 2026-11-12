@@ -22,8 +22,11 @@ export const orgs = pgTable('orgs', {
   createdAt: createdAt(),
 });
 
-/** Admins configure the org's model providers; members use them. */
-export const orgRole = pgEnum('org_role', ['admin', 'member']);
+/**
+ * What someone may do, least first: read, comment, change content, or also manage (members, sharing, models, deleting).
+ * A workspace role is the default on every board in it; see `boardMembers`.
+ */
+export const orgRole = pgEnum('org_role', ['reader', 'commenter', 'updater', 'owner']);
 
 export const orgMembers = pgTable(
   'org_members',
@@ -34,7 +37,7 @@ export const orgMembers = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    role: orgRole('role').notNull().default('member'),
+    role: orgRole('role').notNull().default('updater'),
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
@@ -53,7 +56,7 @@ export const orgInvites = pgTable(
       .references(() => orgs.id, { onDelete: 'cascade' }),
     /** Lower-cased. */
     email: text('email').notNull(),
-    role: orgRole('role').notNull().default('member'),
+    role: orgRole('role').notNull().default('updater'),
     invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
   },
@@ -92,6 +95,28 @@ export const boards = pgTable('boards', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** A board role for one person, set on the board: any role, or none at all to keep them out. */
+export const boardAccess = pgEnum('board_access', ['none', 'reader', 'commenter', 'updater', 'owner']);
+
+/**
+ * Board-level roles that replace someone's workspace role on one board, raising or lowering it. Only for members of
+ * the board's workspace; workspace owners are owners of every board whatever this says.
+ */
+export const boardMembers = pgTable(
+  'board_members',
+  {
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: boardAccess('role').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.userId] }), index('board_members_user').on(t.userId)],
+);
+
 /** A board's content: the Yjs document, encoded as one update. Kept apart from `boards` so listing stays light. */
 export const boardDocuments = pgTable('board_documents', {
   boardId: uuid('board_id')
@@ -105,6 +130,7 @@ export type User = typeof users.$inferSelect;
 export type Org = typeof orgs.$inferSelect;
 export type Board = typeof boards.$inferSelect;
 export type OrgRole = (typeof orgRole.enumValues)[number];
+export type BoardAccess = (typeof boardAccess.enumValues)[number];
 export type OrgInvite = typeof orgInvites.$inferSelect;
 export type ModelProvider = typeof modelProviders.$inferSelect;
 export type ProviderKind = (typeof providerKind.enumValues)[number];

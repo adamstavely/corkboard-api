@@ -1,8 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, count, eq, ne } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, ne } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
-import { orgInvites, orgMembers, orgs, users, type OrgRole, type User } from '../db/schema';
+import { boardMembers, boards, orgInvites, orgMembers, orgs, users, type OrgRole, type User } from '../db/schema';
 import type { OrgDto } from './orgs.dto';
+import { CollabService } from '../collab/collab.service';
 import { OrgsService } from './orgs.service';
 import type { InviteDto, MembersDto, MyInviteDto } from './members.dto';
 
@@ -12,13 +13,14 @@ const normalise = (email: string) => email.trim().toLowerCase();
 
 /**
  * Who belongs to a workspace and at what role, and invites by email. Admins invite, change roles and remove people;
- * anyone may leave; a workspace always keeps at least one admin.
+ * anyone may leave; a workspace always keeps at least one owner.
  */
 @Injectable()
 export class MembersService {
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
+    private readonly collab: CollabService,
   ) {}
 
   async list(user: User, orgId: string): Promise<MembersDto> {
@@ -35,7 +37,7 @@ export class MembersService {
 
   /** Invites an email, or changes the role of its open invite. Someone already in the workspace can't be invited. */
   async invite(user: User, orgId: string, rawEmail: string, role: OrgRole): Promise<InviteDto> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     const email = normalise(rawEmail);
     const [member] = await this.db
       .select({ id: users.id })
@@ -53,7 +55,7 @@ export class MembersService {
   }
 
   async changeInvite(user: User, orgId: string, inviteId: string, role: OrgRole): Promise<InviteDto> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     const [invite] = await this.db
       .update(orgInvites)
       .set({ role })
@@ -64,7 +66,7 @@ export class MembersService {
   }
 
   async revokeInvite(user: User, orgId: string, inviteId: string): Promise<void> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     const deleted = await this.db
       .delete(orgInvites)
       .where(and(eq(orgInvites.id, inviteId), eq(orgInvites.orgId, orgId)))
@@ -73,27 +75,33 @@ export class MembersService {
   }
 
   async changeRole(user: User, orgId: string, memberId: string, role: OrgRole): Promise<void> {
-    await this.orgs.requireAdmin(user.id, orgId);
+    await this.orgs.require(user.id, orgId, 'owner');
     await this.db.transaction(async (tx) => {
       await this.#lockMembers(tx, orgId);
       const current = await this.#roleOf(tx, orgId, memberId);
-      if (current === 'admin' && role !== 'admin') await this.#keepAnAdmin(tx, orgId, memberId);
+      if (current === 'owner' && role !== 'owner') await this.#keepAnOwner(tx, orgId, memberId);
       await tx
         .update(orgMembers)
         .set({ role })
         .where(and(eq(orgMembers.orgId, orgId), eq(orgMembers.userId, memberId)));
     });
+    // Boards they have open take the new role once they reconnect.
+    this.collab.disconnect(memberId);
   }
 
-  /** Removes someone: an admin removing anyone, or anyone leaving. */
+  /** Removes someone: an owner removing anyone, or anyone leaving. Their roles on the workspace's boards go too. */
   async remove(user: User, orgId: string, memberId: string): Promise<void> {
     if (memberId === user.id) await this.orgs.roleIn(user.id, orgId);
-    else await this.orgs.requireAdmin(user.id, orgId);
+    else await this.orgs.require(user.id, orgId, 'owner');
     await this.db.transaction(async (tx) => {
       await this.#lockMembers(tx, orgId);
-      if ((await this.#roleOf(tx, orgId, memberId)) === 'admin') await this.#keepAnAdmin(tx, orgId, memberId);
+      if ((await this.#roleOf(tx, orgId, memberId)) === 'owner') await this.#keepAnOwner(tx, orgId, memberId);
       await tx.delete(orgMembers).where(and(eq(orgMembers.orgId, orgId), eq(orgMembers.userId, memberId)));
+      await tx
+        .delete(boardMembers)
+        .where(and(eq(boardMembers.userId, memberId), inArray(boardMembers.boardId, tx.select({ id: boards.id }).from(boards).where(eq(boards.orgId, orgId)))));
     });
+    this.collab.disconnect(memberId);
   }
 
   /** Invites waiting for the signed-in person, matched on their verified email. */
@@ -151,7 +159,7 @@ export class MembersService {
       .orderBy(asc(orgInvites.createdAt));
   }
 
-  /** Serialises membership changes per workspace, so two admins can't each demote the other. */
+  /** Serialises membership changes per workspace, so two owners can't each demote the other. */
   async #lockMembers(tx: Tx, orgId: string): Promise<void> {
     await tx.select({ id: orgs.id }).from(orgs).where(eq(orgs.id, orgId)).for('update');
   }
@@ -165,11 +173,11 @@ export class MembersService {
     return row.role;
   }
 
-  async #keepAnAdmin(tx: Tx, orgId: string, leaving: string): Promise<void> {
+  async #keepAnOwner(tx: Tx, orgId: string, leaving: string): Promise<void> {
     const [{ n }] = await tx
       .select({ n: count() })
       .from(orgMembers)
-      .where(and(eq(orgMembers.orgId, orgId), eq(orgMembers.role, 'admin'), ne(orgMembers.userId, leaving)));
-    if (n === 0) throw new ConflictException('A workspace needs at least one admin. Make someone else an admin first.');
+      .where(and(eq(orgMembers.orgId, orgId), eq(orgMembers.role, 'owner'), ne(orgMembers.userId, leaving)));
+    if (n === 0) throw new ConflictException('A workspace needs at least one owner. Make someone else an owner first.');
   }
 }

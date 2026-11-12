@@ -10,6 +10,7 @@ import { UsersService } from '../auth/users.service';
 import { TokenVerifier } from '../auth/token-verifier';
 import { boardText } from '../boards/board-text';
 import { BoardsService } from '../boards/boards.service';
+import { atLeast, type Role } from '../access/roles';
 import type { User } from '../db/schema';
 import { SearchIndex } from '../search/search-index';
 
@@ -23,6 +24,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface CollabContext {
   user: User;
+  /** Their role on the board; readers and commenters connect read-only. Unset for the server's own edits. */
+  role?: Role;
 }
 
 function toHeaders(raw: IncomingHttpHeaders): Headers {
@@ -57,7 +60,7 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
       // Save two seconds after the last change, and at least every ten while people keep editing.
       debounce: 2000,
       maxDebounce: 10_000,
-      onAuthenticate: async ({ token, documentName }): Promise<CollabContext> => {
+      onAuthenticate: async ({ token, documentName, connectionConfig }): Promise<CollabContext> => {
         if (!UUID.test(documentName)) throw new Error('Board not found');
         let user: User;
         try {
@@ -65,8 +68,10 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
         } catch {
           throw new Error('Your session has expired or is not valid');
         }
-        await this.boards.get(user, documentName);
-        return { user };
+        const { role } = await this.boards.access(user, documentName);
+        // Their edits are refused here, whatever the client does; they still see everyone else's, and share presence.
+        connectionConfig.readOnly = !atLeast(role, 'updater');
+        return { user, role };
       },
       extensions: [
         new Database({
@@ -103,6 +108,19 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
     );
     this.hocuspocus.closeConnections();
     this.#wss.close();
+  }
+
+  /**
+   * Disconnects one person from these boards (or all their boards), e.g. when their role changes. Their client
+   * reconnects and is let back in with the new role, or turned away.
+   */
+  disconnect(userId: string, boardIds?: readonly string[]): void {
+    for (const [name, document] of this.hocuspocus.documents) {
+      if (boardIds && !boardIds.includes(name)) continue;
+      for (const connection of document.connections.keys()) {
+        if ((connection.context as CollabContext | undefined)?.user?.id === userId) connection.close();
+      }
+    }
   }
 
   /** Disconnects everyone from a board, e.g. once it's deleted. */

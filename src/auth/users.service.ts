@@ -10,7 +10,7 @@ export class UsersService {
 
   /**
    * The user behind a verified token, created on their first request. A new user gets an org of their own, which they
-   * administer, so they can make boards straight away.
+   * own, so they can make boards straight away.
    */
   async signIn(identity: Identity): Promise<User> {
     const existing = await this.db.query.users.findFirst({ where: eq(users.oidcSubject, identity.subject) });
@@ -48,7 +48,7 @@ export class UsersService {
         .insert(orgs)
         .values({ name: `${identity.name}'s workspace` })
         .returning();
-      await tx.insert(orgMembers).values({ orgId: org.id, userId: created.id, role: 'admin' });
+      await tx.insert(orgMembers).values({ orgId: org.id, userId: created.id, role: 'owner' });
       return created;
     });
   }
