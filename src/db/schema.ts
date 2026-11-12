@@ -1,4 +1,4 @@
-import { customType, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, customType, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -10,6 +10,8 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   oidcSubject: text('oidc_subject').notNull().unique(),
   email: text('email'),
+  /** Set from the identity provider's email_verified claim on each sign-in. */
+  emailVerified: boolean('email_verified').notNull().default(false),
   name: text('name').notNull(),
   createdAt: createdAt(),
 });
@@ -38,6 +40,26 @@ export const orgMembers = pgTable(
   (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
 );
 
+/**
+ * Someone asked to join a workspace, by email. They see it once they sign in with that email, verified by the identity
+ * provider, and accept or decline it there. One open invite per email per workspace.
+ */
+export const orgInvites = pgTable(
+  'org_invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    /** Lower-cased. */
+    email: text('email').notNull(),
+    role: orgRole('role').notNull().default('member'),
+    invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('org_invites_org_email').on(t.orgId, t.email), index('org_invites_email').on(t.email)],
+);
+
 export const boards = pgTable('boards', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
@@ -62,3 +84,4 @@ export type User = typeof users.$inferSelect;
 export type Org = typeof orgs.$inferSelect;
 export type Board = typeof boards.$inferSelect;
 export type OrgRole = (typeof orgRole.enumValues)[number];
+export type OrgInvite = typeof orgInvites.$inferSelect;

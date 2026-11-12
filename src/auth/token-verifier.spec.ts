@@ -24,14 +24,16 @@ async function setup(audience?: string) {
 describe('TokenVerifier', () => {
   it('reads who the caller is, falling back from name to username, email and subject', async () => {
     const { verifier, sign } = await setup();
-    expect(await verifier.verify(await sign({ name: ' Ada ', email: 'ada@x.test' }))).toEqual({
+    expect(await verifier.verify(await sign({ name: ' Ada ', email: 'ada@x.test', email_verified: true }))).toEqual({
       subject: 'abc',
       name: 'Ada',
       email: 'ada@x.test',
+      emailVerified: true,
     });
     expect((await verifier.verify(await sign({ preferred_username: 'ada', email: 'a@x.test' }))).name).toBe('ada');
     expect((await verifier.verify(await sign({ email: 'a@x.test' }))).name).toBe('a@x.test');
-    expect(await verifier.verify(await sign({}))).toEqual({ subject: 'abc', name: 'abc', email: undefined });
+    expect(await verifier.verify(await sign({}))).toEqual({ subject: 'abc', name: 'abc', email: undefined, emailVerified: false });
+    expect((await verifier.verify(await sign({ email: 'a@x.test', email_verified: 'true' }))).emailVerified).toBe(false);
   });
 
   it('checks the audience only when one is configured', async () => {

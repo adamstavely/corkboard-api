@@ -7,6 +7,8 @@ import type { OidcConfig } from '../config/configuration';
 export interface Identity {
   subject: string;
   email: string | undefined;
+  /** Whether the identity provider has confirmed they own `email`; only then can it match an invite. */
+  emailVerified: boolean;
   name: string;
 }
 
@@ -57,5 +59,10 @@ function identityOf(payload: JWTPayload): Identity {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   };
   const email = claim('email');
-  return { subject: payload.sub, email, name: claim('name') ?? claim('preferred_username') ?? email ?? payload.sub };
+  return {
+    subject: payload.sub,
+    email,
+    emailVerified: !!email && payload['email_verified'] === true,
+    name: claim('name') ?? claim('preferred_username') ?? email ?? payload.sub,
+  };
 }

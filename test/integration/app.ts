@@ -39,7 +39,7 @@ export async function createTestApp(): Promise<TestApp> {
   const { port } = app.getHttpServer().address() as AddressInfo;
 
   const sign = (key: KeyLike, subject: string, claims: Record<string, unknown> = {}) =>
-    new SignJWT({ name: `Person ${subject}`, email: `${subject}@corkboard.test`, ...claims })
+    new SignJWT({ name: `Person ${subject}`, email: `${subject}@corkboard.test`, email_verified: true, ...claims })
       .setProtectedHeader({ alg: 'RS256', kid })
       .setSubject(subject)
       .setIssuer((claims.iss as string) ?? ISSUER)
