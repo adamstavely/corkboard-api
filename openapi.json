@@ -1376,6 +1376,26 @@
           "latencyMs"
         ]
       },
+      "AssistTurnDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ]
+      },
       "AssistRequestDto": {
         "type": "object",
         "properties": {
@@ -1396,6 +1416,14 @@
             "items": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          "history": {
+            "description": "The conversation so far, oldest first, without this message; for follow-up questions.",
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistTurnDto"
             }
           }
         },
@@ -1424,6 +1452,13 @@
           "notesMoved": {
             "type": "number",
             "description": "Existing notes the model moved into frames."
+          },
+          "citedNoteIds": {
+            "description": "Notes the answer is about, most relevant first, for the person to find on the board.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -1431,7 +1466,8 @@
           "notesAdded",
           "notesChanged",
           "framesAdded",
-          "notesMoved"
+          "notesMoved",
+          "citedNoteIds"
         ]
       }
     }
