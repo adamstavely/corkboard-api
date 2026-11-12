@@ -265,36 +265,47 @@
             "bearer": []
           }
         ],
-        "summary": "The board's content. Until real-time sync arrives, the client loads it here and saves it back below.",
+        "summary": "The board's content as last saved, read-only: editing happens over the collaboration socket (/collab).",
         "tags": [
           "boards"
         ]
-      },
-      "put": {
-        "operationId": "BoardsController_saveDocument",
+      }
+    },
+    "/orgs/{orgId}/search": {
+      "get": {
+        "operationId": "SearchController_search",
         "parameters": [
           {
-            "name": "id",
+            "name": "orgId",
             "required": true,
             "in": "path",
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BoardDocumentDto"
-              }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
-          "204": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHitDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -302,8 +313,9 @@
             "bearer": []
           }
         ],
+        "summary": "Boards in the workspace whose title or notes match the query.",
         "tags": [
-          "boards"
+          "search"
         ]
       }
     }
@@ -443,12 +455,38 @@
         "type": "object",
         "properties": {
           "state": {
-            "type": "string",
-            "format": "base64"
+            "type": "string"
           }
         },
         "required": [
           "state"
+        ]
+      },
+      "SearchHitDto": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "snippets": {
+            "description": "Matching passages as HTML-escaped text, with the matches wrapped in <mark>.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "boardId",
+          "title",
+          "updatedAt",
+          "snippets"
         ]
       }
     }

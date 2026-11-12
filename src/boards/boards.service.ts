@@ -3,15 +3,14 @@ import { and, desc, eq } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
 import { boardDocuments, boards, orgMembers, type Board, type User } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
-
-/** Most a board's document may grow to, encoded. Generous for stickies; a guard against runaway clients. */
-export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+import { SearchIndex } from '../search/search-index';
 
 @Injectable()
 export class BoardsService {
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
+    private readonly search: SearchIndex,
   ) {}
 
   async list(user: User, orgId: string): Promise<Board[]> {
@@ -22,6 +21,7 @@ export class BoardsService {
   async create(user: User, orgId: string, title: string): Promise<Board> {
     await this.orgs.roleIn(user.id, orgId);
     const [board] = await this.db.insert(boards).values({ orgId, title: title.trim(), createdBy: user.id }).returning();
+    await this.search.indexBoard(board);
     return board;
   }
 
@@ -43,12 +43,14 @@ export class BoardsService {
       .set({ title: title.trim(), updatedAt: new Date() })
       .where(eq(boards.id, boardId))
       .returning();
+    await this.search.indexBoard(board);
     return board;
   }
 
   async remove(user: User, boardId: string): Promise<void> {
     await this.get(user, boardId);
     await this.db.delete(boards).where(eq(boards.id, boardId));
+    await this.search.removeBoard(boardId);
   }
 
   async document(user: User, boardId: string): Promise<Buffer> {
@@ -57,15 +59,23 @@ export class BoardsService {
     return doc?.state ?? Buffer.alloc(0);
   }
 
-  async saveDocument(user: User, boardId: string, state: Buffer): Promise<void> {
-    await this.get(user, boardId);
+  /** A board's stored document, for the collaboration server; it has already checked access. */
+  async loadState(boardId: string): Promise<Buffer | undefined> {
+    const doc = await this.db.query.boardDocuments.findFirst({ where: eq(boardDocuments.boardId, boardId) });
+    return doc?.state;
+  }
+
+  /** Saves a board's document and marks the board changed. Returns the board, or undefined if it's been deleted. */
+  async storeState(boardId: string, state: Buffer): Promise<Board | undefined> {
     const now = new Date();
-    await this.db.transaction(async (tx) => {
+    return this.db.transaction(async (tx) => {
+      const [board] = await tx.update(boards).set({ updatedAt: now }).where(eq(boards.id, boardId)).returning();
+      if (!board) return undefined;
       await tx
         .insert(boardDocuments)
         .values({ boardId, state, updatedAt: now })
         .onConflictDoUpdate({ target: boardDocuments.boardId, set: { state, updatedAt: now } });
-      await tx.update(boards).set({ updatedAt: now }).where(eq(boards.id, boardId));
+      return board;
     });
   }
 }

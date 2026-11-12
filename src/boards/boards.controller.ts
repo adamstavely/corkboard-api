@@ -7,15 +7,14 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
-  PayloadTooLargeException,
   Post,
-  Put,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
+import { CollabService } from '../collab/collab.service';
 import { BoardDocumentDto, BoardDto, CreateBoardDto, UpdateBoardDto } from './boards.dto';
-import { BoardsService, MAX_DOCUMENT_BYTES } from './boards.service';
+import { BoardsService } from './boards.service';
 
 const toDto = ({ id, orgId, title, createdAt, updatedAt }: BoardDto): BoardDto => ({
   id,
@@ -29,7 +28,10 @@ const toDto = ({ id, orgId, title, createdAt, updatedAt }: BoardDto): BoardDto =
 @ApiBearerAuth()
 @Controller()
 export class BoardsController {
-  constructor(private readonly boards: BoardsService) {}
+  constructor(
+    private readonly boards: BoardsService,
+    private readonly collab: CollabService,
+  ) {}
 
   /** A workspace's boards, most recently changed first. */
   @Get('orgs/:orgId/boards')
@@ -64,23 +66,12 @@ export class BoardsController {
   @HttpCode(204)
   async remove(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.boards.remove(user, id);
+    this.collab.closeBoard(id);
   }
 
-  /** The board's content. Until real-time sync arrives, the client loads it here and saves it back below. */
+  /** The board's content as last saved, read-only: editing happens over the collaboration socket (/collab). */
   @Get('boards/:id/document')
   async document(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<BoardDocumentDto> {
     return { state: (await this.boards.document(user, id)).toString('base64') };
-  }
-
-  @Put('boards/:id/document')
-  @HttpCode(204)
-  async saveDocument(
-    @CurrentUser() user: User,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: BoardDocumentDto,
-  ): Promise<void> {
-    const state = Buffer.from(body.state, 'base64');
-    if (state.length > MAX_DOCUMENT_BYTES) throw new PayloadTooLargeException('This board is too large to save');
-    await this.boards.saveDocument(user, id, state);
   }
 }
