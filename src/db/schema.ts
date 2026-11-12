@@ -60,6 +60,27 @@ export const orgInvites = pgTable(
   (t) => [uniqueIndex('org_invites_org_email').on(t.orgId, t.email), index('org_invites_email').on(t.email)],
 );
 
+/** Which API a model connection speaks: Anthropic's Messages API, or OpenAI's Chat Completions (any compatible server). */
+export const providerKind = pgEnum('provider_kind', ['anthropic', 'openai']);
+
+/**
+ * A model a workspace's admins connected: its API, model id and, for OpenAI-compatible servers, where it lives. The
+ * key is encrypted at rest (see SecretBox) and never leaves the API.
+ */
+export const modelProviders = pgTable('model_providers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  label: text('label').notNull(),
+  kind: providerKind('kind').notNull(),
+  model: text('model').notNull(),
+  baseUrl: text('base_url'),
+  apiKeyEncrypted: text('api_key_encrypted'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+});
+
 export const boards = pgTable('boards', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
@@ -85,3 +106,5 @@ export type Org = typeof orgs.$inferSelect;
 export type Board = typeof boards.$inferSelect;
 export type OrgRole = (typeof orgRole.enumValues)[number];
 export type OrgInvite = typeof orgInvites.$inferSelect;
+export type ModelProvider = typeof modelProviders.$inferSelect;
+export type ProviderKind = (typeof providerKind.enumValues)[number];

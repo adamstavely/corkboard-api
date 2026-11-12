@@ -1,6 +1,8 @@
 import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
+import { AssistController } from './assist/assist.controller';
+import { AssistService } from './assist/assist.service';
 import { AuthGuard } from './auth/auth.guard';
 import { discoveredKeys, KEY_SOURCE, TokenVerifier } from './auth/token-verifier';
 import { UsersService } from './auth/users.service';
@@ -11,6 +13,10 @@ import configuration from './config/configuration';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { MeController } from './me/me.controller';
+import { CHAT_MODELS, chatModelFor } from './models/chat-models';
+import { ProvidersController } from './models/providers.controller';
+import { ProvidersService } from './models/providers.service';
+import { SecretBox } from './models/secret-box';
 import { MembersController } from './orgs/members.controller';
 import { MembersService } from './orgs/members.service';
 import { OrgsService } from './orgs/orgs.service';
@@ -19,13 +25,25 @@ import { SearchIndex } from './search/search-index';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), DbModule],
-  controllers: [HealthController, MeController, BoardsController, SearchController, MembersController],
+  controllers: [
+    HealthController,
+    MeController,
+    BoardsController,
+    SearchController,
+    MembersController,
+    ProvidersController,
+    AssistController,
+  ],
   providers: [
     { provide: KEY_SOURCE, useValue: discoveredKeys },
     TokenVerifier,
     UsersService,
     OrgsService,
     MembersService,
+    SecretBox,
+    { provide: CHAT_MODELS, useValue: chatModelFor },
+    ProvidersService,
+    AssistService,
     BoardsService,
     SearchIndex,
     CollabService,

@@ -662,6 +662,266 @@
           "members"
         ]
       }
+    },
+    "/orgs/{orgId}/models": {
+      "get": {
+        "operationId": "ProvidersController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The models this workspace can use.",
+        "tags": [
+          "models"
+        ]
+      },
+      "post": {
+        "operationId": "ProvidersController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProviderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Admins: connect a model.",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/orgs/{orgId}/models/{id}": {
+      "patch": {
+        "operationId": "ProvidersController_update",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProviderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "models"
+        ]
+      },
+      "delete": {
+        "operationId": "ProvidersController_remove",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/orgs/{orgId}/models/{id}/test": {
+      "post": {
+        "operationId": "ProvidersController_test",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTestDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Admins: check the connection works, with a one-word reply.",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/boards/{id}/assist": {
+      "post": {
+        "operationId": "AssistController_assist",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Asks one of the workspace's models about the board (or the selected notes), letting it add and recolour notes.\nAnswers 502 with the model's problem in plain words when the model fails.",
+        "tags": [
+          "assist"
+        ]
+      }
     }
   },
   "info": {
@@ -981,6 +1241,187 @@
           "orgId",
           "orgName",
           "invitedByName"
+        ]
+      },
+      "ProviderDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "anthropic",
+              "openai"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasKey": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "model",
+          "baseUrl",
+          "hasKey",
+          "createdAt"
+        ]
+      },
+      "CreateProviderDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "anthropic",
+              "openai"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "What people see in the model picker, e.g. \"Claude\" or \"Llama on our GPU box\".",
+            "maxLength": 80
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "baseUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Required for OpenAI-compatible servers; for Anthropic, only to go through a proxy.",
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "Stored encrypted; omit for servers that need none (a local Ollama).",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "model"
+        ]
+      },
+      "UpdateProviderDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "baseUrl": {
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "apiKey": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "ProviderTestDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "What the test found: it works, or which part is at fault.",
+            "enum": [
+              "healthy",
+              "auth-failed",
+              "model-unavailable",
+              "unreachable",
+              "error"
+            ],
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "description": "The model's reply, or what went wrong."
+          },
+          "latencyMs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "status",
+          "ok",
+          "message",
+          "latencyMs"
+        ]
+      },
+      "AssistRequestDto": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "description": "Which of the workspace's models to ask.",
+            "format": "uuid"
+          },
+          "instruction": {
+            "type": "string",
+            "description": "What the person wants: a question about the board, or something to do on it.",
+            "maxLength": 4000
+          },
+          "noteIds": {
+            "description": "Notes to focus on (a selection); without them, the whole board.",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "modelId",
+          "instruction"
+        ]
+      },
+      "AssistResultDto": {
+        "type": "object",
+        "properties": {
+          "reply": {
+            "type": "string",
+            "description": "The model's answer, for the person who asked."
+          },
+          "notesAdded": {
+            "type": "number"
+          },
+          "notesChanged": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "reply",
+          "notesAdded",
+          "notesChanged"
         ]
       }
     }
