@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      # openapi.json is committed (the frontend generates its client from it); fail if it's stale.
+      - name: Check OpenAPI spec is up to date
+        run: |
+          npm run openapi:export
+          git diff --exit-code openapi.json || { echo "::error file=openapi.json::openapi.json is stale. Run npm run openapi:export and commit it."; exit 1; }
+      # Migrations are generated from src/db/schema.ts; fail if a schema change has none.
+      - name: Check migrations are up to date
+        run: |
+          npm run db:generate
+          git status --porcelain drizzle | grep . && { echo "::error::Schema changed without a migration. Run npm run db:generate and commit drizzle/."; exit 1; } || true
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Testcontainers starts Postgres on the runner's Docker.
+      - run: npm run test:int
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: corkboard-api:ci

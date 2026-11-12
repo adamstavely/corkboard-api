@@ -1,0 +1,89 @@
+import { randomUUID } from 'node:crypto';
+import request from 'supertest';
+import { createTestApp, type TestApp } from './app';
+
+describe('Boards', () => {
+  let t: TestApp;
+  const as = async (subject: string) => ({ Authorization: `Bearer ${await t.token(subject)}` });
+
+  beforeAll(async () => {
+    t = await createTestApp();
+  });
+  afterAll(async () => {
+    await t.app.close();
+  });
+
+  /** Signs a new person in and returns their own workspace's id. */
+  async function workspaceOf(subject: string): Promise<string> {
+    const me = await request(t.app.getHttpServer()).get('/me').set(await as(subject)).expect(200);
+    return me.body.orgs[0].id;
+  }
+
+  it('creates, lists, renames and deletes boards', async () => {
+    const subject = randomUUID();
+    const orgId = await workspaceOf(subject);
+    const server = t.app.getHttpServer();
+
+    const created = await request(server)
+      .post(`/orgs/${orgId}/boards`)
+      .set(await as(subject))
+      .send({ title: '  Q3 retro ' })
+      .expect(201);
+    expect(created.body).toMatchObject({ orgId, title: 'Q3 retro' });
+    const id = created.body.id;
+
+    const list = await request(server).get(`/orgs/${orgId}/boards`).set(await as(subject)).expect(200);
+    expect(list.body.map((b: { id: string }) => b.id)).toEqual([id]);
+
+    await request(server).patch(`/boards/${id}`).set(await as(subject)).send({ title: 'Q3 retro (final)' }).expect(200);
+    const got = await request(server).get(`/boards/${id}`).set(await as(subject)).expect(200);
+    expect(got.body.title).toBe('Q3 retro (final)');
+
+    await request(server).delete(`/boards/${id}`).set(await as(subject)).expect(204);
+    await request(server).get(`/boards/${id}`).set(await as(subject)).expect(404);
+  });
+
+  it('rejects an empty title and unknown fields', async () => {
+    const subject = randomUUID();
+    const orgId = await workspaceOf(subject);
+    const server = t.app.getHttpServer();
+    await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: '' }).expect(400);
+    await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: 'x', owner: 'y' }).expect(400);
+  });
+
+  it('starts a board empty, then returns the document it was saved with', async () => {
+    const subject = randomUUID();
+    const orgId = await workspaceOf(subject);
+    const server = t.app.getHttpServer();
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: 'Plan' });
+
+    const empty = await request(server).get(`/boards/${board.id}/document`).set(await as(subject)).expect(200);
+    expect(empty.body).toEqual({ state: '' });
+
+    const state = Buffer.from([1, 2, 3, 250, 0, 7]).toString('base64');
+    await request(server).put(`/boards/${board.id}/document`).set(await as(subject)).send({ state }).expect(204);
+    await request(server).put(`/boards/${board.id}/document`).set(await as(subject)).send({ state }).expect(204);
+    const saved = await request(server).get(`/boards/${board.id}/document`).set(await as(subject)).expect(200);
+    expect(saved.body).toEqual({ state });
+
+    // Saving counts as a change, so the board moves to the top of the list.
+    const after = await request(server).get(`/boards/${board.id}`).set(await as(subject)).expect(200);
+    expect(new Date(after.body.updatedAt).getTime()).toBeGreaterThan(new Date(board.updatedAt).getTime());
+  });
+
+  it("hides other workspaces' boards as if they didn't exist", async () => {
+    const owner = randomUUID();
+    const stranger = randomUUID();
+    const orgId = await workspaceOf(owner);
+    await workspaceOf(stranger);
+    const server = t.app.getHttpServer();
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(owner)).send({ title: 'Private' });
+
+    await request(server).get(`/boards/${board.id}`).set(await as(stranger)).expect(404);
+    await request(server).get(`/boards/${board.id}/document`).set(await as(stranger)).expect(404);
+    await request(server).put(`/boards/${board.id}/document`).set(await as(stranger)).send({ state: '' }).expect(404);
+    await request(server).delete(`/boards/${board.id}`).set(await as(stranger)).expect(404);
+    await request(server).get(`/orgs/${orgId}/boards`).set(await as(stranger)).expect(404);
+    await request(server).post(`/orgs/${orgId}/boards`).set(await as(stranger)).send({ title: 'x' }).expect(404);
+  });
+});
