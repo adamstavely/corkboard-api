@@ -1416,12 +1416,22 @@
           },
           "notesChanged": {
             "type": "number"
+          },
+          "framesAdded": {
+            "type": "number",
+            "description": "Frames the model made, to group notes or hold action items."
+          },
+          "notesMoved": {
+            "type": "number",
+            "description": "Existing notes the model moved into frames."
           }
         },
         "required": [
           "reply",
           "notesAdded",
-          "notesChanged"
+          "notesChanged",
+          "framesAdded",
+          "notesMoved"
         ]
       }
     }

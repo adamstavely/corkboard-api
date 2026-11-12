@@ -24,4 +24,8 @@ export class AssistResultDto {
   reply!: string;
   notesAdded!: number;
   notesChanged!: number;
+  /** Frames the model made, to group notes or hold action items. */
+  framesAdded!: number;
+  /** Existing notes the model moved into frames. */
+  notesMoved!: number;
 }
