@@ -117,6 +117,39 @@ export const boardMembers = pgTable(
   (t) => [primaryKey({ columns: [t.boardId, t.userId] }), index('board_members_user').on(t.userId)],
 );
 
+/**
+ * The conversation about one note or frame (its id in the board's document). Resolved threads stay, folded away; a new
+ * comment reopens one.
+ */
+export const commentThreads = pgTable(
+  'comment_threads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    nodeId: text('node_id').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('comment_threads_board_node').on(t.boardId, t.nodeId)],
+);
+
+export const comments = pgTable(
+  'comments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => commentThreads.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
+    body: text('body').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('comments_thread').on(t.threadId, t.createdAt)],
+);
+
 /** A board's content: the Yjs document, encoded as one update. Kept apart from `boards` so listing stays light. */
 export const boardDocuments = pgTable('board_documents', {
   boardId: uuid('board_id')
