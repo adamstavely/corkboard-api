@@ -5,6 +5,7 @@ import * as Y from 'yjs';
 import { addNotes, framesOf, notesOf } from '../../src/assist/board-edit';
 import { ModelError, type ChatRequest } from '../../src/models/adapters/types';
 import type { ModelProvider } from '../../src/db/schema';
+import { CollabService } from '../../src/collab/collab.service';
 import { createTestApp, type TestApp } from './app';
 
 /** What the scripted model does with each request; tests set it. */
@@ -213,6 +214,38 @@ describe('Model connections and the assistant', () => {
     expect(notes.find((n) => n.text === 'Recruit testers')).toMatchObject({ frame: 'Week 1', color: 'blue' });
     expect(notes.find((n) => n.id === launch)!.frame).toBe('Week 2');
     ada$.destroy();
+  });
+
+  it('saves what the model did when nobody has the board open', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Plan' });
+
+    // Ada writes a note and leaves.
+    const doc = new Y.Doc();
+    const ada$ = await new Promise<HocuspocusProvider>((resolve) => {
+      const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: doc, onSynced: (): void => resolve(p) });
+    });
+    const [design] = addNotes(doc, [{ text: 'Design the beta', color: 'yellow' }]);
+    await new Promise((r) => setTimeout(r, 200));
+    ada$.destroy();
+    for (let i = 0; i < 100 && t.app.get(CollabService).hocuspocus.documents.has(board.id); i++) await new Promise((r) => setTimeout(r, 50));
+
+    script = async (req) => {
+      await req.execute('make_timeline', { title: 'Beta plan', periods: [{ label: 'Week 1', items: [{ note_id: design, text: '' }] }] });
+      return 'Done.';
+    };
+    await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Make this a timeline' }).expect(200);
+
+    // Opening it again shows the timeline.
+    const again = new Y.Doc();
+    const back$ = await new Promise<HocuspocusProvider>((resolve) => {
+      const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: again, onSynced: (): void => resolve(p) });
+    });
+    expect(framesOf(again).map((f) => f.title).sort()).toEqual(['Beta plan', 'Week 1']);
+    expect(notesOf(again).find((n) => n.id === design)!.frame).toBe('Week 1');
+    back$.destroy();
   });
 
   it('answers 502 with the model’s problem, and 404 for a model or board elsewhere', async () => {

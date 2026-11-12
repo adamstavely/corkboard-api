@@ -284,7 +284,8 @@ export class AssistService {
           notesMoved += result.moved;
           notesAdded += result.added;
           const replaced = result.replaced ? ` Removed ${result.replaced} old frames they left empty.` : '';
-          return `Made the timeline "${title}" with ${periods.length} periods: moved ${result.moved} notes and wrote ${result.added} new ones.${replaced}`;
+          const notes = (n: number) => `${n} note${n === 1 ? '' : 's'}`;
+          return `Made the timeline "${title}" with ${periods.length} periods: moved ${notes(result.moved)} and wrote ${result.added} new.${replaced}`;
         }
         if (name === 'set_note_color') {
           const ids = (Array.isArray(args['note_ids']) ? args['note_ids'] : []).filter((id): id is string => typeof id === 'string');
