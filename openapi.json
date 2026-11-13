@@ -47,6 +47,123 @@
         ]
       }
     },
+    "/boards/{id}/voting": {
+      "put": {
+        "operationId": "FacilitationController_setVoting",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetVotingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: open a round of dot voting (clearing the last), or close it to show the results.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/votes": {
+      "post": {
+        "operationId": "FacilitationController_vote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CastVoteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up, while a vote runs: add a vote to a note, or take one back. 409 when out of votes.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/timer": {
+      "put": {
+        "operationId": "FacilitationController_setTimer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTimerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: start the board's shared timer, or stop it.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/boards/{id}/comments": {
       "get": {
         "operationId": "CommentsController_list",
@@ -1366,6 +1483,61 @@
           "name",
           "at",
           "text"
+        ]
+      },
+      "SetVotingDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean",
+            "description": "Opens a new round (clearing the last one's votes), or closes the current one."
+          },
+          "votesEach": {
+            "type": "number",
+            "description": "Votes each person gets in a new round.",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "open"
+        ]
+      },
+      "CastVoteDto": {
+        "type": "object",
+        "properties": {
+          "noteId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "add": {
+            "type": "boolean",
+            "description": "Adds a vote, or takes one back."
+          }
+        },
+        "required": [
+          "noteId",
+          "add"
+        ]
+      },
+      "SetTimerDto": {
+        "type": "object",
+        "properties": {
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "description": "How long, from now; null stops the timer.",
+            "minimum": 10,
+            "maximum": 3600
+          },
+          "label": {
+            "type": "string",
+            "description": "What the time is for, e.g. \"Add notes\".",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "seconds"
         ]
       },
       "CommentAuthorDto": {
