@@ -7,7 +7,6 @@ import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
 import * as Y from 'yjs';
 import { UsersService } from '../auth/users.service';
-import { TokenVerifier } from '../auth/token-verifier';
 import { boardText } from '../boards/board-text';
 import { BoardsService } from '../boards/boards.service';
 import { atLeast, type Role } from '../access/roles';
@@ -49,7 +48,6 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
-    private readonly verifier: TokenVerifier,
     private readonly users: UsersService,
     private readonly boards: BoardsService,
     private readonly search: SearchIndex,
@@ -64,9 +62,9 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
         if (!UUID.test(documentName)) throw new Error('Board not found');
         let user: User;
         try {
-          user = await this.users.signIn(await this.verifier.verify(token));
+          user = await this.users.byToken(token);
         } catch {
-          throw new Error('Your session has expired or is not valid');
+          throw new Error('Pick who you are first');
         }
         const { role } = await this.boards.access(user, documentName);
         // Their edits are refused here, whatever the client does; they still see everyone else's, and share presence.

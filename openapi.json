@@ -197,6 +197,60 @@
         ]
       }
     },
+    "/people": {
+      "get": {
+        "operationId": "PeopleController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PersonDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      },
+      "post": {
+        "operationId": "PeopleController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePersonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Adds someone to pick; their id is then their bearer token.",
+        "tags": [
+          "people"
+        ]
+      }
+    },
     "/me": {
       "get": {
         "operationId": "MeController_me",
@@ -745,7 +799,7 @@
             "bearer": []
           }
         ],
-        "summary": "Admins: invite an email at a role; they see it once they sign in with that email, verified.",
+        "summary": "Admins: invite an email at a role; they see it once they sign in with that email.",
         "tags": [
           "members"
         ]
@@ -1316,6 +1370,43 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "PersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
+        ]
+      },
+      "CreatePersonDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          }
+        },
+        "required": [
+          "name",
+          "email"
         ]
       },
       "OrgDto": {

@@ -41,7 +41,7 @@ export class MembersController {
     await this.members.remove(user, orgId, userId);
   }
 
-  /** Admins: invite an email at a role; they see it once they sign in with that email, verified. */
+  /** Admins: invite an email at a role; they see it once they sign in with that email. */
   @Post('orgs/:orgId/invites')
   invite(
     @CurrentUser() user: User,

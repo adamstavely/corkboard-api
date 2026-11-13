@@ -6,7 +6,7 @@ import { AssistService } from './assist/assist.service';
 import { CommentsController } from './comments/comments.controller';
 import { CommentsService } from './comments/comments.service';
 import { AuthGuard } from './auth/auth.guard';
-import { discoveredKeys, KEY_SOURCE, TokenVerifier } from './auth/token-verifier';
+import { PeopleController } from './auth/people.controller';
 import { UsersService } from './auth/users.service';
 import { BoardsController } from './boards/boards.controller';
 import { BoardsService } from './boards/boards.service';
@@ -30,6 +30,7 @@ import { SearchIndex } from './search/search-index';
   controllers: [
     CommentsController,
     HealthController,
+    PeopleController,
     MeController,
     BoardsController,
     SearchController,
@@ -38,8 +39,6 @@ import { SearchIndex } from './search/search-index';
     AssistController,
   ],
   providers: [
-    { provide: KEY_SOURCE, useValue: discoveredKeys },
-    TokenVerifier,
     UsersService,
     OrgsService,
     MembersService,

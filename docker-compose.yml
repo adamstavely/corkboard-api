@@ -1,5 +1,4 @@
-# Local dev: Postgres, Elasticsearch for search, and a Keycloak to sign in with. Host ports are offset (5440, 9210,
-# 8280) to stay clear of other apps.
+# Local dev: Postgres, and Elasticsearch for search. Host ports are offset (5440, 9210) to stay clear of other apps.
 services:
   postgres:
     image: postgres:17-alpine
@@ -33,20 +32,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-
-  # Realm "corkboard" with the UI's client and two people to sign in as (keycloak/corkboard-realm.json).
-  # Dev only: start-dev, an in-memory database and the admin/admin console at http://localhost:8280.
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.4
-    command: ["start-dev", "--import-realm", "--http-port=8280"]
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: http://localhost:8280
-    ports:
-      - "8280:8280"
-    volumes:
-      - ./keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   pgdata:

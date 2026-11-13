@@ -1,7 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, SetMetadata, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { TokenVerifier } from './token-verifier';
 import { UsersService } from './users.service';
 import type { User } from '../db/schema';
 
@@ -12,12 +11,11 @@ export const Public = () => SetMetadata(PUBLIC, true);
 
 export type AuthedRequest = Request & { user: User };
 
-/** Every route needs a bearer token from the identity provider, except those marked @Public(). */
+/** Every route needs a bearer token, the id of the person the caller picked, except those marked @Public(). */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly verifier: TokenVerifier,
     private readonly users: UsersService,
   ) {}
 
@@ -26,15 +24,12 @@ export class AuthGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<AuthedRequest>();
     const [scheme, token] = req.headers.authorization?.split(' ') ?? [];
-    if (scheme?.toLowerCase() !== 'bearer' || !token) throw new UnauthorizedException('Sign in first');
-
-    let identity;
+    if (scheme?.toLowerCase() !== 'bearer' || !token) throw new UnauthorizedException('Pick who you are first');
     try {
-      identity = await this.verifier.verify(token);
+      req.user = await this.users.byToken(token);
     } catch {
-      throw new UnauthorizedException('Your session has expired or is not valid');
+      throw new UnauthorizedException('Pick who you are first');
     }
-    req.user = await this.users.signIn(identity);
     return true;
   }
 }
