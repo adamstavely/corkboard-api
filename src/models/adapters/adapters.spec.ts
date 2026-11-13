@@ -35,6 +35,15 @@ describe('Anthropic adapter', () => {
     expect(second).toMatchObject({ betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
   });
 
+  it('shows the model pictures before the prompt', async () => {
+    const { create, client } = fake({ stop_reason: 'end_turn', content: [] });
+    await anthropicModel({ model: 'm', apiKey: 'k', label: 'C', client }).chat({ ...request(), images: [{ mediaType: 'image/png', data: 'iVBOR' }] });
+    expect(create.mock.calls[0][0].messages[0].content).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBOR' } },
+      { type: 'text', text: 'Add a note' },
+    ]);
+  });
+
   it('sends no fallbacks to other models or through a proxy', async () => {
     for (const opts of [{ model: 'claude-haiku-5-5' }, { model: 'claude-opus-5-5', baseUrl: 'https://proxy.test' }]) {
       const { create, client } = fake({ stop_reason: 'end_turn', content: [] });
@@ -81,6 +90,18 @@ describe('OpenAI-compatible adapter', () => {
     const body = JSON.parse(fetch.mock.calls[1][1].body);
     expect(body.tool_choice).toBe('auto');
     expect(body.messages.at(-1)).toEqual({ role: 'tool', tool_call_id: 'c1', content: 'Added 1 note' });
+  });
+
+  it('sends pictures as data URLs after the prompt', async () => {
+    const fetch = jest.fn().mockResolvedValueOnce(ok({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'A cat.' } }] }));
+    await openAICompatibleModel({ model: 'm', baseUrl: 'https://x.test/v1', apiKey: 'k', label: 'GPT', fetch }).chat({ ...request(), images: [{ mediaType: 'image/jpeg', data: '/9j/' }] });
+    expect(JSON.parse(fetch.mock.calls[0][1].body).messages[1]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Add a note' },
+        { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,/9j/' } },
+      ],
+    });
   });
 
   it('says plainly what went wrong', async () => {

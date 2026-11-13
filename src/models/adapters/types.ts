@@ -16,7 +16,12 @@ export interface ChatRequest {
   execute: ToolExecutor;
   /** Most model turns before giving up, so a model that keeps calling tools can't run forever. */
   maxSteps: number;
+  /** Pictures to show the model with the prompt (it must be able to see them). */
+  images?: { mediaType: ImageType; data: string }[];
 }
+
+/** The picture formats both APIs take. */
+export type ImageType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
 
 export interface ChatResult {
   /** What the model said at the end, for the person who asked. */

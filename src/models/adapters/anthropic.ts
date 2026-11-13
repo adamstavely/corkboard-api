@@ -27,8 +27,14 @@ export function anthropicModel({ model, apiKey, baseUrl, label, client }: Anthro
   const fallbacks = !baseUrl && FALLBACK_MODELS.has(model);
 
   return {
-    async chat({ system, prompt, tools, execute, maxSteps }: ChatRequest): Promise<ChatResult> {
-      const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: prompt }];
+    async chat({ system, prompt, tools, execute, maxSteps, images = [] }: ChatRequest): Promise<ChatResult> {
+      const content: Anthropic.Beta.BetaMessageParam['content'] = images.length
+        ? [
+            ...images.map((i) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.mediaType, data: i.data } })),
+            { type: 'text' as const, text: prompt },
+          ]
+        : prompt;
+      const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content }];
       const toolParams: Anthropic.Beta.BetaTool[] = tools.map((t) => ({
         name: t.name,
         description: t.description,
