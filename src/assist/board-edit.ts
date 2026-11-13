@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { fragmentText } from '../boards/board-text';
+import { voteCounts } from '../facilitation/facilitation-doc';
 
 /** The UI's note colours and size (corkboard-ui's board-doc.ts); notes made here must look like notes made there. */
 export const NOTE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'gray'] as const;
@@ -24,6 +25,8 @@ export interface NoteView {
   x: number;
   y: number;
   frame?: string;
+  /** Dot votes it has, when any. */
+  votes?: number;
 }
 
 /** A frame: a titled area that holds the notes whose centres are inside it. */
@@ -70,6 +73,7 @@ export function framesOf(doc: Y.Doc): FrameView[] {
 
 export function notesOf(doc: Y.Doc): NoteView[] {
   const frames = framesOf(doc);
+  const votes = voteCounts(doc);
   const notes: NoteView[] = [];
   nodesOf(doc).forEach((node, id) => {
     if (!(node instanceof Y.Map) || node.get('kind') !== 'note') return;
@@ -85,6 +89,7 @@ export function notesOf(doc: Y.Doc): NoteView[] {
       x: rect.x,
       y: rect.y,
       ...(frame ? { frame: frame.title } : {}),
+      ...(votes.get(id) ? { votes: votes.get(id) } : {}),
     });
   });
   return notes;
