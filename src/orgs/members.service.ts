@@ -104,9 +104,8 @@ export class MembersService {
     this.collab.disconnect(memberId);
   }
 
-  /** Invites waiting for the signed-in person, matched on their verified email. */
+  /** Invites waiting for the signed-in person, matched on their email. */
   async mine(user: User): Promise<MyInviteDto[]> {
-    if (!user.email || !user.emailVerified) return [];
     return this.db
       .select({
         id: orgInvites.id,

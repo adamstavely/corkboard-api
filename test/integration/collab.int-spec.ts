@@ -127,7 +127,7 @@ describe('Real-time collaboration', () => {
     await request(t.app.getHttpServer()).get('/me').set('Authorization', `Bearer ${await t.token(stranger)}`);
 
     await expect(connect(board.id, await t.token(stranger))).rejects.toThrow();
-    await expect(connect(board.id, await t.foreignToken(owner))).rejects.toThrow();
+    await expect(connect(board.id, randomUUID())).rejects.toThrow();
     await expect(connect('not-a-board', await t.token(owner))).rejects.toThrow();
   });
 

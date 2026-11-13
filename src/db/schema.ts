@@ -1,17 +1,14 @@
-import { boolean, customType, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { customType, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 
-/** People, keyed by their identity provider's subject. Name and email are refreshed from the token on each sign-in. */
+/** People. There's no sign-in: whoever opens Corkboard picks who they are, or adds themselves. Email is stored lower-cased. */
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
-  oidcSubject: text('oidc_subject').notNull().unique(),
-  email: text('email'),
-  /** Set from the identity provider's email_verified claim on each sign-in. */
-  emailVerified: boolean('email_verified').notNull().default(false),
+  email: text('email').notNull().unique(),
   name: text('name').notNull(),
   createdAt: createdAt(),
 });
@@ -44,8 +41,8 @@ export const orgMembers = pgTable(
 );
 
 /**
- * Someone asked to join a workspace, by email. They see it once they sign in with that email, verified by the identity
- * provider, and accept or decline it there. One open invite per email per workspace.
+ * Someone asked to join a workspace, by email. They see it once they sign in with that email, and accept or decline it
+ * there. One open invite per email per workspace.
  */
 export const orgInvites = pgTable(
   'org_invites',

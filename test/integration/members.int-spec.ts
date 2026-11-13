@@ -12,10 +12,10 @@ describe('Members and invites', () => {
     await t.app.close();
   });
 
-  /** Signs a new person in; their subject doubles as their email's local part. */
-  async function person(claims: Record<string, unknown> = {}) {
+  /** Adds a person; their subject doubles as their email's local part. */
+  async function person(as: { name?: string } = {}) {
     const subject = randomUUID();
-    const auth = { Authorization: `Bearer ${await t.token(subject, claims)}` };
+    const auth = { Authorization: `Bearer ${await t.token(subject, as)}` };
     const me = await request(t.app.getHttpServer()).get('/me').set(auth).expect(200);
     return { subject, auth, id: me.body.id as string, email: `${subject}@corkboard.test`, orgId: me.body.orgs[0].id as string };
   }
@@ -52,14 +52,10 @@ describe('Members and invites', () => {
     expect(members.body.invites).toEqual([]);
   });
 
-  it("keeps invites to owners, and from people who can't prove the email is theirs", async () => {
+  it('keeps invites to owners', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const unverified = await person({ email_verified: false });
     const outsider = await person();
-
-    await request(server).post(`/orgs/${ada.orgId}/invites`).set(ada.auth).send({ email: unverified.email, role: 'updater' });
-    expect((await request(server).get('/me/invites').set(unverified.auth)).body).toEqual([]);
 
     const { body: invite } = await request(server)
       .post(`/orgs/${ada.orgId}/invites`)
