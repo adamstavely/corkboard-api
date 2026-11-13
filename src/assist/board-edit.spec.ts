@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { addNotes, FRAME_PADDING, FRAME_TITLE, frameGroups, framesOf, inFrame, makeTimeline, NOTE_SIZE, notesOf, setColors } from './board-edit';
+import { addNotes, FRAME_PADDING, FRAME_TITLE, frameGroups, framesOf, inFrame, makeTimeline, NOTE_SIZE, notesOf, setColors, setScores } from './board-edit';
 import { fragmentText } from '../boards/board-text';
 
 describe('board edits', () => {
@@ -117,5 +117,14 @@ describe('board edits', () => {
     addNotes(doc, [{ text: 'Elsewhere', color: 'yellow' }], []);
     makeTimeline(doc, 'Plan', [{ label: 'Week 1', items: [{ text: 'Kick off', color: 'blue' }] }]);
     expect(framesOf(doc).find((f) => f.title === 'Plan')!.x).toBeGreaterThan(NOTE_SIZE.w);
+  });
+
+  it('scores notes for the value-vs-effort matrix, in half steps from 0 to 10', () => {
+    const doc = new Y.Doc();
+    const [a, b] = addNotes(doc, [{ text: 'A', color: 'yellow' }, { text: 'B', color: 'yellow' }], []);
+    expect(notesOf(doc).find((n) => n.id === a)).not.toHaveProperty('value');
+    expect(setScores(doc, [{ id: a, value: 8.3, effort: 12 }, { id: 'missing', value: 1, effort: 1 }])).toBe(1);
+    expect(notesOf(doc).find((n) => n.id === a)).toMatchObject({ value: 8.5, effort: 10 });
+    expect(notesOf(doc).find((n) => n.id === b)).not.toHaveProperty('effort');
   });
 });

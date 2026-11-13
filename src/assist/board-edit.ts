@@ -27,6 +27,9 @@ export interface NoteView {
   frame?: string;
   /** Dot votes it has, when any. */
   votes?: number;
+  /** Its value and effort scores (0–10), once someone has placed it on the value-vs-effort matrix. */
+  value?: number;
+  effort?: number;
 }
 
 /** A frame: a titled area that holds the notes whose centres are inside it. */
@@ -90,6 +93,7 @@ export function notesOf(doc: Y.Doc): NoteView[] {
       y: rect.y,
       ...(frame ? { frame: frame.title } : {}),
       ...(votes.get(id) ? { votes: votes.get(id) } : {}),
+      ...scoresOf(node),
     });
   });
   return notes;
@@ -345,6 +349,32 @@ export function makeTimeline(
 }
 
 /** Recolours notes that exist; returns how many it found. */
+const score = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(10, Math.max(0, Math.round(v * 2) / 2)) : undefined);
+
+/** A note's value and effort, when it has both. */
+function scoresOf(node: Y.Map<unknown>): { value?: number; effort?: number } {
+  const value = score(node.get('value'));
+  const effort = score(node.get('effort'));
+  return value !== undefined && effort !== undefined ? { value, effort } : {};
+}
+
+/** Places notes on the value-vs-effort matrix: scores from 0 to 10, in half steps. Returns how many notes it found. */
+export function setScores(doc: Y.Doc, scores: { id: string; value: number; effort: number }[]): number {
+  const nodes = nodesOf(doc);
+  let found = 0;
+  doc.transact(() => {
+    for (const s of scores) {
+      const node = nodes.get(s.id);
+      if (node instanceof Y.Map && node.get('kind') === 'note') {
+        node.set('value', score(s.value) ?? 5);
+        node.set('effort', score(s.effort) ?? 5);
+        found++;
+      }
+    }
+  });
+  return found;
+}
+
 export function setColors(doc: Y.Doc, ids: string[], color: NoteColor): number {
   const nodes = nodesOf(doc);
   let found = 0;
