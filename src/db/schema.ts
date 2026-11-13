@@ -174,6 +174,67 @@ export const boardFiles = pgTable(
   (t) => [index('board_files_board').on(t.boardId)],
 );
 
+/** Who did what on a board, newest last: the board's activity. Kept when the person is gone. */
+export const boardEvents = pgTable(
+  'board_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    /** The name at the time, so the record reads right after they change it or leave. */
+    actorName: text('actor_name').notNull(),
+    /** A past-tense verb: "renamed", "commented on". */
+    action: text('action').notNull(),
+    target: text('target'),
+    detail: text('detail'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('board_events_board').on(t.boardId, t.createdAt)],
+);
+
+/** Saved states of a board's document, to look back at and restore. */
+export const boardVersions = pgTable(
+  'board_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    state: bytea('state').notNull(),
+    /** Null for the saves made as people edit. */
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    label: text('label').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('board_versions_board').on(t.boardId, t.createdAt)],
+);
+
+/** Things someone should hear about: a mention, a reply, an answer, an invite. */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    boardId: uuid('board_id').references(() => boards.id, { onDelete: 'cascade' }),
+    /** mention, reply, answer or invite. */
+    kind: text('kind').notNull(),
+    actorName: text('actor_name'),
+    title: text('title').notNull(),
+    body: text('body'),
+    /** Where it happened: a board's title, a workspace's name. */
+    context: text('context'),
+    /** A path in the app to open. */
+    link: text('link'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('notifications_user').on(t.userId, t.createdAt)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Org = typeof orgs.$inferSelect;
 export type Board = typeof boards.$inferSelect;

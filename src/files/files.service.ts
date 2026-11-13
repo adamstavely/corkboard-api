@@ -6,6 +6,7 @@ import { boardFiles, type User } from '../db/schema';
 import { ModelError, type ImageType, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
 import type { AskImageDto, BoardFileDto, ImageAnswerDto } from './files.dto';
+import { ActivityService } from '../activity/activity.service';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -63,6 +64,7 @@ export class FilesService {
     @InjectDb() private readonly db: Db,
     private readonly boards: BoardsService,
     private readonly providers: ProvidersService,
+    private readonly activity: ActivityService,
   ) {}
 
   /** Updaters and owners: stores a file for the board; the page places it on the board. */
@@ -76,6 +78,7 @@ export class FilesService {
       .insert(boardFiles)
       .values({ boardId, uploadedBy: user.id, name, mime: file.mimetype, size: file.size, data: file.buffer })
       .returning({ id: boardFiles.id, name: boardFiles.name, mime: boardFiles.mime, size: boardFiles.size });
+    await this.activity.record(boardId, user, 'added a file', name);
     return row;
   }
 

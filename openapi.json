@@ -164,6 +164,190 @@
         ]
       }
     },
+    "/boards/{id}/activity": {
+      "get": {
+        "operationId": "ActivityController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/boards/{id}/versions": {
+      "get": {
+        "operationId": "ActivityController_listVersions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      },
+      "post": {
+        "operationId": "ActivityController_saveVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveVersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/boards/{id}/versions/{versionId}/restore": {
+      "post": {
+        "operationId": "ActivityController_restore",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/me/notifications": {
+      "get": {
+        "operationId": "NotificationsController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/me/notifications/read": {
+      "post": {
+        "operationId": "NotificationsController_read",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadNotificationsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/boards/{id}/files": {
       "post": {
         "operationId": "FilesController_upload",
@@ -1874,6 +2058,14 @@
         "required": [
           "seconds"
         ]
+      },
+      "SaveVersionDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReadNotificationsDto": {
+        "type": "object",
+        "properties": {}
       },
       "BoardFileDto": {
         "type": "object",

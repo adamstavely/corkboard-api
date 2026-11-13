@@ -6,6 +6,7 @@ import type { OrgDto } from './orgs.dto';
 import { CollabService } from '../collab/collab.service';
 import { OrgsService } from './orgs.service';
 import type { InviteDto, MembersDto, MyInviteDto } from './members.dto';
+import { NotificationsService } from '../activity/notifications';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -21,6 +22,7 @@ export class MembersService {
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
     private readonly collab: CollabService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(user: User, orgId: string): Promise<MembersDto> {
@@ -51,6 +53,9 @@ export class MembersService {
       .values({ orgId, email, role, invitedBy: user.id })
       .onConflictDoUpdate({ target: [orgInvites.orgId, orgInvites.email], set: { role } })
       .returning();
+    const [invitee] = await this.db.select({ id: users.id }).from(users).where(eq(users.email, email));
+    const [org] = await this.db.select({ name: orgs.name }).from(orgs).where(eq(orgs.id, orgId));
+    if (invitee) await this.notifications.notify([invitee.id], { kind: 'invite', actor: user.name, title: `invited you to ${org?.name ?? 'a workspace'}`, context: org?.name, link: '/' });
     return (await this.#invites(orgId)).find((i) => i.id === invite.id)!;
   }
 
