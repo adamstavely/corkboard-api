@@ -2,7 +2,7 @@ import { BadGatewayException, Injectable } from '@nestjs/common';
 import type * as Y from 'yjs';
 import { randomUUID } from 'node:crypto';
 import { atLeast } from '../access/roles';
-import { describe as describeChanges, diff, record, snapshot } from '../ledger/ledger-doc';
+import { capture, describe as describeChanges, diff, record, snapshot } from '../ledger/ledger-doc';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
@@ -386,7 +386,17 @@ export class AssistService {
       const changed = notesAdded || notesChanged || framesAdded || notesMoved;
       if (changed) {
         const counts = { notesAdded, notesChanged, framesAdded, notesMoved };
-        const entry = { id: randomUUID(), at: Date.now(), model: model.label, forName: user.name, action: describeChanges(counts), ...diff(before, snapshot(doc)), undone: false };
+        const changes = diff(before, snapshot(doc));
+        const entry = {
+          id: randomUUID(),
+          at: Date.now(),
+          model: model.label,
+          forName: user.name,
+          action: describeChanges(counts),
+          ...changes,
+          createdNodes: capture(doc, changes.created),
+          undone: false,
+        };
         await edit((d) => record(d, entry));
       }
       // Notes the model pointed to may have been deleted by someone else since.

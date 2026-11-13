@@ -16,4 +16,11 @@ export class LedgerController {
   undo(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('entryId', ParseUUIDPipe) entryId: string): Promise<void> {
     return this.ledger.undo(user, id, entryId);
   }
+
+  /** Updaters and owners: put an undone change back. 409 if it isn't undone. */
+  @Post(':entryId/redo')
+  @HttpCode(204)
+  redo(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('entryId', ParseUUIDPipe) entryId: string): Promise<void> {
+    return this.ledger.redo(user, id, entryId);
+  }
 }

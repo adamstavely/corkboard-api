@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { paragraphs } from '../assist/board-edit';
 
 type Attrs = Record<string, unknown>;
 
@@ -19,6 +20,8 @@ export interface LedgerEntry {
   /** What it did, in words: "Made 3 frames and moved 9 notes into them." */
   action: string;
   created: string[];
+  /** The created notes and frames as they were, to bring back on redo: a note's text as lines, `**bold**` kept. */
+  createdNodes: { id: string; attrs: Attrs; text?: string }[];
   /** Frames it removed, with their properties, to put back. */
   removed: { id: string; attrs: Attrs }[];
   /** What it changed on existing notes and frames: each property before and after. */
@@ -60,6 +63,32 @@ export function diff(before: Snapshot, after: Snapshot): Pick<LedgerEntry, 'crea
   return { created, removed, changed };
 }
 
+/** A note's text as lines, a wholly bold line written `**like this**` (as the model writes owners). */
+function markup(fragment: Y.XmlFragment): string {
+  return fragment
+    .toArray()
+    .filter((b): b is Y.XmlElement => b instanceof Y.XmlElement)
+    .map((block) => {
+      const runs = block.toArray().filter((c): c is Y.XmlText => c instanceof Y.XmlText).flatMap((t) => t.toDelta() as { insert: unknown; attributes?: Record<string, unknown> }[]);
+      const text = runs.map((r) => (typeof r.insert === 'string' ? r.insert : '')).join('');
+      return text && runs.every((r) => r.attributes?.['bold']) ? `**${text}**` : text;
+    })
+    .join('\n');
+}
+
+/** The created nodes, as they are now, for a later redo. */
+export function capture(doc: Y.Doc, ids: readonly string[]): LedgerEntry['createdNodes'] {
+  const nodes = nodesOf(doc);
+  const snap = snapshot(doc);
+  return ids.flatMap((id) => {
+    const node = nodes.get(id);
+    const attrs = snap.get(id);
+    if (!(node instanceof Y.Map) || !attrs) return [];
+    const text = node.get('text');
+    return [{ id, attrs, ...(text instanceof Y.XmlFragment ? { text: markup(text) } : {}) }];
+  });
+}
+
 export function record(doc: Y.Doc, entry: LedgerEntry): void {
   const ledger = ledgerOf(doc);
   doc.transact(() => {
@@ -96,6 +125,41 @@ export function undo(doc: Y.Doc, entryId: string): string | null {
     }
     ledger.delete(at, 1);
     ledger.insert(at, [{ ...entry, undone: true }]);
+  });
+  return null;
+}
+
+/** Puts an undone entry's changes back. Says why not when it can't. */
+export function redo(doc: Y.Doc, entryId: string): string | null {
+  const ledger = ledgerOf(doc);
+  const at = ledger.toArray().findIndex((e) => e.id === entryId);
+  if (at < 0) return 'That change is no longer in the history';
+  const entry = ledger.get(at);
+  if (!entry.undone) return "That change wasn't undone";
+  const nodes = nodesOf(doc);
+  doc.transact(() => {
+    for (const { id, attrs, text } of entry.createdNodes ?? []) {
+      if (nodes.has(id)) continue;
+      const node = new Y.Map<unknown>();
+      for (const [k, v] of Object.entries(attrs)) node.set(k, v);
+      nodes.set(id, node);
+      if (text !== undefined) {
+        const fragment = new Y.XmlFragment();
+        node.set('text', fragment);
+        fragment.insert(0, paragraphs(text));
+      }
+    }
+    for (const { id } of entry.removed) nodes.delete(id);
+    for (const { id, after } of entry.changed) {
+      const node = nodes.get(id);
+      if (!(node instanceof Y.Map)) continue;
+      for (const [k, v] of Object.entries(after)) {
+        if (v === undefined) node.delete(k);
+        else node.set(k, v);
+      }
+    }
+    ledger.delete(at, 1);
+    ledger.insert(at, [{ ...entry, undone: false }]);
   });
   return null;
 }

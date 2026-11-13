@@ -247,6 +247,43 @@
         ]
       }
     },
+    "/boards/{id}/ledger/{entryId}/redo": {
+      "post": {
+        "operationId": "LedgerController_redo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: put an undone change back. 409 if it isn't undone.",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
     "/boards/{id}/comments": {
       "get": {
         "operationId": "CommentsController_list",

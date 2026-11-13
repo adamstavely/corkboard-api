@@ -106,7 +106,7 @@ const topZ = (doc: Y.Doc) => {
 };
 
 /** A paragraph for each line; `**Name:**` at the start of a line becomes bold, as Tiptap would store it. */
-function paragraphs(text: string): Y.XmlElement[] {
+export function paragraphs(text: string): Y.XmlElement[] {
   return text.split(/\r?\n/).map((line) => {
     const p = new Y.XmlElement('paragraph');
     if (!line) return p;

@@ -69,6 +69,14 @@ describe("The model's change history", () => {
     expect(ledgerEntries(doc)).toHaveLength(1);
     expect(ledgerEntries(doc)[0].undone).toBe(true);
     await request(server).post(`/boards/${board.id}/ledger/${entry.id}/undo`).set(auth).expect(409);
+
+    await request(server).post(`/boards/${board.id}/ledger/${entry.id}/redo`).set(auth).expect(204);
+    await wait(() => framesOf(doc).length === 1);
+    expect(notesOf(doc).map((n) => [n.color, n.frame])).toEqual([
+      ['pink', 'Delivery'],
+      ['yellow', 'Delivery'],
+    ]);
+    await request(server).post(`/boards/${board.id}/ledger/${entry.id}/redo`).set(auth).expect(409);
     provider.destroy();
   });
 });
