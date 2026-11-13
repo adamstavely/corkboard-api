@@ -400,6 +400,37 @@
             "bearer": []
           }
         ],
+        "summary": "Updaters and owners of the workspace: a new board, blank or from a template, which they own.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
+    "/board-templates": {
+      "get": {
+        "operationId": "BoardsController_templates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BoardTemplateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The boards a new one can start from.",
         "tags": [
           "boards"
         ]
@@ -1606,12 +1637,50 @@
           "updatedAt"
         ]
       },
+      "BoardTemplateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "columns": {
+            "description": "Its columns' titles, left to right.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "columns"
+        ]
+      },
       "CreateBoardDto": {
         "type": "object",
         "properties": {
           "title": {
             "type": "string",
             "maxLength": 200
+          },
+          "template": {
+            "type": "string",
+            "description": "A template to start from (see GET /board-templates); without one, a blank board.",
+            "enum": [
+              "retro",
+              "start-stop-continue",
+              "four-ls",
+              "plan",
+              "brainstorm"
+            ]
           }
         },
         "required": [

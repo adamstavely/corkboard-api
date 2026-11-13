@@ -14,8 +14,9 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
 import { CollabService } from '../collab/collab.service';
-import { BoardDocumentDto, BoardDto, BoardMemberDto, CreateBoardDto, SetBoardRoleDto, UpdateBoardDto } from './boards.dto';
+import { BoardDocumentDto, BoardDto, BoardMemberDto, BoardTemplateDto, CreateBoardDto, SetBoardRoleDto, UpdateBoardDto } from './boards.dto';
 import { BoardsService } from './boards.service';
+import { applyTemplate, TEMPLATES } from './templates';
 
 const toDto = ({ id, orgId, title, createdAt, updatedAt, role }: BoardDto): BoardDto => ({
   id,
@@ -41,13 +42,30 @@ export class BoardsController {
     return (await this.boards.list(user, orgId)).map(toDto);
   }
 
+  /** The boards a new one can start from. */
+  @Get('board-templates')
+  templates(): BoardTemplateDto[] {
+    return TEMPLATES.map(({ id, name, description, columns }) => ({ id, name, description, columns: columns.map((c) => c.title) }));
+  }
+
+  /** Updaters and owners of the workspace: a new board, blank or from a template, which they own. */
   @Post('orgs/:orgId/boards')
   async create(
     @CurrentUser() user: User,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() body: CreateBoardDto,
   ): Promise<BoardDto> {
-    return toDto(await this.boards.create(user, orgId, body.title));
+    const board = await this.boards.create(user, orgId, body.title);
+    const template = TEMPLATES.find((t) => t.id === body.template);
+    if (template) {
+      const connection = await this.collab.hocuspocus.openDirectConnection(board.id, { user });
+      try {
+        await connection.transact((doc) => applyTemplate(doc, template));
+      } finally {
+        await connection.disconnect();
+      }
+    }
+    return toDto(board);
   }
 
   @Get('boards/:id')

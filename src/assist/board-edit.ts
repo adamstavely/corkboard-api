@@ -145,7 +145,7 @@ function originFor(doc: Y.Doc, taken: Set<string>, emptied: Set<string>, size: {
   return others.some((r) => overlaps(r, { ...origin, ...size })) ? { x: right(), y: origin.y } : origin;
 }
 
-function newFrame(doc: Y.Doc, title: string, rect: Rect, z: number): string {
+export function newFrame(doc: Y.Doc, title: string, rect: Rect, z: number, author = 'assistant'): string {
   const id = randomUUID();
   const frame = new Y.Map<unknown>();
   frame.set('kind', 'frame');
@@ -155,7 +155,7 @@ function newFrame(doc: Y.Doc, title: string, rect: Rect, z: number): string {
   frame.set('w', rect.w);
   frame.set('h', rect.h);
   frame.set('z', z);
-  frame.set('author', 'assistant');
+  frame.set('author', author);
   nodesOf(doc).set(id, frame);
   return id;
 }
@@ -255,7 +255,7 @@ export function addNotes(doc: Y.Doc, notes: { text: string; color: NoteColor }[]
   return ids;
 }
 
-function newNote(doc: Y.Doc, note: { text: string; color: NoteColor }, at: { x: number; y: number }, z: number): string {
+export function newNote(doc: Y.Doc, note: { text: string; color: NoteColor }, at: { x: number; y: number }, z: number, author = 'assistant'): string {
   const id = randomUUID();
   const node = new Y.Map<unknown>();
   node.set('kind', 'note');
@@ -265,7 +265,7 @@ function newNote(doc: Y.Doc, note: { text: string; color: NoteColor }, at: { x: 
   node.set('h', NOTE_SIZE.h);
   node.set('z', z);
   node.set('color', note.color);
-  node.set('author', 'assistant');
+  node.set('author', author);
   const fragment = new Y.XmlFragment();
   node.set('text', fragment);
   nodesOf(doc).set(id, node);
