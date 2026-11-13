@@ -1,6 +1,52 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/boards/{id}/chat": {
+      "post": {
+        "operationId": "ChatController_send",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendChatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up: say something in the board's chat, which everyone on the board reads live from its document.\nWith `answer`, the model then answers in the chat too, as this person (their role, their selection).",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
     "/boards/{id}/comments": {
       "get": {
         "operationId": "CommentsController_list",
@@ -1263,6 +1309,65 @@
       }
     },
     "schemas": {
+      "SendChatDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 4000,
+            "pattern": "\\S"
+          },
+          "answer": {
+            "type": "boolean",
+            "description": "Whether the model answers this message (it was @-mentioned, or the sender has it answer everything)."
+          },
+          "modelId": {
+            "type": "string",
+            "description": "Which of the workspace's models answers; needed when `answer` is set.",
+            "format": "uuid"
+          },
+          "noteIds": {
+            "description": "The sender's selected notes, for the model to focus on; without them, the whole board.",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "text",
+          "answer"
+        ]
+      },
+      "ChatMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "authorId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "authorId",
+          "name",
+          "at",
+          "text"
+        ]
+      },
       "CommentAuthorDto": {
         "type": "object",
         "properties": {
