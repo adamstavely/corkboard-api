@@ -7,6 +7,8 @@ import { ChatController } from './chat/chat.controller';
 import { FacilitationController } from './facilitation/facilitation.controller';
 import { SummaryController } from './summary/summary.controller';
 import { SummaryService } from './summary/summary.service';
+import { LedgerController } from './ledger/ledger.controller';
+import { LedgerService } from './ledger/ledger.service';
 import { FacilitationService } from './facilitation/facilitation.service';
 import { ChatService } from './chat/chat.service';
 import { CommentsController } from './comments/comments.controller';
@@ -37,6 +39,7 @@ import { SearchIndex } from './search/search-index';
     ChatController,
     FacilitationController,
     SummaryController,
+    LedgerController,
     CommentsController,
     HealthController,
     PeopleController,
@@ -59,6 +62,7 @@ import { SearchIndex } from './search/search-index';
     ChatService,
     FacilitationService,
     SummaryService,
+    LedgerService,
     BoardsService,
     SearchIndex,
     CollabService,
