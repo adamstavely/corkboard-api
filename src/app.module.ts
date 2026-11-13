@@ -5,6 +5,10 @@ import { AssistController } from './assist/assist.controller';
 import { AssistService } from './assist/assist.service';
 import { ChatController } from './chat/chat.controller';
 import { FacilitationController } from './facilitation/facilitation.controller';
+import { OrganiseController } from './organise/organise.controller';
+import { OrganiseService } from './organise/organise.service';
+import { LinksController } from './links/links.controller';
+import { LinksService } from './links/links.service';
 import { ActivityController } from './activity/activity.controller';
 import { VersionsService } from './activity/activity';
 import { ActivityService } from './activity/activity.service';
@@ -47,6 +51,8 @@ import { SearchIndex } from './search/search-index';
   controllers: [
     ChatController,
     FacilitationController,
+    OrganiseController,
+    LinksController,
     ActivityController,
     NotificationsController,
     FilesController,
@@ -74,6 +80,8 @@ import { SearchIndex } from './search/search-index';
     CommentsService,
     ChatService,
     FacilitationService,
+    OrganiseService,
+    LinksService,
     ActivityService,
     VersionsService,
     NotificationsService,

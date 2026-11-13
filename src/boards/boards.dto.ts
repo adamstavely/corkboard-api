@@ -15,6 +15,11 @@ export class BoardDto {
   /** What the person asking may do on this board. */
   @ApiProperty({ enum: ROLES })
   role!: Role;
+  /** The workspace folder it's filed in, if any. */
+  folderId!: string | null;
+  /** Whether the person asking starred it, and when they last opened it. */
+  starred!: boolean;
+  lastVisitedAt!: Date | null;
 }
 
 export class CreateBoardDto {
