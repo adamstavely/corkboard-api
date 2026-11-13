@@ -5,6 +5,8 @@ import { AssistController } from './assist/assist.controller';
 import { AssistService } from './assist/assist.service';
 import { ChatController } from './chat/chat.controller';
 import { FacilitationController } from './facilitation/facilitation.controller';
+import { FilesController } from './files/files.controller';
+import { FilesService } from './files/files.service';
 import { ReactionsController, ReactionsService } from './reactions/reactions';
 import { SummaryController } from './summary/summary.controller';
 import { SummaryService } from './summary/summary.service';
@@ -39,6 +41,7 @@ import { SearchIndex } from './search/search-index';
   controllers: [
     ChatController,
     FacilitationController,
+    FilesController,
     ReactionsController,
     SummaryController,
     LedgerController,
@@ -63,6 +66,7 @@ import { SearchIndex } from './search/search-index';
     CommentsService,
     ChatService,
     FacilitationService,
+    FilesService,
     ReactionsService,
     SummaryService,
     LedgerService,

@@ -43,6 +43,13 @@
       "when": 1794542909389,
       "tag": "0005_futuristic_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794549815333,
+      "tag": "0006_groovy_golden_guardian",
+      "breakpoints": true
     }
   ]
 }

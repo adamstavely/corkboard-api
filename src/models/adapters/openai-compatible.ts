@@ -14,7 +14,8 @@ interface Completion {
 }
 
 type Message =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[] }
   | NonNullable<NonNullable<Completion['choices']>[number]['message']>
   | { role: 'tool'; tool_call_id: string; content: string };
 
@@ -35,10 +36,15 @@ export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = g
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
   return {
-    async chat({ system, prompt, tools, execute, maxSteps }: ChatRequest): Promise<ChatResult> {
+    async chat({ system, prompt, tools, execute, maxSteps, images = [] }: ChatRequest): Promise<ChatResult> {
       const messages: Message[] = [
         { role: 'system', content: system },
-        { role: 'user', content: prompt },
+        {
+          role: 'user',
+          content: images.length
+            ? [{ type: 'text', text: prompt }, ...images.map((i) => ({ type: 'image_url' as const, image_url: { url: `data:${i.mediaType};base64,${i.data}` } }))]
+            : prompt,
+        },
       ];
       const toolParams = tools.map((t) => ({
         type: 'function' as const,
