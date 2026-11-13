@@ -30,6 +30,8 @@ export interface NoteView {
   /** Its value and effort scores (0–10), once someone has placed it on the value-vs-effort matrix. */
   value?: number;
   effort?: number;
+  /** How many people reacted with each emoji, when any did. */
+  reactions?: Record<string, number>;
 }
 
 /** A frame: a titled area that holds the notes whose centres are inside it. */
@@ -77,6 +79,7 @@ export function framesOf(doc: Y.Doc): FrameView[] {
 export function notesOf(doc: Y.Doc): NoteView[] {
   const frames = framesOf(doc);
   const votes = voteCounts(doc);
+  const reactions = doc.getMap<Record<string, string[]>>('reactions');
   const notes: NoteView[] = [];
   nodesOf(doc).forEach((node, id) => {
     if (!(node instanceof Y.Map) || node.get('kind') !== 'note') return;
@@ -94,6 +97,7 @@ export function notesOf(doc: Y.Doc): NoteView[] {
       ...(frame ? { frame: frame.title } : {}),
       ...(votes.get(id) ? { votes: votes.get(id) } : {}),
       ...scoresOf(node),
+      ...(reactions.has(id) ? { reactions: Object.fromEntries(Object.entries(reactions.get(id)!).map(([e, who]) => [e, who.length])) } : {}),
     });
   });
   return notes;
