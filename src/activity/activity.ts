@@ -51,7 +51,7 @@ export class VersionsService {
       .where(and(eq(boardVersions.id, versionId), eq(boardVersions.boardId, boardId)));
     if (!version) throw new NotFoundException('Version not found');
     const when = version.createdAt.toISOString().slice(0, 16).replace('T', ' ');
-    await this.db.insert(boardVersions).values({ boardId, state: await this.#current(user, boardId), createdBy: user.id, label: `Before restoring ${version.label}` });
+    await this.db.insert(boardVersions).values({ boardId, state: await this.#current(user, boardId), createdBy: user.id, label: `Before restoring ${version.label.replace(/^(Before restoring )+/, '')}` });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
       await connection.transact((doc) => restoreInto(doc, new Uint8Array(version.state)));
