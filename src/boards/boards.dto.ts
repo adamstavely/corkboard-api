@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { TEMPLATES } from './templates';
 import { ROLES, type Role } from '../access/roles';
 import type { BoardAccess, OrgRole } from '../db/schema';
 
@@ -21,6 +22,20 @@ export class CreateBoardDto {
   @IsNotEmpty()
   @MaxLength(200)
   title!: string;
+
+  /** A template to start from (see GET /board-templates); without one, a blank board. */
+  @IsOptional()
+  @IsIn(TEMPLATES.map((t) => t.id))
+  template?: string;
+}
+
+/** A board to start from, for the new-board picker. */
+export class BoardTemplateDto {
+  id!: string;
+  name!: string;
+  description!: string;
+  /** Its columns' titles, left to right. */
+  columns!: string[];
 }
 
 export class UpdateBoardDto {

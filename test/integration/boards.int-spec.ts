@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
+import * as Y from 'yjs';
+import { framesOf, notesOf } from '../../src/assist/board-edit';
 import { createTestApp, type TestApp } from './app';
 
 describe('Boards', () => {
@@ -61,6 +63,24 @@ describe('Boards', () => {
     expect(empty.body).toEqual({ state: '' });
     // Editing goes through the collaboration socket (see collab.int-spec.ts).
     await request(server).put(`/boards/${board.id}/document`).set(await as(subject)).send({ state: '' }).expect(404);
+  });
+
+  it('starts a board from a template, saved before anyone opens it', async () => {
+    const subject = randomUUID();
+    const orgId = await workspaceOf(subject);
+    const server = t.app.getHttpServer();
+    const { body: templates } = await request(server).get('/board-templates').set(await as(subject)).expect(200);
+    expect(templates.find((tp: { id: string }) => tp.id === 'retro')).toMatchObject({ name: 'Retrospective', columns: ['What went well', 'What could be better', 'Action items'] });
+
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: 'Sprint 12', template: 'retro' }).expect(201);
+    const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(await as(subject)).expect(200);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+    expect(framesOf(doc).map((f) => f.title)).toEqual(['What went well', 'What could be better', 'Action items']);
+    // Each column's hint note sits inside it.
+    expect(notesOf(doc).map((n) => n.frame)).toEqual(['What went well', 'What could be better', 'Action items']);
+
+    await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: 'x', template: 'nope' }).expect(400);
   });
 
   it("hides other workspaces' boards as if they didn't exist", async () => {
