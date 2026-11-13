@@ -99,6 +99,28 @@ describe('Model connections and the assistant', () => {
     expect(test.body).toMatchObject({ ok: false, status: 'auth-failed', message: 'C refused the API key.' });
   });
 
+  it('lets the model place notes on the value-vs-effort matrix', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Ideas' });
+    const doc = new Y.Doc();
+    const provider = await new Promise<HocuspocusProvider>((resolve) => {
+      const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: doc, onSynced: (): void => resolve(p) });
+    });
+    const [cache] = addNotes(doc, [{ text: 'Cache the build', color: 'yellow' }]);
+    await new Promise((r) => setTimeout(r, 300));
+
+    script = async (req) => {
+      expect(req.tools.map((tool) => tool.name)).toContain('score_notes');
+      return req.execute('score_notes', { scores: [{ note_id: cache, value: 9, effort: 2 }] });
+    };
+    const res = await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Score these' }).expect(200);
+    expect(res.body.notesChanged).toBe(1);
+    expect(notesOf(doc).find((n) => n.id === cache)).toMatchObject({ value: 9, effort: 2 });
+    provider.destroy();
+  });
+
   it("lets anyone in the workspace ask about a board, and the model's notes arrive live for everyone", async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
