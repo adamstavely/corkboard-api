@@ -2061,11 +2061,29 @@
       },
       "SaveVersionDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
       },
       "ReadNotificationsDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "ids": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "all": {
+            "type": "boolean",
+            "description": "Marks every one read."
+          }
+        }
       },
       "BoardFileDto": {
         "type": "object",

@@ -1,38 +1,12 @@
 import { Body, Controller, Get, HttpCode, Injectable, Logger, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsBoolean, IsOptional, IsUUID } from 'class-validator';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { CurrentUser } from '../auth/current-user';
 import { InjectDb, type Db } from '../db/db.module';
 import { notifications, type User } from '../db/schema';
+import { NotificationDto, ReadNotificationsDto } from './notifications.dto';
 
 export type NotificationKind = 'mention' | 'reply' | 'answer' | 'invite';
-
-export class NotificationDto {
-  id!: string;
-  kind!: string;
-  actor!: string | null;
-  title!: string;
-  body!: string | null;
-  context!: string | null;
-  link!: string | null;
-  /** Epoch ms. */
-  at!: number;
-  read!: boolean;
-}
-
-export class ReadNotificationsDto {
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(200)
-  @IsUUID('all', { each: true })
-  ids?: string[];
-
-  /** Marks every one read. */
-  @IsOptional()
-  @IsBoolean()
-  all?: boolean;
-}
 
 /** People named with an @ in a text: "@Ada" or "@Ada Lovelace", any case. */
 export function mentioned(text: string, people: readonly { id: string; name: string }[]): string[] {

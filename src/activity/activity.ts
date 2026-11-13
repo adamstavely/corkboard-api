@@ -1,6 +1,5 @@
 import { Body, Controller, Get, HttpCode, Injectable, NotFoundException, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { and, desc, eq } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { CurrentUser } from '../auth/current-user';
@@ -8,34 +7,9 @@ import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import { InjectDb, type Db } from '../db/db.module';
 import { boardVersions, type User } from '../db/schema';
+import { BoardEventDto, BoardVersionDto, SaveVersionDto } from './activity.dto';
 import { ActivityService } from './activity.service';
 import { restoreInto } from './versions';
-
-export class BoardEventDto {
-  id!: string;
-  /** Epoch ms. */
-  at!: number;
-  actor!: string;
-  action!: string;
-  target!: string | null;
-  detail!: string | null;
-}
-
-export class BoardVersionDto {
-  id!: string;
-  label!: string;
-  /** Epoch ms. */
-  at!: number;
-  /** Who saved it; null for the saves made as people edit. */
-  by!: string | null;
-}
-
-export class SaveVersionDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  label?: string;
-}
 
 /** Saved states of boards: made as people edit (see BoardsService.storeState) and by hand, and restored. */
 @Injectable()
