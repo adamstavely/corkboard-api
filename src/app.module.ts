@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { AssistController } from './assist/assist.controller';
 import { AssistService } from './assist/assist.service';
+import { ChatController } from './chat/chat.controller';
+import { ChatService } from './chat/chat.service';
 import { CommentsController } from './comments/comments.controller';
 import { CommentsService } from './comments/comments.service';
 import { AuthGuard } from './auth/auth.guard';
@@ -28,6 +30,7 @@ import { SearchIndex } from './search/search-index';
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), DbModule],
   controllers: [
+    ChatController,
     CommentsController,
     HealthController,
     PeopleController,
@@ -47,6 +50,7 @@ import { SearchIndex } from './search/search-index';
     ProvidersService,
     AssistService,
     CommentsService,
+    ChatService,
     BoardsService,
     SearchIndex,
     CollabService,
