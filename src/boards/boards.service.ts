@@ -14,12 +14,15 @@ import {
   type OrgRole,
   type User,
   boardVersions,
+  boardStars,
+  boardVisits,
 } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
 import { SearchIndex } from '../search/search-index';
 
 /** A board with the role the person asking has on it. */
-export type BoardWithRole = Board & { role: Role };
+/** A board with what the person asking may do on it; from a listing, also whether they starred it and when they last opened it. */
+export type BoardWithRole = Board & { role: Role; starred?: boolean; lastVisitedAt?: Date | null };
 
 /** Someone in the board's workspace, and what they may do on it. */
 export interface BoardMember {
@@ -49,14 +52,16 @@ export class BoardsService {
   async list(user: User, orgId: string): Promise<BoardWithRole[]> {
     const orgRole = await this.orgs.roleIn(user.id, orgId);
     const rows = await this.db
-      .select({ board: boards, onBoard: boardMembers.role })
+      .select({ board: boards, onBoard: boardMembers.role, starredAt: boardStars.createdAt, visitedAt: boardVisits.visitedAt })
       .from(boards)
       .leftJoin(boardMembers, and(eq(boardMembers.boardId, boards.id), eq(boardMembers.userId, user.id)))
+      .leftJoin(boardStars, and(eq(boardStars.boardId, boards.id), eq(boardStars.userId, user.id)))
+      .leftJoin(boardVisits, and(eq(boardVisits.boardId, boards.id), eq(boardVisits.userId, user.id)))
       .where(eq(boards.orgId, orgId))
       .orderBy(desc(boards.updatedAt));
-    return rows.flatMap(({ board, onBoard }) => {
+    return rows.flatMap(({ board, onBoard, starredAt, visitedAt }) => {
       const role = boardRole(orgRole, onBoard);
-      return role ? [{ ...board, role }] : [];
+      return role ? [{ ...board, role, starred: !!starredAt, lastVisitedAt: visitedAt }] : [];
     });
   }
 

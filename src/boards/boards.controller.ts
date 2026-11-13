@@ -15,16 +15,20 @@ import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
 import { CollabService } from '../collab/collab.service';
 import { BoardDocumentDto, BoardDto, BoardMemberDto, BoardTemplateDto, CreateBoardDto, SetBoardRoleDto, UpdateBoardDto } from './boards.dto';
-import { BoardsService } from './boards.service';
+import { BoardsService, type BoardWithRole } from './boards.service';
+import { OrganiseService } from '../organise/organise.service';
 import { applyTemplate, TEMPLATES } from './templates';
 
-const toDto = ({ id, orgId, title, createdAt, updatedAt, role }: BoardDto): BoardDto => ({
+const toDto = ({ id, orgId, title, createdAt, updatedAt, role, folderId = null, starred = false, lastVisitedAt = null }: BoardWithRole): BoardDto => ({
   id,
   orgId,
   title,
   createdAt,
   updatedAt,
   role,
+  folderId,
+  starred,
+  lastVisitedAt,
 });
 
 @ApiTags('boards')
@@ -34,6 +38,7 @@ export class BoardsController {
   constructor(
     private readonly boards: BoardsService,
     private readonly collab: CollabService,
+    private readonly organise: OrganiseService,
   ) {}
 
   /** The workspace's boards the person can open, most recently changed first. */
@@ -70,7 +75,9 @@ export class BoardsController {
 
   @Get('boards/:id')
   async get(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<BoardDto> {
-    return toDto(await this.boards.get(user, id));
+    const board = await this.boards.get(user, id);
+    await this.organise.visit(user, id);
+    return toDto(board);
   }
 
   @Patch('boards/:id')

@@ -57,6 +57,13 @@
       "when": 1794550279855,
       "tag": "0007_exotic_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794551011289,
+      "tag": "0008_moaning_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

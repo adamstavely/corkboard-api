@@ -1,4 +1,4 @@
-import { customType, integer, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, customType, integer, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -88,8 +88,67 @@ export const boards = pgTable('boards', {
     .references(() => orgs.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  /** The folder it's filed in, if any; deleting the folder leaves it unfiled. */
+  folderId: uuid('folder_id').references((): AnyPgColumn => boardFolders.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Folders a workspace files its boards in. */
+export const boardFolders = pgTable('board_folders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: createdAt(),
+});
+
+/** Boards someone starred, to find them first. */
+export const boardStars = pgTable(
+  'board_stars',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.boardId] })],
+);
+
+/** When someone last opened each board, for their recently opened list. */
+export const boardVisits = pgTable(
+  'board_visits',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    visitedAt: timestamp('visited_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.boardId] })],
+);
+
+/** Links that let anyone who has them view a board, live and read-only, without picking who they are. */
+export const boardShareLinks = pgTable('board_share_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boardId: uuid('board_id')
+    .notNull()
+    .references(() => boards.id, { onDelete: 'cascade' }),
+  /** The secret in the link. */
+  token: text('token').notNull().unique(),
+  label: text('label'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  opens: integer('opens').notNull().default(0),
+  lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
+  createdAt: createdAt(),
 });
 
 /** A board role for one person, set on the board: any role, or none at all to keep them out. */

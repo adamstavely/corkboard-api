@@ -12,6 +12,12 @@ import { BoardsService } from '../boards/boards.service';
 import { atLeast, type Role } from '../access/roles';
 import type { User } from '../db/schema';
 import { SearchIndex } from '../search/search-index';
+import { LinksService } from '../links/links.service';
+
+/** Who someone viewing through a share link is: nobody in particular. */
+const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', createdAt: new Date(0) };
+/** Share-link viewers connect with this before the link's token. */
+const LINK = 'link:';
 
 /** Where clients connect: wss://…/collab (the UI reaches it as /api/collab). */
 export const COLLAB_PATH = '/collab';
@@ -25,6 +31,8 @@ interface CollabContext {
   user: User;
   /** Their role on the board; readers and commenters connect read-only. Unset for the server's own edits. */
   role?: Role;
+  /** The share link they came through, for a guest. */
+  linkId?: string;
 }
 
 function toHeaders(raw: IncomingHttpHeaders): Headers {
@@ -51,6 +59,7 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
     private readonly users: UsersService,
     private readonly boards: BoardsService,
     private readonly search: SearchIndex,
+    private readonly links: LinksService,
   ) {
     this.hocuspocus = new Hocuspocus<CollabContext>({
       name: 'corkboard',
@@ -60,6 +69,13 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
       maxDebounce: 10_000,
       onAuthenticate: async ({ token, documentName, connectionConfig }): Promise<CollabContext> => {
         if (!UUID.test(documentName)) throw new Error('Board not found');
+        // Someone with a share link: read-only, as a guest, on that link's board only.
+        if (token.startsWith(LINK)) {
+          const link = await this.links.byToken(token.slice(LINK.length));
+          if (!link || link.boardId !== documentName) throw new Error('This link has been turned off or has expired');
+          connectionConfig.readOnly = true;
+          return { user: GUEST, role: 'reader', linkId: link.id };
+        }
         let user: User;
         try {
           user = await this.users.byToken(token);
@@ -112,6 +128,15 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
    * Disconnects one person from these boards (or all their boards), e.g. when their role changes. Their client
    * reconnects and is let back in with the new role, or turned away.
    */
+  /** Lets go of everyone viewing through a share link that's been turned off. */
+  disconnectLink(linkId: string): void {
+    for (const [, document] of this.hocuspocus.documents) {
+      for (const connection of document.connections.keys()) {
+        if ((connection.context as CollabContext | undefined)?.linkId === linkId) connection.close();
+      }
+    }
+  }
+
   disconnect(userId: string, boardIds?: readonly string[]): void {
     for (const [name, document] of this.hocuspocus.documents) {
       if (boardIds && !boardIds.includes(name)) continue;

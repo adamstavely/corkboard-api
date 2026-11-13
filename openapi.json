@@ -164,6 +164,478 @@
         ]
       }
     },
+    "/orgs/{orgId}/folders": {
+      "get": {
+        "operationId": "OrganiseController_folders",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FolderDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The workspace's folders, by name.",
+        "tags": [
+          "organise"
+        ]
+      },
+      "post": {
+        "operationId": "OrganiseController_createFolder",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderNameDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners of the workspace: a new folder.",
+        "tags": [
+          "organise"
+        ]
+      }
+    },
+    "/orgs/{orgId}/folders/{folderId}": {
+      "patch": {
+        "operationId": "OrganiseController_renameFolder",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderNameDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "organise"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganiseController_removeFolder",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "folderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Its boards stay, unfiled.",
+        "tags": [
+          "organise"
+        ]
+      }
+    },
+    "/boards/{id}/folder": {
+      "put": {
+        "operationId": "OrganiseController_move",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveBoardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners of the board: file it in a folder, or take it out (null).",
+        "tags": [
+          "organise"
+        ]
+      }
+    },
+    "/boards/{id}/star": {
+      "put": {
+        "operationId": "OrganiseController_star",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Star a board for yourself.",
+        "tags": [
+          "organise"
+        ]
+      },
+      "delete": {
+        "operationId": "OrganiseController_unstar",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "organise"
+        ]
+      }
+    },
+    "/boards/{id}/links": {
+      "get": {
+        "operationId": "LinksController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareLinkDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Board owners: the board's share links, newest first.",
+        "tags": [
+          "links"
+        ]
+      },
+      "post": {
+        "operationId": "LinksController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShareLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLinkDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Board owners: a link that lets anyone who has it view the board, read-only.",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/boards/{id}/links/{linkId}": {
+      "patch": {
+        "operationId": "LinksController_setExpiry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareLinkExpiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLinkDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "links"
+        ]
+      },
+      "delete": {
+        "operationId": "LinksController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Board owners: turn a link off; anyone viewing through it is let go.",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/shared/{token}": {
+      "get": {
+        "operationId": "LinksController_open",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedBoardDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone with a link: what it opens. 410 once it's turned off or expired.",
+        "tags": [
+          "links"
+        ]
+      }
+    },
     "/boards/{id}/activity": {
       "get": {
         "operationId": "ActivityController_list",
@@ -2103,6 +2575,138 @@
           "seconds"
         ]
       },
+      "FolderDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "FolderNameDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "MoveBoardDto": {
+        "type": "object",
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The folder to file it in; null to take it out of its folder.",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "folderId"
+        ]
+      },
+      "ShareLinkDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "description": "The secret part of the link: the page's URL is /shared/{token}."
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "expiresAt": {
+            "type": "number",
+            "nullable": true
+          },
+          "revoked": {
+            "type": "boolean"
+          },
+          "opens": {
+            "type": "number"
+          },
+          "lastOpenedAt": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "token",
+          "label",
+          "createdBy",
+          "createdAt",
+          "expiresAt",
+          "revoked",
+          "opens",
+          "lastOpenedAt"
+        ]
+      },
+      "CreateShareLinkDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "expiresInDays": {
+            "type": "number",
+            "description": "Days until it stops working; without it, it works until revoked.",
+            "minimum": 1,
+            "maximum": 365
+          }
+        }
+      },
+      "ShareLinkExpiryDto": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "number",
+            "nullable": true,
+            "description": "Epoch ms; null for no expiry."
+          }
+        },
+        "required": [
+          "expiresAt"
+        ]
+      },
+      "SharedBoardDto": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "boardId",
+          "title"
+        ]
+      },
       "BoardEventDto": {
         "type": "object",
         "properties": {
@@ -2705,6 +3309,20 @@
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "folderId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The workspace folder it's filed in, if any."
+          },
+          "starred": {
+            "type": "boolean",
+            "description": "Whether the person asking starred it, and when they last opened it."
+          },
+          "lastVisitedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -2713,7 +3331,10 @@
           "orgId",
           "title",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "folderId",
+          "starred",
+          "lastVisitedAt"
         ]
       },
       "BoardTemplateDto": {
