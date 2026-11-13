@@ -164,6 +164,52 @@
         ]
       }
     },
+    "/boards/{id}/summary": {
+      "post": {
+        "operationId": "SummaryController_summarise",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SummariseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardSummaryDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up: has a model summarise the board, saved in the board for everyone. 502 when the model fails.",
+        "tags": [
+          "summary"
+        ]
+      }
+    },
     "/boards/{id}/comments": {
       "get": {
         "operationId": "CommentsController_list",
@@ -1569,6 +1615,105 @@
         },
         "required": [
           "seconds"
+        ]
+      },
+      "SummariseDto": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "description": "Which of the workspace's models writes it.",
+            "format": "uuid"
+          },
+          "length": {
+            "type": "string",
+            "enum": [
+              "short",
+              "detailed"
+            ]
+          }
+        },
+        "required": [
+          "modelId"
+        ]
+      },
+      "SummaryPointDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "sources": {
+            "description": "Ids of the notes it rests on.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "sources"
+        ]
+      },
+      "BoardSummaryDto": {
+        "type": "object",
+        "properties": {
+          "tldr": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SummaryPointDto"
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "length": {
+            "type": "string",
+            "enum": [
+              "short",
+              "detailed"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "by": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          },
+          "basis": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "tldr",
+          "summary",
+          "points",
+          "questions",
+          "length",
+          "model",
+          "by",
+          "at",
+          "basis"
         ]
       },
       "CommentAuthorDto": {
