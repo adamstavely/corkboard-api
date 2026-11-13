@@ -1,10 +1,8 @@
-import { Body, Controller, Get, HttpCode, Injectable, Logger, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
-import { CurrentUser } from '../auth/current-user';
 import { InjectDb, type Db } from '../db/db.module';
 import { notifications, type User } from '../db/schema';
-import { NotificationDto, ReadNotificationsDto } from './notifications.dto';
+import type { NotificationDto, ReadNotificationsDto } from './notifications.dto';
 
 export type NotificationKind = 'mention' | 'reply' | 'answer' | 'invite';
 
@@ -68,25 +66,5 @@ export class NotificationsService {
     const mine = and(eq(notifications.userId, user.id), isNull(notifications.readAt));
     if (body.all) await this.db.update(notifications).set({ readAt: new Date() }).where(mine);
     else if (body.ids?.length) await this.db.update(notifications).set({ readAt: new Date() }).where(and(mine, inArray(notifications.id, body.ids)));
-  }
-}
-
-@ApiTags('me')
-@ApiBearerAuth()
-@Controller('me/notifications')
-export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
-
-  /** Your latest notifications, newest first. */
-  @Get()
-  mine(@CurrentUser() user: User): Promise<NotificationDto[]> {
-    return this.notifications.mine(user);
-  }
-
-  /** Marks some (or all) of your notifications read. */
-  @Post('read')
-  @HttpCode(204)
-  read(@CurrentUser() user: User, @Body() body: ReadNotificationsDto): Promise<void> {
-    return this.notifications.read(user, body);
   }
 }

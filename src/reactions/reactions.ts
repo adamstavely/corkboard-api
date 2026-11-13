@@ -1,11 +1,9 @@
-import { BadRequestException, Body, Controller, HttpCode, Injectable, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsString, MaxLength } from 'class-validator';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import * as Y from 'yjs';
-import { CurrentUser } from '../auth/current-user';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
+import type { ReactDto } from './reactions.dto';
 
 export const REACTIONS = ['👍', '❤️', '🎉', '❓', '👀'] as const;
 
@@ -29,21 +27,6 @@ export function react(doc: Y.Doc, nodeId: string, emoji: string, userId: string,
   return true;
 }
 
-export class ReactDto {
-  /** A note or frame on the board. */
-  @IsString()
-  @MaxLength(64)
-  nodeId!: string;
-
-  @ApiProperty({ enum: REACTIONS })
-  @IsIn(REACTIONS)
-  emoji!: string;
-
-  /** Reacts, or takes the reaction back. */
-  @IsBoolean()
-  on!: boolean;
-}
-
 /** Emoji reactions on notes and frames: commenters and up react, everyone sees them live. */
 @Injectable()
 export class ReactionsService {
@@ -62,19 +45,5 @@ export class ReactionsService {
       await connection.disconnect();
     }
     if (!found) throw new BadRequestException('That note or frame is not on the board');
-  }
-}
-
-@ApiTags('reactions')
-@ApiBearerAuth()
-@Controller('boards/:id/reactions')
-export class ReactionsController {
-  constructor(private readonly reactions: ReactionsService) {}
-
-  /** Commenters and up: react to a note or frame with one of a few emoji, or take it back. */
-  @Post()
-  @HttpCode(204)
-  react(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: ReactDto): Promise<void> {
-    return this.reactions.react(user, id, body);
   }
 }

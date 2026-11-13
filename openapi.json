@@ -187,7 +187,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BoardEventDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -195,6 +205,7 @@
             "bearer": []
           }
         ],
+        "summary": "Anyone on the board: what happened on it, newest first; only after `since` (epoch ms) when given.",
         "tags": [
           "activity"
         ]
@@ -215,7 +226,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BoardVersionDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -223,6 +244,7 @@
             "bearer": []
           }
         ],
+        "summary": "Anyone on the board: its saved versions, newest first.",
         "tags": [
           "activity"
         ]
@@ -251,7 +273,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardVersionDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -259,6 +288,7 @@
             "bearer": []
           }
         ],
+        "summary": "Updaters and owners: save the board as it is now.",
         "tags": [
           "activity"
         ]
@@ -295,6 +325,7 @@
             "bearer": []
           }
         ],
+        "summary": "Updaters and owners: bring a version back for everyone (what's there now is saved first).",
         "tags": [
           "activity"
         ]
@@ -306,7 +337,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -314,6 +355,7 @@
             "bearer": []
           }
         ],
+        "summary": "Your latest notifications, newest first.",
         "tags": [
           "me"
         ]
@@ -343,6 +385,7 @@
             "bearer": []
           }
         ],
+        "summary": "Marks some (or all) of your notifications read.",
         "tags": [
           "me"
         ]
@@ -527,6 +570,7 @@
             "bearer": []
           }
         ],
+        "summary": "Commenters and up: react to a note or frame with one of a few emoji, or take it back.",
         "tags": [
           "reactions"
         ]
@@ -2059,6 +2103,66 @@
           "seconds"
         ]
       },
+      "BoardEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "actor": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "action",
+          "target",
+          "detail"
+        ]
+      },
+      "BoardVersionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "by": {
+            "type": "string",
+            "nullable": true,
+            "description": "Who saved it; null for the saves made as people edit."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "at",
+          "by"
+        ]
+      },
       "SaveVersionDto": {
         "type": "object",
         "properties": {
@@ -2067,6 +2171,54 @@
             "maxLength": 120
           }
         }
+      },
+      "NotificationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "nullable": true
+          },
+          "context": {
+            "type": "string",
+            "nullable": true
+          },
+          "link": {
+            "type": "string",
+            "nullable": true
+          },
+          "at": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "read": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "actor",
+          "title",
+          "body",
+          "context",
+          "link",
+          "at",
+          "read"
+        ]
       },
       "ReadNotificationsDto": {
         "type": "object",
@@ -2210,10 +2362,21 @@
               "❓",
               "👀"
             ]
+          },
+          "nodeId": {
+            "type": "string",
+            "description": "A note or frame on the board.",
+            "maxLength": 64
+          },
+          "on": {
+            "type": "boolean",
+            "description": "Reacts, or takes the reaction back."
           }
         },
         "required": [
-          "emoji"
+          "emoji",
+          "nodeId",
+          "on"
         ]
       },
       "SummariseDto": {
