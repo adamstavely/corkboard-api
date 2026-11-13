@@ -50,6 +50,13 @@
       "when": 1794549815333,
       "tag": "0006_groovy_golden_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794550279855,
+      "tag": "0007_exotic_puma",
+      "breakpoints": true
     }
   ]
 }

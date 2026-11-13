@@ -8,6 +8,7 @@ import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
 import { setSummary, type BoardSummary } from './summary-doc';
+import { ActivityService } from '../activity/activity.service';
 
 const MAX_NOTES = 400;
 const MAX_NOTE_CHARS = 600;
@@ -53,6 +54,7 @@ export class SummaryService {
     private readonly boards: BoardsService,
     private readonly providers: ProvidersService,
     private readonly collab: CollabService,
+    private readonly activity: ActivityService,
   ) {}
 
   async summarise(user: User, boardId: string, modelId: string, length: 'short' | 'detailed' = 'short'): Promise<BoardSummary> {
@@ -94,6 +96,7 @@ export class SummaryService {
       const content = written ?? { tldr: text.trim() || `${model.label} had nothing to say.`, summary: '', points: [], questions: [] };
       const summary: BoardSummary = { ...content, length, model: model.label, by: user.name, at: Date.now(), basis: [...known].sort() };
       await connection.transact((d) => setSummary(d, summary));
+      await this.activity.record(boardId, user, 'had the board summarised', model.label, summary.tldr);
       return summary;
     } catch (err) {
       if (err instanceof ModelError) throw new BadGatewayException(err.message);

@@ -5,6 +5,8 @@ import { CollabService } from '../collab/collab.service';
 import { InjectDb, type Db } from '../db/db.module';
 import { comments, commentThreads, users, type User } from '../db/schema';
 import type { CommentThreadDto } from './comments.dto';
+import { ActivityService } from '../activity/activity.service';
+import { mentioned, NotificationsService } from '../activity/notifications';
 
 /** What the board's open connections are told when its comments change, so they fetch them again. */
 export const COMMENTS_CHANGED = JSON.stringify({ type: 'comments' });
@@ -19,6 +21,8 @@ export class CommentsService {
     @InjectDb() private readonly db: Db,
     private readonly boards: BoardsService,
     private readonly collab: CollabService,
+    private readonly activity: ActivityService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(user: User, boardId: string): Promise<CommentThreadDto[]> {
@@ -28,7 +32,7 @@ export class CommentsService {
 
   /** Adds a comment to the note or frame's thread, starting it if need be, and reopening it if it was resolved. */
   async add(user: User, boardId: string, nodeId: string, body: string): Promise<CommentThreadDto> {
-    await this.boards.get(user, boardId, 'commenter');
+    const board = await this.boards.get(user, boardId, 'commenter');
     const threadId = await this.db.transaction(async (tx) => {
       const [thread] = await tx
         .insert(commentThreads)
@@ -39,7 +43,16 @@ export class CommentsService {
       return thread.id;
     });
     this.#changed(boardId);
-    return (await this.#threads(boardId, threadId))[0];
+    const thread = (await this.#threads(boardId, threadId))[0];
+    await this.activity.record(boardId, user, 'commented', undefined, body.trim());
+    // Others in the thread hear of the reply; anyone named with an @ hears they were mentioned.
+    const people = (await this.boards.members(user, boardId)).filter((m) => m.role).map((m) => ({ id: m.userId, name: m.name }));
+    const named = new Set(mentioned(body, people).filter((id) => id !== user.id));
+    const others = new Set(thread.comments.map((c) => c.author?.id).filter((id): id is string => !!id && id !== user.id && !named.has(id)));
+    const link = `/boards/${boardId}`;
+    await this.notifications.notify(named, { kind: 'mention', actor: user.name, title: 'mentioned you in a comment', body, context: board.title, link, boardId });
+    await this.notifications.notify(others, { kind: 'reply', actor: user.name, title: 'replied in a thread you’re in', body, context: board.title, link, boardId });
+    return thread;
   }
 
   async resolve(user: User, boardId: string, threadId: string, resolved: boolean): Promise<CommentThreadDto> {
@@ -51,6 +64,7 @@ export class CommentsService {
       .returning({ id: commentThreads.id });
     if (updated.length === 0) throw new NotFoundException('Thread not found');
     this.#changed(boardId);
+    await this.activity.record(boardId, user, resolved ? 'resolved a thread' : 'reopened a thread');
     return (await this.#threads(boardId, threadId))[0];
   }
 

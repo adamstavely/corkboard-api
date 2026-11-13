@@ -5,9 +5,15 @@ import { AssistController } from './assist/assist.controller';
 import { AssistService } from './assist/assist.service';
 import { ChatController } from './chat/chat.controller';
 import { FacilitationController } from './facilitation/facilitation.controller';
+import { ActivityController } from './activity/activity.controller';
+import { VersionsService } from './activity/activity';
+import { ActivityService } from './activity/activity.service';
+import { NotificationsController } from './activity/notifications.controller';
+import { NotificationsService } from './activity/notifications';
 import { FilesController } from './files/files.controller';
 import { FilesService } from './files/files.service';
-import { ReactionsController, ReactionsService } from './reactions/reactions';
+import { ReactionsController } from './reactions/reactions.controller';
+import { ReactionsService } from './reactions/reactions';
 import { SummaryController } from './summary/summary.controller';
 import { SummaryService } from './summary/summary.service';
 import { LedgerController } from './ledger/ledger.controller';
@@ -41,6 +47,8 @@ import { SearchIndex } from './search/search-index';
   controllers: [
     ChatController,
     FacilitationController,
+    ActivityController,
+    NotificationsController,
     FilesController,
     ReactionsController,
     SummaryController,
@@ -66,6 +74,9 @@ import { SearchIndex } from './search/search-index';
     CommentsService,
     ChatService,
     FacilitationService,
+    ActivityService,
+    VersionsService,
+    NotificationsService,
     FilesService,
     ReactionsService,
     SummaryService,

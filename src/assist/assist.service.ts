@@ -3,6 +3,7 @@ import type * as Y from 'yjs';
 import { randomUUID } from 'node:crypto';
 import { atLeast } from '../access/roles';
 import { capture, describe as describeChanges, diff, record, snapshot } from '../ledger/ledger-doc';
+import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
@@ -241,6 +242,7 @@ export class AssistService {
     private readonly boards: BoardsService,
     private readonly providers: ProvidersService,
     private readonly collab: CollabService,
+    private readonly activity: ActivityService,
   ) {}
 
   async assist(user: User, boardId: string, request: AssistRequestDto): Promise<AssistResultDto> {
@@ -398,6 +400,7 @@ export class AssistService {
           undone: false,
         };
         await edit((d) => record(d, entry));
+        await this.activity.record(boardId, user, 'had the model change the board', model.label, entry.action);
       }
       // Notes the model pointed to may have been deleted by someone else since.
       const remaining = new Set(notesOf(doc).map((n) => n.id));

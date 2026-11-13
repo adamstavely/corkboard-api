@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { atLeast, boardRole, needs, type Role } from '../access/roles';
 import { InjectDb, type Db } from '../db/db.module';
+import { ActivityService } from '../activity/activity.service';
 import {
   boardDocuments,
   boardMembers,
@@ -12,6 +13,7 @@ import {
   type BoardAccess,
   type OrgRole,
   type User,
+  boardVersions,
 } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
 import { SearchIndex } from '../search/search-index';
@@ -31,12 +33,16 @@ export interface BoardMember {
   role: Role | null;
 }
 
+/** How often a version is kept while people edit a board. */
+const AUTOSAVE_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class BoardsService {
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
     private readonly search: SearchIndex,
+    private readonly activity: ActivityService,
   ) {}
 
   /** The workspace's boards the user can open, most recently changed first, each with their role on it. */
@@ -74,6 +80,7 @@ export class BoardsService {
       return made;
     });
     await this.search.indexBoard(board);
+    await this.activity.record(board.id, user, 'created the board', board.title);
     return { ...board, role: 'owner' };
   }
 
@@ -101,13 +108,14 @@ export class BoardsService {
   }
 
   async rename(user: User, boardId: string, title: string): Promise<BoardWithRole> {
-    const { role } = await this.get(user, boardId, 'updater');
+    const { role, title: was } = await this.get(user, boardId, 'updater');
     const [board] = await this.db
       .update(boards)
       .set({ title: title.trim(), updatedAt: new Date() })
       .where(eq(boards.id, boardId))
       .returning();
     await this.search.indexBoard(board);
+    if (board.title !== was) await this.activity.record(boardId, user, 'renamed the board', board.title, `Was "${was}"`);
     return { ...board, role };
   }
 
@@ -153,6 +161,7 @@ export class BoardsService {
         .values({ boardId, userId: memberId, role })
         .onConflictDoUpdate({ target: [boardMembers.boardId, boardMembers.userId], set: { role } });
     }
+    await this.activity.record(boardId, user, 'changed access for', member.name, role === null ? 'Back to their workspace role' : role === 'none' ? 'No access' : `Now ${role}`);
     return { ...member, boardRole: role, role: boardRole(member.workspaceRole, role) ?? null };
   }
 
@@ -178,6 +187,14 @@ export class BoardsService {
         .insert(boardDocuments)
         .values({ boardId, state, updatedAt: now })
         .onConflictDoUpdate({ target: boardDocuments.boardId, set: { state, updatedAt: now } });
+      // A version every so often while people edit, to look back at and restore.
+      const [latest] = await tx
+        .select({ at: boardVersions.createdAt })
+        .from(boardVersions)
+        .where(eq(boardVersions.boardId, boardId))
+        .orderBy(desc(boardVersions.createdAt))
+        .limit(1);
+      if (!latest || now.getTime() - latest.at.getTime() >= AUTOSAVE_MS) await tx.insert(boardVersions).values({ boardId, state, label: 'Autosave' });
       return board;
     });
   }

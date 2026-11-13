@@ -9,6 +9,7 @@ import type { User } from '../db/schema';
 import { ProvidersService } from '../models/providers.service';
 import { appendChat, chatOf, MODEL_AUTHOR, type ChatMessage } from './chat-doc';
 import type { ChatMessageDto, SendChatDto } from './chat.dto';
+import { mentioned, NotificationsService } from '../activity/notifications';
 
 /** Sent to everyone on a board while the model answers someone, and when it's done. */
 export const answering = (personId: string, on: boolean) => JSON.stringify({ type: 'answering', personId, on });
@@ -26,6 +27,7 @@ export class ChatService {
     private readonly providers: ProvidersService,
     private readonly collab: CollabService,
     private readonly assistant: AssistService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async send(user: User, boardId: string, request: SendChatDto): Promise<ChatMessageDto> {
@@ -40,12 +42,17 @@ export class ChatService {
       appendChat(doc, message);
     });
 
+    const people = (await this.boards.members(user, boardId)).filter((m) => m.role).map((m) => ({ id: m.userId, name: m.name }));
+    await this.notifications.notify(
+      mentioned(message.text, people).filter((id) => id !== user.id),
+      { kind: 'mention', actor: user.name, title: 'mentioned you in the board chat', body: message.text, context: board.title, link: `/boards/${boardId}`, boardId },
+    );
     // The answer comes into the chat when it's ready; the sender doesn't wait for it.
-    if (model) void this.#answer(user, boardId, message, history, request, model.label);
+    if (model) void this.#answer(user, boardId, message, history, request, model.label, board.title);
     return { id: message.id, authorId: message.authorId, name: message.name, at: message.at, text: message.text };
   }
 
-  async #answer(user: User, boardId: string, asked: ChatMessage, history: AssistTurnDto[], request: SendChatDto, label: string) {
+  async #answer(user: User, boardId: string, asked: ChatMessage, history: AssistTurnDto[], request: SendChatDto, label: string, boardTitle: string) {
     const broadcast = (on: boolean) => this.collab.hocuspocus.documents.get(boardId)?.broadcastStateless(answering(user.id, on));
     broadcast(true);
     let reply: ChatMessage;
@@ -65,6 +72,9 @@ export class ChatService {
     }
     try {
       await this.#edit(user, boardId, (doc) => appendChat(doc, reply));
+      if (!reply.failed) {
+        await this.notifications.notify([user.id], { kind: 'answer', actor: label, title: 'answered your question', body: reply.text, context: boardTitle, link: `/boards/${boardId}`, boardId });
+      }
     } catch (err) {
       // The board was deleted, or the person lost access, while the model worked.
       this.#log.warn(`Couldn't post an answer to board ${boardId}: ${String(err)}`);

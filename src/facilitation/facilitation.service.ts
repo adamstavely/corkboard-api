@@ -5,6 +5,7 @@ import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
 import { castVote, setTimer, setVoting, votingOf } from './facilitation-doc';
+import { ActivityService } from '../activity/activity.service';
 
 const DEFAULT_VOTES = 3;
 
@@ -14,6 +15,7 @@ export class FacilitationService {
   constructor(
     private readonly boards: BoardsService,
     private readonly collab: CollabService,
+    private readonly activity: ActivityService,
   ) {}
 
   async setVoting(user: User, boardId: string, open: boolean, votesEach = DEFAULT_VOTES): Promise<void> {
@@ -22,6 +24,7 @@ export class FacilitationService {
       if (!open && !votingOf(doc).open) throw new ConflictException('No vote is running');
       setVoting(doc, open, votesEach);
     });
+    await this.activity.record(boardId, user, open ? 'started a vote' : 'finished the vote', undefined, open ? `${votesEach} votes each` : undefined);
   }
 
   async vote(user: User, boardId: string, noteId: string, add: boolean): Promise<void> {
@@ -36,6 +39,7 @@ export class FacilitationService {
   async setTimer(user: User, boardId: string, seconds: number | null, label = ''): Promise<void> {
     await this.boards.get(user, boardId, 'updater');
     await this.#edit(user, boardId, (doc) => setTimer(doc, seconds, label.trim(), user.name));
+    await this.activity.record(boardId, user, seconds === null ? 'stopped the timer' : 'started the timer', label.trim() || undefined, seconds === null ? undefined : `${Math.round(seconds / 60)} min`);
   }
 
   async #edit(user: User, boardId: string, change: (doc: Y.Doc) => void): Promise<void> {
