@@ -12,7 +12,7 @@ import { BoardsService } from '../boards/boards.service';
 import { atLeast, type Role } from '../access/roles';
 import type { User } from '../db/schema';
 import { SearchIndex } from '../search/search-index';
-import { LinksService } from '../links/links.service';
+import { isLive, LinksService } from '../links/links.service';
 import { serverOwnedIn } from './server-owned';
 
 /** Who someone viewing through a share link is: nobody in particular. */
@@ -54,6 +54,8 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
   readonly #wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 * 1024 });
   readonly hocuspocus: Hocuspocus<CollabContext>;
   #server: Server | undefined;
+  /** For each share link someone has opened, when its viewers are let go. */
+  readonly #expiries = new Map<string, NodeJS.Timeout>();
   /** Connections made read-only for the one message being refused. */
   readonly #refusing = new WeakSet<object>();
 
@@ -77,6 +79,7 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
           const link = await this.links.byToken(token.slice(LINK.length));
           if (!link || link.boardId !== documentName) throw new Error('This link has been turned off or has expired');
           connectionConfig.readOnly = true;
+          this.watchLink(link.id, link.expiresAt?.getTime() ?? null);
           return { user: GUEST, role: 'reader', linkId: link.id };
         }
         let user: User;
@@ -140,6 +143,8 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
         ),
       ),
     );
+    for (const timer of this.#expiries.values()) clearTimeout(timer);
+    this.#expiries.clear();
     this.hocuspocus.closeConnections();
     this.#wss.close();
   }
@@ -155,6 +160,30 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
         if ((connection.context as CollabContext | undefined)?.linkId === linkId) connection.close();
       }
     }
+  }
+
+  /**
+   * Lets a share link's viewers go when it expires (now, if it already has), replacing any earlier deadline. Checked
+   * against the database when the time comes, in case the link was changed meanwhile.
+   */
+  watchLink(linkId: string, expiresAt: number | null): void {
+    clearTimeout(this.#expiries.get(linkId));
+    this.#expiries.delete(linkId);
+    if (expiresAt === null) return;
+    // Timers can't wait longer than about 24 days; a later deadline is checked again then.
+    const wait = Math.min(Math.max(0, expiresAt - Date.now()), 2 ** 31 - 1);
+    const timer = setTimeout(() => {
+      this.#expiries.delete(linkId);
+      void this.links.byId(linkId).then(
+        (link) => {
+          if (!link || !isLive(link)) this.disconnectLink(linkId);
+          else this.watchLink(linkId, link.expiresAt?.getTime() ?? null);
+        },
+        (err: unknown) => this.#log.warn(`Couldn't check share link ${linkId}: ${String(err)}`),
+      );
+    }, wait);
+    timer.unref();
+    this.#expiries.set(linkId, timer);
   }
 
   disconnect(userId: string, boardIds?: readonly string[]): void {

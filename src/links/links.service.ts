@@ -72,6 +72,12 @@ export class LinksService {
     return link;
   }
 
+  /** A link by id, live or not. */
+  async byId(linkId: string): Promise<LinkRow | null> {
+    const [link] = await this.db.select().from(boardShareLinks).where(eq(boardShareLinks.id, linkId));
+    return link ?? null;
+  }
+
   /** The link behind a token, if it still opens its board. */
   async byToken(token: string): Promise<LinkRow | null> {
     const [link] = await this.db.select().from(boardShareLinks).where(eq(boardShareLinks.token, token));

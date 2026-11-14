@@ -94,4 +94,19 @@ describe('Activity, versions and notifications', () => {
     await request(server).post('/me/notifications/read').set(grace).send({ all: true }).expect(204);
     expect((await request(server).get('/me/notifications').set(grace)).body[0].read).toBe(true);
   });
+
+  it("stops telling someone about a board's comments once they can't open it", async () => {
+    const { server, ada, grace, board } = await people();
+    const { body: graceMe } = await request(server).get('/me').set(grace);
+    await request(server).post(`/boards/${board.id}/comments`).set(grace).send({ nodeId: 'n', body: 'First' }).expect(201);
+    await request(server).post(`/boards/${board.id}/comments`).set(ada).send({ nodeId: 'n', body: 'A reply Grace can see' }).expect(201);
+    const replies = async () =>
+      ((await request(server).get('/me/notifications').set(grace)).body as { kind: string; body: string }[]).filter((n) => n.kind === 'reply').map((n) => n.body);
+    expect(await replies()).toEqual(['A reply Grace can see']);
+
+    await request(server).put(`/boards/${board.id}/members/${graceMe.id}`).set(ada).send({ role: 'none' }).expect(200);
+    await request(server).post(`/boards/${board.id}/comments`).set(ada).send({ nodeId: 'n', body: 'Private now' }).expect(201);
+    // Nothing new reaches her, and what she had about the board is hidden while she can't open it.
+    expect(await replies()).toEqual([]);
+  });
 });

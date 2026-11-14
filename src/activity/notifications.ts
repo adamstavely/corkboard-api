@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
-import { notifications, type User } from '../db/schema';
+import { boardRole } from '../access/roles';
+import { boardMembers, boards, notifications, orgMembers, type User } from '../db/schema';
 import type { NotificationDto, ReadNotificationsDto } from './notifications.dto';
 
 export type NotificationKind = 'mention' | 'reply' | 'answer' | 'invite';
@@ -47,9 +48,25 @@ export class NotificationsService {
     }
   }
 
+  /** Their newest notifications; ones about a board they can no longer open are left out, so its text stays private. */
   async mine(user: User): Promise<NotificationDto[]> {
     const rows = await this.db.select().from(notifications).where(eq(notifications.userId, user.id)).orderBy(desc(notifications.createdAt)).limit(50);
-    return rows.map((r) => ({
+    const boardIds = [...new Set(rows.map((r) => r.boardId).filter((id): id is string => !!id))];
+    const open = new Set(
+      boardIds.length
+        ? (
+            await this.db
+              .select({ id: boards.id, orgRole: orgMembers.role, onBoard: boardMembers.role })
+              .from(boards)
+              .innerJoin(orgMembers, and(eq(orgMembers.orgId, boards.orgId), eq(orgMembers.userId, user.id)))
+              .leftJoin(boardMembers, and(eq(boardMembers.boardId, boards.id), eq(boardMembers.userId, user.id)))
+              .where(inArray(boards.id, boardIds))
+          )
+            .filter((b) => boardRole(b.orgRole, b.onBoard))
+            .map((b) => b.id)
+        : [],
+    );
+    return rows.filter((r) => !r.boardId || open.has(r.boardId)).map((r) => ({
       id: r.id,
       kind: r.kind,
       actor: r.actorName,
