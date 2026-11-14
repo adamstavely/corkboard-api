@@ -9,7 +9,7 @@ import * as schema from './schema';
 export type Db = NodePgDatabase<typeof schema>;
 
 export const DB = Symbol('DB');
-const POOL = Symbol('POOL');
+export const POOL = Symbol('POOL');
 
 /** The SQL migrations drizzle-kit generates; they ship next to dist/ in the image. */
 export const MIGRATIONS_FOLDER = join(__dirname, '..', '..', 'drizzle');
@@ -48,6 +48,6 @@ class DbLifecycle implements OnModuleInit, OnApplicationShutdown {
     { provide: DB, inject: [POOL], useFactory: (pool: Pool): Db => drizzle(pool, { schema }) },
     DbLifecycle,
   ],
-  exports: [DB],
+  exports: [DB, POOL],
 })
 export class DbModule {}
