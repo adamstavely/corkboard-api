@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import type { SessionRecapDto } from '../summary/recap.dto';
 
 /** Who wrote a chat message: a person's user id, or the model. */
 export const MODEL_AUTHOR = 'model';
@@ -24,6 +25,8 @@ export interface ChatMessage {
   changes?: { notesAdded: number; notesChanged: number; framesAdded: number; notesMoved: number };
   /** On the model's messages: it couldn't answer, and `text` says why. */
   failed?: boolean;
+  /** On a session recap: its decisions, actions and open questions (see RecapService). */
+  recap?: SessionRecapDto;
 }
 
 const chatArray = (doc: Y.Doc) => doc.getArray<ChatMessage>('chat');

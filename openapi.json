@@ -1488,6 +1488,52 @@
         ]
       }
     },
+    "/boards/{id}/recap": {
+      "post": {
+        "operationId": "RecapController_recap",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecapRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionRecapDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up: a model writes the session's decisions, actions and open questions, posted to the board's chat.",
+        "tags": [
+          "summary"
+        ]
+      }
+    },
     "/boards/{id}/ledger/{entryId}/undo": {
       "post": {
         "operationId": "LedgerController_undo",
@@ -3615,6 +3661,110 @@
           "by",
           "at",
           "basis"
+        ]
+      },
+      "RecapRequestDto": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "description": "Which of the workspace's models writes it.",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "modelId"
+        ]
+      },
+      "RecapItemDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "sources": {
+            "description": "Ids of the notes it rests on.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "text",
+          "sources"
+        ]
+      },
+      "RecapActionDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Who does it, as the board names them; absent when nobody's named."
+          },
+          "due": {
+            "type": "string",
+            "description": "When, as the board says it (\"Friday\", \"next sprint\"), if it does."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "text",
+          "sources"
+        ]
+      },
+      "SessionRecapDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecapItemDto"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecapActionDto"
+            }
+          },
+          "questions": {
+            "description": "Questions the session left open.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": "string",
+            "description": "The model's name, and who asked."
+          },
+          "by": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "title",
+          "decisions",
+          "actions",
+          "questions",
+          "model",
+          "by",
+          "at"
         ]
       },
       "CommentAuthorDto": {
