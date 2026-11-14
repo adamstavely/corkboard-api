@@ -88,7 +88,7 @@ export class BoardsController {
     const from = await this.collab.hocuspocus.openDirectConnection(last.id, { user });
     const to = await this.collab.hocuspocus.openDirectConnection(board.id, { user });
     try {
-      await to.transact((doc) => carryOver(from.document as unknown as Y.Doc, doc as unknown as Y.Doc));
+      await to.transact((doc) => carryOver(from.document as unknown as Y.Doc, doc));
     } finally {
       await Promise.all([from.disconnect(), to.disconnect()]);
     }

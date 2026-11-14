@@ -39,7 +39,11 @@ export function carryOver(from: Y.Doc, to: Y.Doc): { frames: number; notes: numb
   const open = tasks.filter((t) => t.status !== 'done').sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
 
   const frames = [...source.entries()].filter(([, n]) => n instanceof Y.Map && n.get('kind') === 'frame');
-  const actionFrames = frames.filter(([, f]) => ACTION_FRAME.test(String(f.get('title') ?? ''))).map(([, f]) => f);
+  const titleOf = (f: Y.Map<unknown>) => {
+    const title: unknown = f.get('title');
+    return typeof title === 'string' ? title : '';
+  };
+  const actionFrames = frames.filter(([, f]) => ACTION_FRAME.test(titleOf(f))).map(([, f]) => f);
   const keep = new Set<string>(open.flatMap((t) => (t.noteId ? [t.noteId] : [])));
   source.forEach((n, id) => {
     if (n instanceof Y.Map && n.get('kind') === 'note' && !done.has(id) && actionFrames.some((f) => centreIn(n, f))) keep.add(id);
