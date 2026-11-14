@@ -46,7 +46,7 @@ describe('Board summary', () => {
       return 'Done.';
     };
     const res = await request(server).post(`/boards/${board.id}/summary`).set(auth).send({ modelId: m.id, length: 'detailed' }).expect(200);
-    expect(res.body).toMatchObject({ tldr: 'Deploys are the problem.', length: 'detailed', model: 'Claude', by: 'Ada', basis: [slow] });
+    expect(res.body).toMatchObject({ tldr: 'Deploys are the problem.', length: 'detailed', model: 'Claude', by: 'Ada', basis: [slow], fingerprint: expect.stringMatching(/^[0-9a-f]{8}$/) });
     expect(res.body.points).toEqual([{ id: expect.any(String), text: 'Speed up deploys', sources: [slow] }]);
 
     // Everyone on the board has it.

@@ -5,7 +5,7 @@ import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
 import { AskImageDto, BoardFileDto, ImageAnswerDto } from './files.dto';
-import { FilesService, isImage, MAX_FILE_BYTES, type Upload } from './files.service';
+import { FilesService, MAX_FILE_BYTES, sendFile, type Upload } from './files.service';
 
 @ApiTags('files')
 @ApiBearerAuth()
@@ -31,16 +31,7 @@ export class FilesController {
     @Param('fileId', ParseUUIDPipe) fileId: string,
     @Res() res: Response,
   ): Promise<void> {
-    const file = await this.files.get(user, id, fileId);
-    const inline = isImage(file.mime) || file.mime === 'application/pdf';
-    res.set({
-      'Content-Type': file.mime,
-      'Content-Length': String(file.data.length),
-      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'private, max-age=31536000, immutable',
-    });
-    res.send(file.data);
+    sendFile(res, await this.files.get(user, id, fileId));
   }
 
   /** Commenters and up: ask one of the workspace's models about an image on the board, and places marked on it. */

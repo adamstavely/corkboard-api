@@ -7,7 +7,7 @@ import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
-import { setSummary, type BoardSummary } from './summary-doc';
+import { contentFingerprint, setSummary, type BoardSummary } from './summary-doc';
 import { ActivityService } from '../activity/activity.service';
 
 const MAX_NOTES = 400;
@@ -65,6 +65,7 @@ export class SummaryService {
       const doc = connection.document as unknown as Y.Doc;
       const notes = notesOf(doc);
       const known = new Set(notes.map((n) => n.id));
+      const fingerprint = contentFingerprint(doc);
       const shown = {
         notes: notes.slice(0, MAX_NOTES).map((n) => ({ ...n, text: n.text.slice(0, MAX_NOTE_CHARS) })),
         frames: framesOf(doc).map((f) => ({ id: f.id, title: f.title })),
@@ -94,7 +95,7 @@ export class SummaryService {
       });
       // A model that answers in words instead of the tool still gives a summary.
       const content = written ?? { tldr: text.trim() || `${model.label} had nothing to say.`, summary: '', points: [], questions: [] };
-      const summary: BoardSummary = { ...content, length, model: model.label, by: user.name, at: Date.now(), basis: [...known].sort() };
+      const summary: BoardSummary = { ...content, length, model: model.label, by: user.name, at: Date.now(), basis: [...known].sort(), fingerprint };
       await connection.transact((d) => setSummary(d, summary));
       await this.activity.record(boardId, user, 'had the board summarised', model.label, summary.tldr);
       return summary;

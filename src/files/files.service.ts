@@ -1,3 +1,4 @@
+import type { Response } from 'express';
 import { BadGatewayException, BadRequestException, Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { BoardsService } from '../boards/boards.service';
@@ -58,6 +59,25 @@ const TOOL: ToolDef = {
 };
 
 /** Images and files on boards: kept in Postgres, opened by anyone who can open the board. */
+export interface StoredFile {
+  name: string;
+  mime: string;
+  data: Buffer;
+}
+
+/** Sends a stored file: images and PDFs open in place; other files download. */
+export function sendFile(res: Response, file: StoredFile): void {
+  const inline = isImage(file.mime) || file.mime === 'application/pdf';
+  res.set({
+    'Content-Type': file.mime,
+    'Content-Length': String(file.data.length),
+    'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, max-age=31536000, immutable',
+  });
+  res.send(file.data);
+}
+
 @Injectable()
 export class FilesService {
   constructor(
@@ -82,8 +102,13 @@ export class FilesService {
     return row;
   }
 
-  async get(user: User, boardId: string, fileId: string): Promise<{ name: string; mime: string; data: Buffer }> {
+  async get(user: User, boardId: string, fileId: string): Promise<StoredFile> {
     await this.boards.get(user, boardId);
+    return this.onBoard(boardId, fileId);
+  }
+
+  /** A file on a board, for someone already let in some other way (a share link). */
+  async onBoard(boardId: string, fileId: string): Promise<StoredFile> {
     const [row] = await this.db
       .select({ name: boardFiles.name, mime: boardFiles.mime, data: boardFiles.data })
       .from(boardFiles)
