@@ -96,4 +96,40 @@ describe('Folders, stars, recent boards and share links', () => {
     const [listed] = (await request(server).get(`/boards/${board.id}/links`).set(auth)).body;
     expect(listed).toMatchObject({ revoked: true, opens: 1 });
   });
+
+  it("lets a link's viewers go when it expires, and at once when its expiry is moved into the past", async () => {
+    const { server, auth, board } = await setup();
+    const make = async () => (await request(server).post(`/boards/${board.id}/links`).set(auth).send({}).expect(201)).body as { id: string; token: string };
+    const watch = (tok: string) =>
+      new Promise<{ closed: () => boolean }>((resolve, reject) => {
+        let closed = false;
+        const p: HocuspocusProvider = new HocuspocusProvider({
+          url: t.collabUrl,
+          name: board.id,
+          token: `link:${tok}`,
+          document: new Y.Doc(),
+          onSynced: (): void => resolve({ closed: () => closed }),
+          onClose: () => (closed = true),
+          onAuthenticationFailed: ({ reason }) => reject(new Error(reason)),
+        });
+        providers.push(p);
+      });
+    const until = async (check: () => boolean, ms: number) => {
+      for (const end = Date.now() + ms; !check() && Date.now() < end; ) await new Promise((r) => setTimeout(r, 50));
+    };
+
+    const soon = await make();
+    const soonGuest = await watch(soon.token);
+    await request(server).patch(`/boards/${board.id}/links/${soon.id}`).set(auth).send({ expiresAt: Date.now() + 1500 }).expect(200);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(soonGuest.closed()).toBe(false);
+    await until(soonGuest.closed, 3000);
+    expect(soonGuest.closed()).toBe(true);
+
+    const past = await make();
+    const pastGuest = await watch(past.token);
+    await request(server).patch(`/boards/${board.id}/links/${past.id}`).set(auth).send({ expiresAt: Date.now() - 1000 }).expect(200);
+    await until(pastGuest.closed, 2000);
+    expect(pastGuest.closed()).toBe(true);
+  });
 });

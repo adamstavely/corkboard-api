@@ -48,7 +48,9 @@ export class CommentsService {
     // Others in the thread hear of the reply; anyone named with an @ hears they were mentioned.
     const people = (await this.boards.members(user, boardId)).filter((m) => m.role).map((m) => ({ id: m.userId, name: m.name }));
     const named = new Set(mentioned(body, people).filter((id) => id !== user.id));
-    const others = new Set(thread.comments.map((c) => c.author?.id).filter((id): id is string => !!id && id !== user.id && !named.has(id)));
+    // Only people who can still open the board: someone who's since lost access hears nothing new.
+    const current = new Set(people.map((p) => p.id));
+    const others = new Set(thread.comments.map((c) => c.author?.id).filter((id): id is string => !!id && id !== user.id && !named.has(id) && current.has(id)));
     const link = `/boards/${boardId}`;
     await this.notifications.notify(named, { kind: 'mention', actor: user.name, title: 'mentioned you in a comment', body, context: board.title, link, boardId });
     await this.notifications.notify(others, { kind: 'reply', actor: user.name, title: 'replied in a thread you’re in', body, context: board.title, link, boardId });

@@ -29,13 +29,16 @@ export class LinksController {
   }
 
   @Patch('boards/:id/links/:linkId')
-  setExpiry(
+  async setExpiry(
     @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('linkId', ParseUUIDPipe) linkId: string,
     @Body() body: ShareLinkExpiryDto,
   ): Promise<ShareLinkDto> {
-    return this.links.setExpiry(user, id, linkId, body.expiresAt);
+    const link = await this.links.setExpiry(user, id, linkId, body.expiresAt);
+    // Anyone viewing now is let go at the new time, or at once if it's already passed.
+    this.collab.watchLink(link.id, link.expiresAt);
+    return link;
   }
 
   /** Board owners: turn a link off; anyone viewing through it is let go. */
