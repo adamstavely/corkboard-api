@@ -76,4 +76,35 @@ describe('the change ledger', () => {
     expect(undo(doc, 'e1')).toBeNull();
     expect(notesOf(doc).map((n) => n.color)).toEqual(['yellow', 'blue']);
   });
+
+  it("keeps a note the model wrote once a person has added to it, even if the model changes it again after", () => {
+    const doc = new Y.Doc();
+    const tracker = new ChangeTracker();
+    const [made] = tracker.track(doc, (d) => addNotes(d, [{ text: 'Model idea', color: 'blue' }]));
+    // A person adds a line while the model is still working.
+    const note = doc.getMap<Y.Map<unknown>>('nodes').get(made)!;
+    const text = note.get('text') as Y.XmlFragment;
+    const line = new Y.XmlElement('paragraph');
+    line.insert(0, [new Y.XmlText('Human detail')]);
+    text.push([line]);
+    // Then the model recolours that note.
+    tracker.track(doc, (d) => setColors(d, [made], 'pink'));
+    expect(tracker.changes().createdNodes.find((n) => n.id === made)?.edited).toBe(true);
+
+    record(doc, entry('e1', tracker));
+    expect(undo(doc, 'e1')).toBeNull();
+    expect(notesOf(doc).map((n) => n.text)).toEqual(['Model idea\nHuman detail']);
+  });
+
+  it("keeps a note the model wrote once a person has moved it between the model's steps", () => {
+    const doc = new Y.Doc();
+    const tracker = new ChangeTracker();
+    const [made] = tracker.track(doc, (d) => addNotes(d, [{ text: 'Model idea', color: 'blue' }]));
+    doc.getMap<Y.Map<unknown>>('nodes').get(made)!.set('x', 999);
+    tracker.track(doc, (d) => setColors(d, [made], 'pink'));
+    record(doc, entry('e1', tracker));
+    undo(doc, 'e1');
+    expect(notesOf(doc).map((n) => n.id)).toEqual([made]);
+  });
 });
+
