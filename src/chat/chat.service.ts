@@ -71,12 +71,13 @@ export class ChatService {
       reply = { ...this.#fromModel(label, user), text: `I couldn't answer: ${why}`, failed: true };
     }
     try {
+      // The person may have lost access, or the board been deleted, while the model worked: then nothing is posted.
+      await this.boards.get(user, boardId, 'commenter');
       await this.#edit(user, boardId, (doc) => appendChat(doc, reply));
       if (!reply.failed) {
         await this.notifications.notify([user.id], { kind: 'answer', actor: label, title: 'answered your question', body: reply.text, context: boardTitle, link: `/boards/${boardId}`, boardId });
       }
     } catch (err) {
-      // The board was deleted, or the person lost access, while the model worked.
       this.#log.warn(`Couldn't post an answer to board ${boardId}: ${String(err)}`);
     } finally {
       broadcast(false);

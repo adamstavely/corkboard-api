@@ -2,7 +2,7 @@ import { BadGatewayException, Injectable } from '@nestjs/common';
 import type * as Y from 'yjs';
 import { randomUUID } from 'node:crypto';
 import { atLeast } from '../access/roles';
-import { capture, describe as describeChanges, diff, record, snapshot } from '../ledger/ledger-doc';
+import { ChangeTracker, describe as describeChanges, record } from '../ledger/ledger-doc';
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
@@ -254,6 +254,19 @@ export class AssistService {
     let framesAdded = 0;
     let notesMoved = 0;
     const cited: string[] = [];
+    let tracker: ChangeTracker | undefined;
+
+    /** Writes the run's ledger entry, if it changed anything. */
+    const recordRun = async (failed: boolean): Promise<boolean> => {
+      if (!tracker || tracker.empty) return false;
+      const counts = { notesAdded, notesChanged, framesAdded, notesMoved };
+      const action = `${describeChanges(counts)}${failed ? ' (then stopped with an error)' : ''}`;
+      const entry = { id: randomUUID(), at: Date.now(), model: model.label, forName: user.name, action, ...tracker.changes(), undone: false };
+      tracker = undefined;
+      await connection.transact((d) => record(d, entry));
+      await this.activity.record(boardId, user, 'had the model change the board', model.label, entry.action);
+      return true;
+    };
 
     try {
       const doc = connection.document as unknown as Y.Doc;
@@ -261,13 +274,18 @@ export class AssistService {
       const focusIds = new Set(request.noteIds ?? []);
       const focus = focusIds.size ? all.filter((n) => focusIds.has(n.id)) : all;
 
-      const edit = (change: (doc: Y.Doc) => void) => connection.transact((d) => change(d));
-      // What the board was like before, so the run's changes can be listed and undone.
-      const before = snapshot(doc);
-
       // Readers and commenters can ask about the board, not change it.
       const canEdit = atLeast(board.role, 'updater');
       const tools = canEdit ? TOOLS : TOOLS.filter((t) => t.name === 'point_to_notes');
+
+      // Each edit is tracked on its own, so the run's ledger entry holds only what the model did. Access is checked
+      // again first: the person may have lost it while the model was thinking.
+      tracker = new ChangeTracker();
+      const edit = async (change: (doc: Y.Doc) => void) => {
+        const now = await this.boards.access(user, boardId).catch(() => null);
+        if (!now || !atLeast(now.role, 'updater')) throw new Error('The person who asked can no longer change this board, so stop editing it.');
+        await connection.transact((d) => tracker!.track(d, change));
+      };
 
       const execute = async (name: string, input: unknown): Promise<string> => {
         const args = (input ?? {}) as Record<string, unknown>;
@@ -385,28 +403,14 @@ export class AssistService {
         execute,
         maxSteps: 8,
       });
-      const changed = notesAdded || notesChanged || framesAdded || notesMoved;
-      if (changed) {
-        const counts = { notesAdded, notesChanged, framesAdded, notesMoved };
-        const changes = diff(before, snapshot(doc));
-        const entry = {
-          id: randomUUID(),
-          at: Date.now(),
-          model: model.label,
-          forName: user.name,
-          action: describeChanges(counts),
-          ...changes,
-          createdNodes: capture(doc, changes.created),
-          undone: false,
-        };
-        await edit((d) => record(d, entry));
-        await this.activity.record(boardId, user, 'had the model change the board', model.label, entry.action);
-      }
+      const changed = await recordRun(false);
       // Notes the model pointed to may have been deleted by someone else since.
       const remaining = new Set(notesOf(doc).map((n) => n.id));
       const citedNoteIds = cited.filter((id) => remaining.has(id));
       return { reply: text || (changed ? 'Done.' : `${model.label} had nothing to say.`), notesAdded, notesChanged, framesAdded, notesMoved, citedNoteIds };
     } catch (err) {
+      // What the model did before it failed is already on the board: keep it in the history so it can be undone.
+      await recordRun(true).catch(() => undefined);
       if (err instanceof ModelError) throw new BadGatewayException(err.message);
       throw err;
     } finally {
