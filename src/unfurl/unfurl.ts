@@ -29,7 +29,7 @@ export function isPrivateAddress(address: string): boolean {
 }
 
 /** Resolves a host, refusing it if any address it has is private; used as the connection's own lookup. */
-function guardedLookup(hostname: string, options: object, callback: (err: Error | null, address: string | LookupAddress[], family?: number) => void): void {
+export function guardedLookup(hostname: string, options: object, callback: (err: Error | null, address: string | LookupAddress[], family?: number) => void): void {
   dnsLookup(hostname, { ...options, all: true }, (err, addresses) => {
     if (err) return callback(err, '');
     const list = addresses;
