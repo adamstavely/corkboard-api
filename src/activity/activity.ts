@@ -32,6 +32,17 @@ export class VersionsService {
     return rows.map((r) => ({ id: r.id, label: r.label, at: r.createdAt.getTime(), by: r.createdBy ? (names.get(r.createdBy) ?? 'Someone') : null }));
   }
 
+  /** Anyone on the board: what a version holds. Versions never change, so it can be kept. */
+  async state(user: User, boardId: string, versionId: string): Promise<Buffer> {
+    await this.boards.get(user, boardId);
+    const [version] = await this.db
+      .select({ state: boardVersions.state })
+      .from(boardVersions)
+      .where(and(eq(boardVersions.id, versionId), eq(boardVersions.boardId, boardId)));
+    if (!version) throw new NotFoundException('Version not found');
+    return version.state;
+  }
+
   /** Updaters and owners: saves the board as it is now. */
   async save(user: User, boardId: string, label?: string): Promise<BoardVersionDto> {
     await this.boards.get(user, boardId, 'updater');

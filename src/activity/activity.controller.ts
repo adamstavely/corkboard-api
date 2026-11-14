@@ -1,5 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { ApiBearerAuth, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user';
 import { BoardsService } from '../boards/boards.service';
 import type { User } from '../db/schema';
@@ -30,6 +31,20 @@ export class ActivityController {
   @Get('versions')
   listVersions(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<BoardVersionDto[]> {
     return this.versions.list(user, id);
+  }
+
+  /** Anyone on the board: a version's content (a Yjs update), to look at before restoring it. */
+  @Get('versions/:versionId')
+  @ApiProduces('application/octet-stream')
+  async versionState(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('versionId', ParseUUIDPipe) versionId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const state = await this.versions.state(user, id, versionId);
+    res.set({ 'Content-Type': 'application/octet-stream', 'Content-Length': String(state.length), 'Cache-Control': 'private, max-age=31536000, immutable' });
+    res.send(state);
   }
 
   /** Updaters and owners: save the board as it is now. */
