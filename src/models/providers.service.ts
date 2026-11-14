@@ -1,9 +1,10 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException, type OnApplicationShutdown } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
 import { modelProviders, modelUsage, type ModelProvider, type User } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
 import { ModelError, type ChatModel } from './adapters/types';
+import { ModelJobs } from './model-jobs';
 import { allowedBaseUrl, CHAT_MODELS, type ChatModelFactory } from './chat-models';
 import type { CreateProviderDto, ProviderDto, ProviderTestDto, UpdateProviderDto } from './providers.dto';
 import { SecretBox } from './secret-box';
@@ -25,8 +26,15 @@ const toDto = (p: ModelProvider): ProviderDto => ({
  * not their keys) and use them on the workspace's boards.
  */
 @Injectable()
-export class ProvidersService {
+export class ProvidersService implements OnApplicationShutdown {
   readonly #log = new Logger(ProvidersService.name);
+  /** The model requests running now (see ModelJobs). */
+  readonly jobs = new ModelJobs();
+
+  /** Stops model requests still running, so none outlives the API or holds a board open while it shuts down. */
+  onApplicationShutdown(): void {
+    this.jobs.stopAll();
+  }
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
@@ -127,14 +135,18 @@ export class ProvidersService {
         let input = 0;
         let output = 0;
         try {
-          return await model.chat({
-            ...request,
-            onUsage: (i, o) => {
-              input += i;
-              output += o;
-              request.onUsage?.(i, o);
-            },
-          });
+          // At most a few at once per workspace, each with a deadline, all stopped at shutdown (see ModelJobs).
+          return await this.jobs.run(orgId, request.signal, (signal) =>
+            model.chat({
+              ...request,
+              signal,
+              onUsage: (i, o) => {
+                input += i;
+                output += o;
+                request.onUsage?.(i, o);
+              },
+            }),
+          );
         } finally {
           if (input || output) {
             await this.db
