@@ -45,7 +45,7 @@ function get(url: URL): Promise<{ status: number; location?: string; type: strin
     const lib = url.protocol === 'https:' ? https : http;
     const req = lib.get(
       url,
-      { lookup: guardedLookup as never, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'CorkboardLinkPreview/1.0', Accept: 'text/html,application/xhtml+xml' } },
+      { lookup: guardedLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'CorkboardLinkPreview/1.0', Accept: 'text/html,application/xhtml+xml' } },
       (res) => {
         const status = res.statusCode ?? 0;
         if (status >= 300 && status < 400) {
