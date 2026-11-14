@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { ChatModel, ChatRequest, ChatResult } from './types';
-import { ModelError, type ModelFailure } from './types';
+import { ModelError, type ModelFailure, MAX_TOOL_CALLS_PER_ANSWER, STEP_MS, stepSignal, stoppedError } from './types';
 
 /**
  * Models that take server-side refusal fallbacks on the Claude API: a declined request is retried on a model chosen by
@@ -27,7 +27,7 @@ export function anthropicModel({ model, apiKey, baseUrl, label, client }: Anthro
   const fallbacks = !baseUrl && FALLBACK_MODELS.has(model);
 
   return {
-    async chat({ system, prompt, tools, execute, maxSteps, images = [], onUsage }: ChatRequest): Promise<ChatResult> {
+    async chat({ system, prompt, tools, execute, maxSteps, images = [], onUsage, signal }: ChatRequest): Promise<ChatResult> {
       const content: Anthropic.Beta.BetaMessageParam['content'] = images.length
         ? [
             ...images.map((i) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.mediaType, data: i.data } })),
@@ -44,17 +44,23 @@ export function anthropicModel({ model, apiKey, baseUrl, label, client }: Anthro
       let toolCalls = 0;
 
       for (let step = 0; step < maxSteps; step++) {
+        if (signal?.aborted) throw stoppedError(signal, label);
+        const call = stepSignal(signal);
         let response: Anthropic.Beta.BetaMessage;
         try {
-          response = await api.beta.messages.create({
-            model,
-            max_tokens: 16000,
-            system,
-            messages: [...messages],
-            ...(toolParams.length ? { tools: toolParams } : {}),
-            ...(fallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
-          });
+          response = await api.beta.messages.create(
+            {
+              model,
+              max_tokens: 16000,
+              system,
+              messages: [...messages],
+              ...(toolParams.length ? { tools: toolParams } : {}),
+              ...(fallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+            },
+            { signal: call, timeout: STEP_MS },
+          );
         } catch (err) {
+          if (call.aborted) throw stoppedError(signal, label);
           throw new ModelError(...failure(err, label));
         }
 
@@ -72,6 +78,7 @@ export function anthropicModel({ model, apiKey, baseUrl, label, client }: Anthro
         const calls = response.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
         if (response.stop_reason === 'pause_turn') continue;
         if (calls.length === 0) return { text: textOf(response), toolCalls };
+        if (calls.length > MAX_TOOL_CALLS_PER_ANSWER) throw new ModelError(`${label} tried to do too much in one go. Try a narrower request.`);
 
         const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
         for (const call of calls) {

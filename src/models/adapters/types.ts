@@ -20,6 +20,27 @@ export interface ChatRequest {
   images?: { mediaType: ImageType; data: string }[];
   /** Told the tokens each API call used, as it happens, so a run that fails partway still counts. */
   onUsage?: (inputTokens: number, outputTokens: number) => void;
+  /** Stops the request: each call in flight is cancelled, and no further step starts. */
+  signal?: AbortSignal;
+}
+
+/** How long one call to a model's API may take. */
+export const STEP_MS = 120_000;
+/** Most tool calls one model answer may ask for; more is treated as a runaway answer. */
+export const MAX_TOOL_CALLS_PER_ANSWER = 25;
+
+/** A call's signal: the request's, and STEP_MS for this call alone. */
+export function stepSignal(signal: AbortSignal | undefined, ms = STEP_MS): AbortSignal {
+  const step = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, step]) : step;
+}
+
+/** Why a call was stopped, in words: the request's own reason (deadline, shutdown), or this call's time running out. */
+export function stoppedError(signal: AbortSignal | undefined, label: string): ModelError {
+  const reason: unknown = signal?.aborted ? signal.reason : undefined;
+  if (reason instanceof ModelError) return reason;
+  if (signal?.aborted) return new ModelError(`The request to ${label} was stopped.`);
+  return new ModelError(`${label} took too long to answer. Try again, or a narrower request.`, 'unreachable');
 }
 
 /** The picture formats both APIs take. */

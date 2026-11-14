@@ -1,5 +1,5 @@
 import type { ChatModel, ChatRequest, ChatResult } from './types';
-import { ModelError, type ModelFailure } from './types';
+import { MAX_TOOL_CALLS_PER_ANSWER, ModelError, stepSignal, stoppedError, type ModelFailure } from './types';
 
 /** The parts of a Chat Completions response this reads. */
 interface Completion {
@@ -27,17 +27,19 @@ export interface OpenAICompatibleOptions {
   apiKey?: string | null;
   label: string;
   fetch?: typeof globalThis.fetch;
+  /** How long one call may take (STEP_MS); shorter in tests. */
+  stepMs?: number;
 }
 
 /**
  * Any server that speaks OpenAI's Chat Completions API with function calling: OpenAI, Azure OpenAI, Gemini's OpenAI
  * endpoint, OpenRouter, vLLM, Ollama, LM Studio. Workspaces use it only with models that call tools.
  */
-export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = globalThis.fetch }: OpenAICompatibleOptions): ChatModel {
+export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = globalThis.fetch, stepMs }: OpenAICompatibleOptions): ChatModel {
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
   return {
-    async chat({ system, prompt, tools, execute, maxSteps, images = [], onUsage }: ChatRequest): Promise<ChatResult> {
+    async chat({ system, prompt, tools, execute, maxSteps, images = [], onUsage, signal }: ChatRequest): Promise<ChatResult> {
       const messages: Message[] = [
         { role: 'system', content: system },
         {
@@ -54,19 +56,24 @@ export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = g
       let toolCalls = 0;
 
       for (let step = 0; step < maxSteps; step++) {
+        if (signal?.aborted) throw stoppedError(signal, label);
+        const call = stepSignal(signal, stepMs);
         let res: Response;
+        let completion: Completion;
         try {
           res = await fetch(url, {
             method: 'POST',
             headers: { 'content-type': 'application/json', ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
             body: JSON.stringify({ model, messages, ...(toolParams.length ? { tools: toolParams, tool_choice: 'auto' } : {}) }),
+            signal: call,
           });
-        } catch {
+          if (!res.ok) throw new ModelError(...(await failure(res, label)));
+          completion = (await res.json()) as Completion;
+        } catch (err) {
+          if (err instanceof ModelError) throw err;
+          if (call.aborted) throw stoppedError(signal, label);
           throw new ModelError(`Couldn't reach ${label} at ${baseUrl}. Check its address and that it's running.`, 'unreachable');
         }
-        if (!res.ok) throw new ModelError(...(await failure(res, label)));
-
-        const completion = (await res.json()) as Completion;
         onUsage?.(completion.usage?.prompt_tokens ?? 0, completion.usage?.completion_tokens ?? 0);
         const choice = completion.choices?.[0];
         if (choice?.finish_reason === 'length') {
@@ -81,6 +88,7 @@ export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = g
 
         const calls = message.tool_calls ?? [];
         if (calls.length === 0) return { text: (message.content ?? '').trim(), toolCalls };
+        if (calls.length > MAX_TOOL_CALLS_PER_ANSWER) throw new ModelError(`${label} tried to do too much in one go. Try a narrower request.`);
 
         for (const call of calls) {
           toolCalls++;
