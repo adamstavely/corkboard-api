@@ -29,7 +29,7 @@ export function contentFingerprint(doc: Y.Doc): string {
   doc.getMap<unknown>('nodes').forEach((node, id) => {
     if (!(node instanceof Y.Map) || node.get('kind') !== 'note') return;
     const text: unknown = node.get('text');
-    notes.push(`${id}\u0001${text instanceof Y.XmlFragment ? text.toString() : ''}`);
+    notes.push(`${id}\u0001${text instanceof Y.XmlFragment ? text.toJSON() : ''}`);
   });
   // FNV-1a, 32 bits, over UTF-16 code units.
   let hash = 0x811c9dc5;
