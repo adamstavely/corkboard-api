@@ -1958,6 +1958,43 @@
         ]
       }
     },
+    "/link-preview": {
+      "post": {
+        "operationId": "UnfurlController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnfurlRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPreviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone signed in: the title, description and picture of a public web page, for a link card.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
     "/boards/{id}/ledger/{entryId}/undo": {
       "post": {
         "operationId": "LedgerController_undo",
@@ -4360,6 +4397,47 @@
         },
         "required": [
           "text"
+        ]
+      },
+      "UnfurlRequestDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "LinkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string",
+            "nullable": true
+          },
+          "site": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "title",
+          "description",
+          "image",
+          "site"
         ]
       },
       "CommentAuthorDto": {
