@@ -1,6 +1,6 @@
-import { Inject, Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnApplicationShutdown, OnModuleInit, type BeforeApplicationShutdown } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { POOL } from '../db/db.module';
 
 /** The Postgres channel new notifications are announced on, so every API instance hears about them. */
@@ -15,13 +15,25 @@ const RETRY_MS = 2000;
  * notification announces whose it is there, and every instance passes that on to those people's open streams.
  */
 @Injectable()
-export class NotificationHub implements OnModuleInit, OnApplicationShutdown {
+export class NotificationHub implements OnModuleInit, OnApplicationShutdown, BeforeApplicationShutdown {
   readonly #log = new Logger(NotificationHub.name);
   readonly #listeners = new Map<string, Set<() => void>>();
   #client: PoolClient | undefined;
   #closing = false;
 
+  /**
+   * Fires once as the API starts shutting down, ending every open notification stream. Nest closes the HTTP server
+   * before its shutdown hooks run, and the server waits for open responses: a stream left open would hold shutdown
+   * up indefinitely, and boards would be saved only by luck.
+   */
+  readonly stopping = new Subject<void>();
+
   constructor(@Inject(POOL) private readonly pool: Pool) {}
+
+  beforeApplicationShutdown(): void {
+    this.stopping.next();
+    this.stopping.complete();
+  }
 
   async onModuleInit(): Promise<void> {
     await this.#listen();
