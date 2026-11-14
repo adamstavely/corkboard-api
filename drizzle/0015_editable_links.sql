@@ -1,0 +1,1 @@
+ALTER TABLE "board_share_links" ADD COLUMN "can_edit" boolean DEFAULT false NOT NULL;

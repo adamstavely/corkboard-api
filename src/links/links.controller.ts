@@ -28,7 +28,7 @@ export class LinksController {
   /** Board owners: a link that lets anyone who has it view the board, read-only. */
   @Post('boards/:id/links')
   create(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: CreateShareLinkDto): Promise<ShareLinkDto> {
-    return this.links.create(user, id, body.label, body.expiresInDays);
+    return this.links.create(user, id, body.label, body.expiresInDays, body.canEdit);
   }
 
   @Patch('boards/:id/links/:linkId')

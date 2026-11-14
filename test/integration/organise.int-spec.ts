@@ -59,7 +59,7 @@ describe('Folders, stars, recent boards and share links', () => {
     expect(link.expiresAt).toBeGreaterThan(Date.now() + 6 * 86_400_000);
 
     const opened = await request(server).get(`/shared/${link.token}`).expect(200);
-    expect(opened.body).toEqual({ boardId: board.id, title: 'Plan' });
+    expect(opened.body).toEqual({ boardId: board.id, title: 'Plan', canEdit: false });
     await request(server).get('/shared/not-a-token').expect(404);
 
     // The owner edits; the guest sees it live, and can't change anything.
@@ -131,5 +131,25 @@ describe('Folders, stars, recent boards and share links', () => {
     await request(server).patch(`/boards/${board.id}/links/${past.id}`).set(auth).send({ expiresAt: Date.now() - 1000 }).expect(200);
     await until(pastGuest.closed, 2000);
     expect(pastGuest.closed()).toBe(true);
+  });
+
+  it('lets guests on an editable link change the board, but never chat or votes', async () => {
+    const { server, token, auth, board } = await setup();
+    const { body: link } = await request(server).post(`/boards/${board.id}/links`).set(auth).send({ canEdit: true }).expect(201);
+    expect(link.canEdit).toBe(true);
+    expect((await request(server).get(`/shared/${link.token}`).expect(200)).body.canEdit).toBe(true);
+
+    const open = (tok: string) =>
+      new Promise<Y.Doc>((resolve) => {
+        const doc = new Y.Doc();
+        providers.push(new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: tok, document: doc, onSynced: () => resolve(doc) }));
+      });
+    const ownerDoc = await open(token);
+    const guestDoc = await open(`link:${link.token}`);
+    addNotes(guestDoc, [{ text: 'From a guest', color: 'pink' }]);
+    guestDoc.getArray('chat').push([{ id: 'x', authorId: 'someone', name: 'Someone', at: 1, text: 'Forged' }]);
+    for (let i = 0; i < 60 && !notesOf(ownerDoc).length; i++) await new Promise((r) => setTimeout(r, 50));
+    expect(notesOf(ownerDoc).map((n) => n.text)).toEqual(['From a guest']);
+    expect(ownerDoc.getArray('chat').length).toBe(0);
   });
 });
