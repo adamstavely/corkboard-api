@@ -186,6 +186,16 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
     this.#expiries.set(linkId, timer);
   }
 
+  /** The people with a board open right now (not guests on a share link), once each. */
+  peopleOn(boardId: string): { id: string; name: string }[] {
+    const people = new Map<string, string>();
+    for (const connection of this.hocuspocus.documents.get(boardId)?.connections.keys() ?? []) {
+      const context = connection.context as CollabContext | undefined;
+      if (context?.user && !context.linkId) people.set(context.user.id, context.user.name);
+    }
+    return [...people].map(([id, name]) => ({ id, name }));
+  }
+
   disconnect(userId: string, boardIds?: readonly string[]): void {
     for (const [name, document] of this.hocuspocus.documents) {
       if (boardIds && !boardIds.includes(name)) continue;

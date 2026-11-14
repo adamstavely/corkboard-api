@@ -2,7 +2,8 @@ import { HocuspocusProvider } from '@hocuspocus/provider';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import * as Y from 'yjs';
-import { addNotes, notesOf } from '../../src/assist/board-edit';
+import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
+import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
 import { timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
 import { createTestApp, type TestApp } from './app';
 
@@ -95,5 +96,44 @@ describe('Dot voting and the shared timer', () => {
     expect(timerOf(doc).endsAt! - Date.now()).toBeGreaterThan(290_000);
     await request(server).put(`/boards/${board.id}/timer`).set(ada.auth).send({ seconds: null }).expect(204);
     await eventually(() => timerOf(doc).endsAt === null);
+  });
+
+  it('splits everyone on the board into breakout groups with their own timers and votes, then brings them back', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const grace = await joined(ada, 'commenter');
+    const linus = await joined(ada, 'commenter');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Big retro' });
+    const doc = await open(board.id, ada);
+    await open(board.id, grace);
+    await open(board.id, linus);
+    const left = newFrame(doc, 'Group A', { x: 0, y: 0, w: 600, h: 500 }, 1, 'ada');
+    const right = newFrame(doc, 'Group B', { x: 800, y: 0, w: 600, h: 500 }, 2, 'ada');
+    const [inA] = placeNotes(doc, [{ text: 'In A', color: 'yellow', author: 'ada' }], left);
+    const [inB] = placeNotes(doc, [{ text: 'In B', color: 'yellow', author: 'ada' }], right);
+    await new Promise((r) => setTimeout(r, 300));
+
+    await request(server).post(`/boards/${board.id}/breakouts`).set(grace.auth).send({ frameIds: [left, right] }).expect(403);
+    await request(server).post(`/boards/${board.id}/breakouts`).set(ada.auth).send({ frameIds: [left] }).expect(400);
+    await request(server).post(`/boards/${board.id}/breakouts`).set(ada.auth).send({ frameIds: [left, right], minutes: 5 }).expect(204);
+    await eventually(() => breakoutsOf(doc).open);
+    const groups = breakoutsOf(doc).groups;
+    expect(groups.map((g) => g.members.length).sort()).toEqual([1, 2]);
+    expect(groups.every((g) => g.endsAt !== null && g.endsAt > Date.now() + 4 * 60_000)).toBe(true);
+
+    // Grace moves to group B and votes there; not on group A's notes.
+    await request(server).post(`/boards/${board.id}/breakouts/join`).set(grace.auth).send({ frameId: right }).expect(204);
+    await eventually(() => breakoutsOf(doc).groups.find((g) => g.frameId === right)!.members.some((m) => m.name.startsWith('Person')));
+    await request(server).put(`/boards/${board.id}/voting`).set(ada.auth).send({ open: true, votesEach: 3 }).expect(204);
+    await request(server).post(`/boards/${board.id}/votes`).set(grace.auth).send({ noteId: inA, add: true }).expect(409);
+    await request(server).post(`/boards/${board.id}/votes`).set(grace.auth).send({ noteId: inB, add: true }).expect(204);
+
+    // One group gets more time; then everyone comes back.
+    await request(server).put(`/boards/${board.id}/breakouts/${right}/timer`).set(ada.auth).send({ seconds: 600 }).expect(204);
+    await eventually(() => breakoutsOf(doc).groups.find((g) => g.frameId === right)!.seconds === 600);
+    await request(server).delete(`/boards/${board.id}/breakouts`).set(ada.auth).expect(204);
+    await eventually(() => !breakoutsOf(doc).open);
+    await request(server).post(`/boards/${board.id}/votes`).set(grace.auth).send({ noteId: inA, add: true }).expect(204);
+    await request(server).delete(`/boards/${board.id}/breakouts`).set(ada.auth).expect(409);
   });
 });
