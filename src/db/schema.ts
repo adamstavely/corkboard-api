@@ -355,3 +355,26 @@ export const authChallenges = pgTable('auth_challenges', {
 });
 
 export type Passkey = typeof passkeys.$inferSelect;
+
+/**
+ * Notes written during a hidden writing round: kept here, seen only by their author, until a facilitator reveals them
+ * all onto the board at once (see WritingService). Never in the board's document before then.
+ */
+export const noteDrafts = pgTable(
+  'note_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    /** The writing round it belongs to; drafts from an earlier round are cleared when a new one starts. */
+    round: uuid('round').notNull(),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    text: text('text').notNull(),
+    color: text('color').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('note_drafts_board_round_idx').on(t.boardId, t.round)],
+);
