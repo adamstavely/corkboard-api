@@ -59,7 +59,7 @@ export class SummaryService {
 
   async summarise(user: User, boardId: string, modelId: string, length: 'short' | 'detailed' = 'short'): Promise<BoardSummary> {
     const board = await this.boards.get(user, boardId, 'commenter');
-    const model = await this.providers.modelFor(board.orgId, modelId);
+    const model = await this.providers.modelFor(board.orgId, modelId, { userId: user.id, boardId, feature: 'summary' });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
       const doc = connection.document as unknown as Y.Doc;

@@ -18,6 +18,8 @@ export interface ChatRequest {
   maxSteps: number;
   /** Pictures to show the model with the prompt (it must be able to see them). */
   images?: { mediaType: ImageType; data: string }[];
+  /** Told the tokens each API call used, as it happens, so a run that fails partway still counts. */
+  onUsage?: (inputTokens: number, outputTokens: number) => void;
 }
 
 /** The picture formats both APIs take. */

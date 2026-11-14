@@ -1,7 +1,7 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
-import { modelProviders, type ModelProvider, type User } from '../db/schema';
+import { modelProviders, modelUsage, type ModelProvider, type User } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
 import { ModelError, type ChatModel } from './adapters/types';
 import { allowedBaseUrl, CHAT_MODELS, type ChatModelFactory } from './chat-models';
@@ -15,6 +15,8 @@ const toDto = (p: ModelProvider): ProviderDto => ({
   model: p.model,
   baseUrl: p.baseUrl,
   hasKey: !!p.apiKeyEncrypted,
+  priceInPerMillion: p.priceInPerMillion,
+  priceOutPerMillion: p.priceOutPerMillion,
   createdAt: p.createdAt,
 });
 
@@ -24,6 +26,7 @@ const toDto = (p: ModelProvider): ProviderDto => ({
  */
 @Injectable()
 export class ProvidersService {
+  readonly #log = new Logger(ProvidersService.name);
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
@@ -65,6 +68,8 @@ export class ProvidersService {
         ...(body.model !== undefined ? { model: body.model.trim() } : {}),
         ...(body.baseUrl !== undefined ? { baseUrl: this.#baseUrl(body.baseUrl) } : {}),
         ...(body.apiKey !== undefined ? { apiKeyEncrypted: this.#seal(body.apiKey) } : {}),
+        ...(body.priceInPerMillion !== undefined ? { priceInPerMillion: body.priceInPerMillion } : {}),
+        ...(body.priceOutPerMillion !== undefined ? { priceOutPerMillion: body.priceOutPerMillion } : {}),
       })
       .where(eq(modelProviders.id, id))
       .returning();
@@ -100,7 +105,11 @@ export class ProvidersService {
   }
 
   /** A workspace's model, ready to call; the caller has checked the person may use the workspace. */
-  async modelFor(orgId: string, id: string): Promise<ChatModel & { label: string }> {
+  /**
+   * A workspace's model, ready to call. With `use`, every call records the tokens it used (even when it fails partway),
+   * for the workspace's usage and spend.
+   */
+  async modelFor(orgId: string, id: string, use?: { userId: string; boardId?: string; feature: string }): Promise<ChatModel & { label: string }> {
     const provider = await this.#find(orgId, id);
     let apiKey: string | null = null;
     if (provider.apiKeyEncrypted) {
@@ -110,7 +119,32 @@ export class ProvidersService {
         throw new ServiceUnavailableException(`${provider.label}'s key can't be read. An admin needs to enter it again.`);
       }
     }
-    return Object.assign(this.models(provider, apiKey), { label: provider.label });
+    const model = this.models(provider, apiKey);
+    if (!use) return Object.assign(model, { label: provider.label });
+    return {
+      label: provider.label,
+      chat: async (request) => {
+        let input = 0;
+        let output = 0;
+        try {
+          return await model.chat({
+            ...request,
+            onUsage: (i, o) => {
+              input += i;
+              output += o;
+              request.onUsage?.(i, o);
+            },
+          });
+        } finally {
+          if (input || output) {
+            await this.db
+              .insert(modelUsage)
+              .values({ orgId, providerId: provider.id, providerLabel: provider.label, boardId: use.boardId ?? null, userId: use.userId, feature: use.feature, inputTokens: input, outputTokens: output })
+              .catch((err: unknown) => this.#log.warn(`Couldn't record model usage: ${String(err)}`));
+          }
+        }
+      },
+    };
   }
 
   async #find(orgId: string, id: string): Promise<ModelProvider> {

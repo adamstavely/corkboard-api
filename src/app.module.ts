@@ -31,6 +31,8 @@ import { UnfurlController } from './unfurl/unfurl.controller';
 import { IntegrationsController } from './integrations/integrations.controller';
 import { IntegrationsService } from './integrations/integrations.service';
 import { IssueHttp } from './integrations/issue-http';
+import { AdminController } from './admin/admin.controller';
+import { AdminService } from './admin/admin.service';
 import { LedgerController } from './ledger/ledger.controller';
 import { LedgerService } from './ledger/ledger.service';
 import { FacilitationService } from './facilitation/facilitation.service';
@@ -74,6 +76,7 @@ import { SearchIndex } from './search/search-index';
     WritingController,
     UnfurlController,
     IntegrationsController,
+    AdminController,
     LedgerController,
     CommentsController,
     HealthController,
@@ -110,6 +113,7 @@ import { SearchIndex } from './search/search-index';
     WritingService,
     IntegrationsService,
     IssueHttp,
+    AdminService,
     LedgerService,
     BoardsService,
     SearchIndex,

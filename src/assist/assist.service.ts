@@ -247,7 +247,7 @@ export class AssistService {
 
   async assist(user: User, boardId: string, request: AssistRequestDto): Promise<AssistResultDto> {
     const board = await this.boards.get(user, boardId);
-    const model = await this.providers.modelFor(board.orgId, request.modelId);
+    const model = await this.providers.modelFor(board.orgId, request.modelId, { userId: user.id, boardId, feature: 'assist' });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     let notesAdded = 0;
     let notesChanged = 0;
