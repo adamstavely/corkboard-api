@@ -55,9 +55,18 @@ export const orgInvites = pgTable(
     email: text('email').notNull(),
     role: orgRole('role').notNull().default('updater'),
     invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * The SHA-256 of the invite link's secret. Holding the link is what lets someone join: an email typed at sign-up
+     * proves nothing about the mailbox. Null for invites made before links, which only the development picker can take.
+     */
+    tokenHash: text('token_hash'),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('org_invites_org_email').on(t.orgId, t.email), index('org_invites_email').on(t.email)],
+  (t) => [
+    uniqueIndex('org_invites_org_email').on(t.orgId, t.email),
+    index('org_invites_email').on(t.email),
+    uniqueIndex('org_invites_token').on(t.tokenHash),
+  ],
 );
 
 /** Which API a model connection speaks: Anthropic's Messages API, or OpenAI's Chat Completions (any compatible server). */

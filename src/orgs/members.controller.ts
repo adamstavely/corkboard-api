@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, P
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { CreateInviteDto, InviteDto, MembersDto, MyInviteDto, UpdateRoleDto } from './members.dto';
+import { CreateInviteDto, CreatedInviteDto, InviteDto, InviteTokenDto, MembersDto, MyInviteDto, UpdateRoleDto } from './members.dto';
 import { MembersService } from './members.service';
 import { OrgDto } from './orgs.dto';
 
@@ -41,13 +41,13 @@ export class MembersController {
     await this.members.remove(user, orgId, userId);
   }
 
-  /** Admins: invite an email at a role; they see it once they sign in with that email. */
+  /** Admins: invite an email at a role. Send them the link (/invite/{token}); it's how they join. */
   @Post('orgs/:orgId/invites')
   invite(
     @CurrentUser() user: User,
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() body: CreateInviteDto,
-  ): Promise<InviteDto> {
+  ): Promise<CreatedInviteDto> {
     return this.members.invite(user, orgId, body.email, body.role);
   }
 
@@ -71,7 +71,20 @@ export class MembersController {
     await this.members.revokeInvite(user, orgId, inviteId);
   }
 
-  /** Invites waiting for the signed-in person. */
+  /** What an invite link is for. A POST, so the secret stays out of URLs and logs. */
+  @Post('invites/lookup')
+  @HttpCode(200)
+  lookup(@Body() body: InviteTokenDto): Promise<MyInviteDto> {
+    return this.members.lookup(body.token);
+  }
+
+  /** Joins a workspace through an invite link. */
+  @Post('invites/accept')
+  acceptLink(@CurrentUser() user: User, @Body() body: InviteTokenDto): Promise<OrgDto> {
+    return this.members.acceptLink(user, body.token);
+  }
+
+  /** Invites waiting for the signed-in person (development picker only; see MembersService). */
   @Get('me/invites')
   mine(@CurrentUser() user: User): Promise<MyInviteDto[]> {
     return this.members.mine(user);
