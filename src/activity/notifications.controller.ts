@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Sse, type MessageEvent } from '@nestjs/common';
-import { interval, map, merge, Observable } from 'rxjs';
+import { interval, map, merge, Observable, takeUntil } from 'rxjs';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
@@ -22,10 +22,11 @@ export class NotificationsController {
    */
   @Sse('stream')
   stream(@CurrentUser() user: User): Observable<MessageEvent> {
+    // Ends as the API shuts down, so it doesn't hold the shutdown up; the browser reconnects to another instance.
     return merge(
       this.hub.changes(user.id).pipe(map((): MessageEvent => ({ type: 'changed', data: '' }))),
       interval(25_000).pipe(map((): MessageEvent => ({ type: 'ping', data: '' }))),
-    );
+    ).pipe(takeUntil(this.hub.stopping));
   }
 
   /** Your latest notifications, newest first. */

@@ -1,6 +1,6 @@
 import { Database } from '@hocuspocus/extension-database';
 import { Hocuspocus } from '@hocuspocus/server';
-import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap, BeforeApplicationShutdown } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingHttpHeaders, IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -59,7 +59,7 @@ function toHeaders(raw: IncomingHttpHeaders): Headers {
  * and saved to Postgres, and indexed for search after each save. Runs on the API's own HTTP server.
  */
 @Injectable()
-export class CollabService implements OnApplicationBootstrap, OnApplicationShutdown {
+export class CollabService implements OnApplicationBootstrap, BeforeApplicationShutdown {
   readonly #log = new Logger('Collab');
   readonly #wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 * 1024 });
   readonly hocuspocus: Hocuspocus<CollabContext>;
@@ -193,7 +193,11 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
     }
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /**
+   * Before the HTTP server and the database close: stop taking connections, save every open board now (rather than
+   * trusting a debounced save to land), then let everyone go.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
     this.#server?.off('upgrade', this.#onUpgrade);
     clearInterval(this.#sweep);
     this.#signedOut?.unsubscribe();
@@ -208,6 +212,9 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
     for (const timer of this.#expiries.values()) clearTimeout(timer);
     this.#expiries.clear();
     this.hocuspocus.closeConnections();
+    // Closing a board's connection leaves its socket open, and the socket server doesn't end its clients when it closes;
+    // left open, they'd hold the HTTP server's close up forever. Their browsers reconnect to another instance.
+    for (const socket of this.#wss.clients) socket.terminate();
     this.#wss.close();
   }
 
