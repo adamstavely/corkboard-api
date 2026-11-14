@@ -2160,6 +2160,110 @@
         ]
       }
     },
+    "/orgs/{orgId}/admin/usage": {
+      "get": {
+        "operationId": "AdminController_usage",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceUsageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: the last 30 days, board by board, and what the models cost.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/orgs/{orgId}/admin/export": {
+      "get": {
+        "operationId": "AdminController_export",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: everything in the workspace as one JSON file to download (never keys or tokens).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/orgs/{orgId}/admin": {
+      "delete": {
+        "operationId": "AdminController_remove",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorkspaceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: delete the workspace and everything in it, typing its name to confirm.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/boards/{id}/ledger/{entryId}/undo": {
       "post": {
         "operationId": "LedgerController_undo",
@@ -4786,6 +4890,141 @@
           "skipped"
         ]
       },
+      "BoardUsageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "number",
+            "description": "Epoch ms of its last change."
+          },
+          "events": {
+            "type": "number",
+            "description": "In the last 30 days: things done on it, people who opened it, and model tokens spent on it."
+          },
+          "visitors": {
+            "type": "number"
+          },
+          "tokens": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "updatedAt",
+          "events",
+          "visitors",
+          "tokens"
+        ]
+      },
+      "ModelSpendDto": {
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The connection, or null if it's since been removed."
+          },
+          "label": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "number"
+          },
+          "inputTokens": {
+            "type": "number"
+          },
+          "outputTokens": {
+            "type": "number"
+          },
+          "cost": {
+            "type": "number",
+            "nullable": true,
+            "description": "In the workspace's own currency units, from the prices an owner set; null without them."
+          }
+        },
+        "required": [
+          "providerId",
+          "label",
+          "calls",
+          "inputTokens",
+          "outputTokens",
+          "cost"
+        ]
+      },
+      "WorkspaceUsageDto": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "number"
+          },
+          "boards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardUsageDto"
+            }
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelSpendDto"
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "boards": {
+                "type": "number"
+              },
+              "events": {
+                "type": "number"
+              },
+              "inputTokens": {
+                "type": "number"
+              },
+              "outputTokens": {
+                "type": "number"
+              },
+              "cost": {
+                "type": "number",
+                "nullable": true
+              }
+            },
+            "required": [
+              "boards",
+              "events",
+              "inputTokens",
+              "outputTokens",
+              "cost"
+            ]
+          }
+        },
+        "required": [
+          "since",
+          "boards",
+          "models",
+          "totals"
+        ]
+      },
+      "DeleteWorkspaceDto": {
+        "type": "object",
+        "properties": {
+          "confirm": {
+            "type": "string",
+            "description": "The workspace's name, typed out, to be sure.",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "confirm"
+        ]
+      },
       "AnchorDto": {
         "type": "object",
         "properties": {
@@ -5437,6 +5676,15 @@
           "hasKey": {
             "type": "boolean"
           },
+          "priceInPerMillion": {
+            "type": "number",
+            "nullable": true,
+            "description": "What the workspace pays per million input and output tokens, if an owner has said."
+          },
+          "priceOutPerMillion": {
+            "type": "number",
+            "nullable": true
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -5449,6 +5697,8 @@
           "model",
           "baseUrl",
           "hasKey",
+          "priceInPerMillion",
+          "priceOutPerMillion",
           "createdAt"
         ]
       },
@@ -5482,6 +5732,19 @@
             "type": "string",
             "description": "Stored encrypted; omit for servers that need none (a local Ollama).",
             "maxLength": 500
+          },
+          "priceInPerMillion": {
+            "type": "number",
+            "nullable": true,
+            "description": "Prices per million tokens, for estimating spend; null clears one.",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "priceOutPerMillion": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 10000
           }
         },
         "required": [
@@ -5509,6 +5772,19 @@
           "apiKey": {
             "type": "string",
             "maxLength": 500
+          },
+          "priceInPerMillion": {
+            "type": "number",
+            "nullable": true,
+            "description": "Prices per million tokens, for estimating spend; null clears one.",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "priceOutPerMillion": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 10000
           }
         }
       },

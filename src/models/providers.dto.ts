@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator';
+import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import type { ProviderKind } from '../db/schema';
 
 const KINDS = ['anthropic', 'openai'] as const;
@@ -13,6 +13,9 @@ export class ProviderDto {
   model!: string;
   baseUrl!: string | null;
   hasKey!: boolean;
+  /** What the workspace pays per million input and output tokens, if an owner has said. */
+  priceInPerMillion!: number | null;
+  priceOutPerMillion!: number | null;
   createdAt!: Date;
 }
 
@@ -43,6 +46,21 @@ export class CreateProviderDto {
   @IsString()
   @MaxLength(500)
   apiKey?: string;
+
+  /** Prices per million tokens, for estimating spend; null clears one. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000)
+  priceInPerMillion?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000)
+  priceOutPerMillion?: number | null;
 }
 
 /** Fields left out stay as they are. An empty apiKey removes the stored key. */
@@ -68,6 +86,21 @@ export class UpdateProviderDto {
   @IsString()
   @MaxLength(500)
   apiKey?: string;
+
+  /** Prices per million tokens, for estimating spend; null clears one. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000)
+  priceInPerMillion?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(10_000)
+  priceOutPerMillion?: number | null;
 }
 
 const HEALTH = ['healthy', 'auth-failed', 'model-unavailable', 'unreachable', 'error'] as const;

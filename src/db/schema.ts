@@ -77,6 +77,9 @@ export const modelProviders = pgTable('model_providers', {
   model: text('model').notNull(),
   baseUrl: text('base_url'),
   apiKeyEncrypted: text('api_key_encrypted'),
+  /** What the workspace pays per million input and output tokens, if an owner has said, for estimating spend. */
+  priceInPerMillion: real('price_in_per_million'),
+  priceOutPerMillion: real('price_out_per_million'),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
 });
@@ -399,3 +402,25 @@ export const integrations = pgTable('integrations', {
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
 });
+
+/** Tokens each model call used: for a workspace's usage and spend. */
+export const modelUsage = pgTable(
+  'model_usage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    /** The connection used; kept (null) when it's removed, so past spend still adds up. */
+    providerId: uuid('provider_id').references(() => modelProviders.id, { onDelete: 'set null' }),
+    providerLabel: text('provider_label').notNull(),
+    boardId: uuid('board_id').references(() => boards.id, { onDelete: 'set null' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** What it was for: assist, summary, recap, image. */
+    feature: text('feature').notNull(),
+    inputTokens: integer('input_tokens').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('model_usage_org_time_idx').on(t.orgId, t.createdAt)],
+);

@@ -122,7 +122,7 @@ export class FilesService {
     const board = await this.boards.get(user, boardId, 'commenter');
     const file = await this.get(user, boardId, fileId);
     if (!isImage(file.mime)) throw new BadRequestException('Only images can be asked about');
-    const model = await this.providers.modelFor(board.orgId, request.modelId);
+    const model = await this.providers.modelFor(board.orgId, request.modelId, { userId: user.id, boardId, feature: 'image' });
     const marks = request.marks ?? [];
     const described = marks.map((m, i) => {
       const where = m.kind === 'box' ? `box from (${m.x.toFixed(2)}, ${m.y.toFixed(2)}), ${(m.w ?? 0).toFixed(2)} wide and ${(m.h ?? 0).toFixed(2)} tall` : `pin at (${m.x.toFixed(2)}, ${m.y.toFixed(2)})`;

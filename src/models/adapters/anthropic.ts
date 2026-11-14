@@ -27,7 +27,7 @@ export function anthropicModel({ model, apiKey, baseUrl, label, client }: Anthro
   const fallbacks = !baseUrl && FALLBACK_MODELS.has(model);
 
   return {
-    async chat({ system, prompt, tools, execute, maxSteps, images = [] }: ChatRequest): Promise<ChatResult> {
+    async chat({ system, prompt, tools, execute, maxSteps, images = [], onUsage }: ChatRequest): Promise<ChatResult> {
       const content: Anthropic.Beta.BetaMessageParam['content'] = images.length
         ? [
             ...images.map((i) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: i.mediaType, data: i.data } })),
@@ -58,6 +58,8 @@ export function anthropicModel({ model, apiKey, baseUrl, label, client }: Anthro
           throw new ModelError(...failure(err, label));
         }
 
+        const u = response.usage;
+        onUsage?.((u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0), u.output_tokens ?? 0);
         if (response.stop_reason === 'refusal') {
           throw new ModelError(`${label} declined this request. Try putting it another way.`);
         }

@@ -3,6 +3,7 @@ import { ModelError, type ModelFailure } from './types';
 
 /** The parts of a Chat Completions response this reads. */
 interface Completion {
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
   choices?: {
     finish_reason?: string;
     message?: {
@@ -36,7 +37,7 @@ export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = g
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
   return {
-    async chat({ system, prompt, tools, execute, maxSteps, images = [] }: ChatRequest): Promise<ChatResult> {
+    async chat({ system, prompt, tools, execute, maxSteps, images = [], onUsage }: ChatRequest): Promise<ChatResult> {
       const messages: Message[] = [
         { role: 'system', content: system },
         {
@@ -65,7 +66,9 @@ export function openAICompatibleModel({ model, baseUrl, apiKey, label, fetch = g
         }
         if (!res.ok) throw new ModelError(...(await failure(res, label)));
 
-        const choice = ((await res.json()) as Completion).choices?.[0];
+        const completion = (await res.json()) as Completion;
+        onUsage?.(completion.usage?.prompt_tokens ?? 0, completion.usage?.completion_tokens ?? 0);
+        const choice = completion.choices?.[0];
         if (choice?.finish_reason === 'length') {
           throw new ModelError(`${label}'s answer was cut off before it finished. Try a narrower request.`);
         }
