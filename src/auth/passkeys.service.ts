@@ -146,12 +146,18 @@ export class PasskeysService {
     return (await this.db.select().from(passkeys).where(eq(passkeys.userId, user.id)).orderBy(asc(passkeys.createdAt))).map(view);
   }
 
-  /** Removes one of your passkeys; not your last, or you couldn't sign in again. */
+  /**
+   * Removes one of your passkeys; not your last, or you couldn't sign in again. Removals for one person take turns
+   * (their row is locked), so two devices each removing a different key can't leave them with none.
+   */
   async remove(user: User, id: string): Promise<void> {
-    const mine = await this.db.select({ id: passkeys.id }).from(passkeys).where(eq(passkeys.userId, user.id));
-    if (!mine.some((k) => k.id === id)) throw new NotFoundException('Passkey not found');
-    if (mine.length === 1) throw new ConflictException("That's your only passkey. Add another before removing it.");
-    await this.db.delete(passkeys).where(and(eq(passkeys.id, id), eq(passkeys.userId, user.id)));
+    await this.db.transaction(async (tx) => {
+      await tx.select({ id: users.id }).from(users).where(eq(users.id, user.id)).for('update');
+      const mine = await tx.select({ id: passkeys.id }).from(passkeys).where(eq(passkeys.userId, user.id));
+      if (!mine.some((k) => k.id === id)) throw new NotFoundException('Passkey not found');
+      if (mine.length === 1) throw new ConflictException("That's your only passkey. Add another before removing it.");
+      await tx.delete(passkeys).where(and(eq(passkeys.id, id), eq(passkeys.userId, user.id)));
+    });
   }
 
   async #challenge(purpose: Purpose, challenge: string, userId: string, name?: string, email?: string, label?: string): Promise<string> {

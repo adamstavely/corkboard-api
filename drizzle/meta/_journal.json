@@ -113,6 +113,13 @@
       "when": 1794639227037,
       "tag": "0015_editable_links",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794675469703,
+      "tag": "0016_invite_links",
+      "breakpoints": true
     }
   ]
 }

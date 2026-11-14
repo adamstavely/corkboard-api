@@ -6,7 +6,7 @@ import type { IncomingHttpHeaders, IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocketServer, type WebSocket } from 'ws';
 import * as Y from 'yjs';
-import { UsersService } from '../auth/users.service';
+import { UsersService, type Signin } from '../auth/users.service';
 import { boardText } from '../boards/board-text';
 import { BoardsService } from '../boards/boards.service';
 import { atLeast, type Role } from '../access/roles';
@@ -34,7 +34,16 @@ interface CollabContext {
   role?: Role;
   /** The share link they came through, for a guest. */
   linkId?: string;
+  /** The sign-in session they came with (its token's hash), and when it runs out. */
+  session?: { hash: string; expiresAt: number };
 }
+
+/** How often live connections' sessions are checked against the database, and how stale a writer's check may be. */
+const SWEEP_MS = 30_000;
+const WRITE_CHECK_MS = 15_000;
+
+/** Closes a connection whose sign-in has ended; the client sees it signed out. */
+const signedOutError = () => Object.assign(new Error('Signed out'), { code: 4401, reason: 'Signed out' });
 
 function toHeaders(raw: IncomingHttpHeaders): Headers {
   const headers = new Headers();
@@ -58,6 +67,10 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
   readonly #expiries = new Map<string, NodeJS.Timeout>();
   /** Connections made read-only for the one message being refused. */
   readonly #refusing = new WeakSet<object>();
+  /** When each writer's session was last confirmed. */
+  readonly #checked = new WeakMap<object, number>();
+  #sweep: NodeJS.Timeout | undefined;
+  #signedOut: { unsubscribe(): void } | undefined;
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
@@ -83,16 +96,28 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
           this.watchLink(link.id, link.expiresAt?.getTime() ?? null);
           return { user: GUEST, role: link.canEdit ? 'updater' : 'reader', linkId: link.id };
         }
-        let user: User;
+        let signin: Signin;
         try {
-          user = await this.users.byToken(token);
+          signin = await this.users.signin(token);
         } catch {
           throw new Error('Sign in first');
         }
+        const { user, session } = signin;
         const { role } = await this.boards.access(user, documentName);
         // Their edits are refused here, whatever the client does; they still see everyone else's, and share presence.
         connectionConfig.readOnly = !atLeast(role, 'updater');
-        return { user, role };
+        return { user, role, session };
+      },
+      // A signed-out or expired session can't write: checked before each message, against the database at most every
+      // few seconds. The sweep (below) closes idle ones too, so they stop reading as well.
+      beforeHandleMessage: async ({ connection, context }) => {
+        const session = context.session;
+        if (!session) return;
+        const now = Date.now();
+        if (now >= session.expiresAt) throw signedOutError();
+        if (now - (this.#checked.get(connection) ?? 0) < WRITE_CHECK_MS) return;
+        if (!(await this.users.liveSessions([session.hash])).has(session.hash)) throw signedOutError();
+        this.#checked.set(connection, now);
       },
       // A client's update that would change chat, votes or anything else only the API writes is refused, the way a
       // read-only client's edits are: that message isn't applied. Yjs applies each client's changes in order, so its
@@ -132,10 +157,45 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
     if (!this.adapterHost.httpAdapter) return;
     this.#server = this.adapterHost.httpAdapter.getHttpServer() as Server;
     this.#server.on('upgrade', this.#onUpgrade);
+    // Signing out here closes that session's connections at once; the sweep catches sign-outs made on another API
+    // instance, and sessions that expire, within SWEEP_MS.
+    this.#signedOut = this.users.signedOut.subscribe((hash) => this.#closeSessions(new Set([hash])));
+    this.#sweep = setInterval(() => void this.sweepSessions(), SWEEP_MS);
+    this.#sweep.unref();
+  }
+
+  /** Closes connections whose sign-in session has been signed out or has expired. */
+  async sweepSessions(): Promise<void> {
+    const hashes = new Set<string>();
+    for (const [, document] of this.hocuspocus.documents) {
+      for (const connection of document.connections.keys()) {
+        const hash = (connection.context as CollabContext | undefined)?.session?.hash;
+        if (hash) hashes.add(hash);
+      }
+    }
+    if (!hashes.size) return;
+    try {
+      const live = await this.users.liveSessions([...hashes]);
+      this.#closeSessions(new Set([...hashes].filter((h) => !live.has(h))));
+    } catch (err) {
+      this.#log.warn(`Couldn't check sessions: ${String(err)}`);
+    }
+  }
+
+  #closeSessions(ended: ReadonlySet<string>): void {
+    if (!ended.size) return;
+    for (const [, document] of this.hocuspocus.documents) {
+      for (const connection of document.connections.keys()) {
+        const hash = (connection.context as CollabContext | undefined)?.session?.hash;
+        if (hash && ended.has(hash)) connection.close({ code: 4401, reason: 'Signed out' });
+      }
+    }
   }
 
   async onApplicationShutdown(): Promise<void> {
     this.#server?.off('upgrade', this.#onUpgrade);
+    clearInterval(this.#sweep);
+    this.#signedOut?.unsubscribe();
     // Save every open board now, rather than trusting a debounced store to land before the database closes.
     await Promise.all(
       [...this.hocuspocus.documents.values()].map((doc) =>

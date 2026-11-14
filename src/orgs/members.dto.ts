@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsIn, MaxLength } from 'class-validator';
+import { IsEmail, IsIn, IsString, Length, MaxLength } from 'class-validator';
 import { ROLES } from '../access/roles';
 import type { OrgRole } from '../db/schema';
 
@@ -20,6 +20,19 @@ export class InviteDto {
   role!: OrgRole;
   invitedByName!: string | null;
   createdAt!: Date;
+}
+
+/** A new invite, with the secret for its link (shown this once; only its hash is kept). */
+export class CreatedInviteDto extends InviteDto {
+  /** Goes in the link the person is sent: /invite/{token}. */
+  token!: string;
+}
+
+/** An invite link's secret. */
+export class InviteTokenDto {
+  @IsString()
+  @Length(10, 200)
+  token!: string;
 }
 
 /** Who's in a workspace, and who's been invited. */

@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray } from 'drizzle-orm';
+import { Subject } from 'rxjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { InjectDb, type Db } from '../db/db.module';
 import { orgMembers, orgs, sessions, users, type User } from '../db/schema';
@@ -15,6 +16,12 @@ const TOUCH_MS = 60 * 60_000;
 export const hashToken = (token: string) => createHash('sha256').update(token).digest('base64url');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Who a token names, and for a session token, which session and until when. */
+export interface Signin {
+  user: User;
+  session?: { hash: string; expiresAt: number };
+}
 
 /**
  * Who's who. People sign in with a passkey and get a session token (see PasskeysService). In development they can
@@ -38,8 +45,16 @@ export class UsersService {
     return this.db.query.users.findMany({ orderBy: [asc(users.name), asc(users.email)] });
   }
 
+  /** Sessions as they're signed out (their token's hash), so live connections on them can be closed. */
+  readonly signedOut = new Subject<string>();
+
   /** Who a token names: a live session's person, or (with the picker on) the person whose id it is. */
   async byToken(token: string): Promise<User> {
+    return (await this.signin(token)).user;
+  }
+
+  /** Who a token names, and its session, if it's one. */
+  async signin(token: string): Promise<Signin> {
     if (token.startsWith(SESSION)) {
       const [row] = await this.db
         .select({ user: users, session: sessions })
@@ -50,11 +65,21 @@ export class UsersService {
       if (Date.now() - row.session.lastUsedAt.getTime() > TOUCH_MS) {
         await this.db.update(sessions).set({ lastUsedAt: new Date() }).where(eq(sessions.id, row.session.id));
       }
-      return row.user;
+      return { user: row.user, session: { hash: row.session.tokenHash, expiresAt: row.session.expiresAt.getTime() } };
     }
     const user = this.pickerOn && UUID.test(token) ? await this.db.query.users.findFirst({ where: eq(users.id, token) }) : undefined;
     if (!user) throw new Error('No such person');
-    return user;
+    return { user };
+  }
+
+  /** Of these sessions (by token hash), the ones still signed in and unexpired. */
+  async liveSessions(hashes: readonly string[]): Promise<Set<string>> {
+    if (!hashes.length) return new Set();
+    const rows = await this.db
+      .select({ hash: sessions.tokenHash })
+      .from(sessions)
+      .where(and(inArray(sessions.tokenHash, [...hashes]), gt(sessions.expiresAt, new Date())));
+    return new Set(rows.map((r) => r.hash));
   }
 
   /** Signs someone in: a new session, and the token for it (shown once; only its hash is kept). */
@@ -64,9 +89,12 @@ export class UsersService {
     return token;
   }
 
-  /** Signs a session out. Tokens that aren't sessions (picked ids) have nothing to end. */
+  /** Signs a session out, and closes its live connections. Tokens that aren't sessions (picked ids) have nothing to end. */
   async endSession(token: string): Promise<void> {
-    if (token.startsWith(SESSION)) await this.db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+    if (!token.startsWith(SESSION)) return;
+    const hash = hashToken(token);
+    await this.db.delete(sessions).where(eq(sessions.tokenHash, hash));
+    this.signedOut.next(hash);
   }
 
   /** Adds someone, with a workspace of their own that they own, so they can make boards straight away. */

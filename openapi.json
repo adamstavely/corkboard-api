@@ -3296,7 +3296,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InviteDto"
+                  "$ref": "#/components/schemas/CreatedInviteDto"
                 }
               }
             }
@@ -3307,7 +3307,7 @@
             "bearer": []
           }
         ],
-        "summary": "Admins: invite an email at a role; they see it once they sign in with that email.",
+        "summary": "Admins: invite an email at a role. Send them the link (/invite/{token}); it's how they join.",
         "tags": [
           "members"
         ]
@@ -3400,6 +3400,80 @@
         ]
       }
     },
+    "/invites/lookup": {
+      "post": {
+        "operationId": "MembersController_lookup",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyInviteDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What an invite link is for. A POST, so the secret stays out of URLs and logs.",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/invites/accept": {
+      "post": {
+        "operationId": "MembersController_acceptLink",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Joins a workspace through an invite link.",
+        "tags": [
+          "members"
+        ]
+      }
+    },
     "/me/invites": {
       "get": {
         "operationId": "MembersController_mine",
@@ -3424,7 +3498,7 @@
             "bearer": []
           }
         ],
-        "summary": "Invites waiting for the signed-in person.",
+        "summary": "Invites waiting for the signed-in person (development picker only; see MembersService).",
         "tags": [
           "members"
         ]
@@ -5743,6 +5817,59 @@
         "required": [
           "role",
           "email"
+        ]
+      },
+      "CreatedInviteDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "invitedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "description": "Goes in the link the person is sent: /invite/{token}."
+          }
+        },
+        "required": [
+          "role",
+          "id",
+          "email",
+          "invitedByName",
+          "createdAt",
+          "token"
+        ]
+      },
+      "InviteTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "token"
         ]
       },
       "MyInviteDto": {
