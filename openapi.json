@@ -4058,7 +4058,14 @@
       },
       "RevealedDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "revealed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "revealed"
+        ]
       },
       "NoteDraftDto": {
         "type": "object",

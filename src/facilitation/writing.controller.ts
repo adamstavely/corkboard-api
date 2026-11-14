@@ -2,13 +2,8 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, P
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { NoteDraftDto, StartWritingDto, WriteDraftDto } from './writing.dto';
+import { NoteDraftDto, RevealedDto, StartWritingDto, WriteDraftDto } from './writing.dto';
 import { WritingService } from './writing.service';
-
-/** What a reveal put on the board. */
-export class RevealedDto {
-  revealed!: number;
-}
 
 @ApiTags('facilitation')
 @ApiBearerAuth()
