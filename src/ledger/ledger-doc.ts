@@ -160,7 +160,7 @@ function attrsOf(node: Y.Map<unknown>): Attrs {
 /** Whether a node is still exactly as the ledger left it: its properties, and a note's text. */
 function untouched(node: unknown, attrs: Attrs, text?: string): node is Y.Map<unknown> {
   if (!(node instanceof Y.Map) || !same(attrsOf(node), attrs)) return false;
-  const fragment = node.get('text');
+  const fragment: unknown = (node as Y.Map<unknown>).get('text');
   return text === undefined || (fragment instanceof Y.XmlFragment && markup(fragment) === text);
 }
 
