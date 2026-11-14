@@ -316,6 +316,100 @@
         ]
       }
     },
+    "/boards/{id}/facilitator": {
+      "post": {
+        "operationId": "FacilitationController_claimFacilitator",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: take the facilitator's seat (owners can take it from someone).",
+        "tags": [
+          "facilitation"
+        ]
+      },
+      "delete": {
+        "operationId": "FacilitationController_releaseFacilitator",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/spotlight": {
+      "post": {
+        "operationId": "FacilitationController_bringEveryone",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BringEveryoneDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The facilitator: bring everyone's view to this.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/orgs/{orgId}/folders": {
       "get": {
         "operationId": "OrganiseController_folders",
@@ -3840,6 +3934,27 @@
         },
         "required": [
           "seconds"
+        ]
+      },
+      "BringEveryoneDto": {
+        "type": "object",
+        "properties": {
+          "cx": {
+            "type": "number"
+          },
+          "cy": {
+            "type": "number"
+          },
+          "zoom": {
+            "type": "number",
+            "minimum": 0.05,
+            "maximum": 8
+          }
+        },
+        "required": [
+          "cx",
+          "cy",
+          "zoom"
         ]
       },
       "FolderDto": {

@@ -1,4 +1,4 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 export class SetVotingDto {
   /** Opens a new round (clearing the last one's votes), or closes the current one. */
@@ -65,4 +65,18 @@ export class BreakoutTimerDto {
   @Min(10)
   @Max(7200)
   seconds!: number | null;
+}
+
+/** What the facilitator is looking at: the board point in the middle of their view, and their zoom. */
+export class BringEveryoneDto {
+  @IsNumber()
+  cx!: number;
+
+  @IsNumber()
+  cy!: number;
+
+  @IsNumber()
+  @Min(0.05)
+  @Max(8)
+  zoom!: number;
 }

@@ -4,7 +4,7 @@ import request from 'supertest';
 import * as Y from 'yjs';
 import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
 import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
-import { timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
+import { facilitatorOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
 import { createTestApp, type TestApp } from './app';
 
 const eventually = async (check: () => boolean, ms = 5000) => {
@@ -135,5 +135,30 @@ describe('Dot voting and the shared timer', () => {
     await eventually(() => !breakoutsOf(doc).open);
     await request(server).post(`/boards/${board.id}/votes`).set(grace.auth).send({ noteId: inA, add: true }).expect(204);
     await request(server).delete(`/boards/${board.id}/breakouts`).set(ada.auth).expect(409);
+  });
+
+  it('keeps one facilitator at a time, who alone brings everyone to their view', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const grace = await joined(ada, 'updater');
+    const linus = await joined(ada, 'commenter');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Workshop' });
+    const doc = await open(board.id, linus);
+    const view = { cx: 400, cy: 300, zoom: 0.8 };
+
+    await request(server).post(`/boards/${board.id}/spotlight`).set(linus.auth).send(view).expect(403);
+    // Grace brings everyone without asking first: she takes the seat.
+    await request(server).post(`/boards/${board.id}/spotlight`).set(grace.auth).send(view).expect(204);
+    await eventually(() => doc.getMap('spotlight').get('n') === 1);
+    expect(doc.getMap('spotlight').get('view')).toEqual(view);
+    expect(facilitatorOf(doc).userId).not.toBeNull();
+
+    // Ada (the owner) can take the seat over; then Grace can't bring everyone.
+    await request(server).post(`/boards/${board.id}/facilitator`).set(ada.auth).expect(204);
+    await request(server).post(`/boards/${board.id}/spotlight`).set(grace.auth).send(view).expect(409);
+    await request(server).post(`/boards/${board.id}/facilitator`).set(grace.auth).expect(409);
+    await request(server).delete(`/boards/${board.id}/facilitator`).set(ada.auth).expect(204);
+    await eventually(() => facilitatorOf(doc).userId === null);
+    await request(server).post(`/boards/${board.id}/facilitator`).set(grace.auth).expect(204);
   });
 });

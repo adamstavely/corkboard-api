@@ -5,7 +5,7 @@ import * as Y from 'yjs';
  * reactions, the summary, hidden writing rounds and the model's change history. People's clients read them but may not change them, so who
  * wrote a message or cast a vote is whatever the API checked, not what a client claims.
  */
-export const SERVER_OWNED: ReadonlySet<string> = new Set(['chat', 'ledger', 'reactions', 'summary', 'timer', 'votes', 'voting', 'writing', 'breakouts']);
+export const SERVER_OWNED: ReadonlySet<string> = new Set(['chat', 'ledger', 'reactions', 'summary', 'timer', 'votes', 'voting', 'writing', 'breakouts', 'facilitator', 'spotlight']);
 
 type ID = { client: number; clock: number };
 

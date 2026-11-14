@@ -5,7 +5,7 @@ import { breakoutsOf, groupOf, moveTo, setBreakouts, spread } from './breakouts-
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
-import { castVote, setTimer, setVoting, votingOf } from './facilitation-doc';
+import { castVote, facilitatorOf, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
 import { ActivityService } from '../activity/activity.service';
 
 const DEFAULT_VOTES = 3;
@@ -99,6 +99,40 @@ export class FacilitationService {
       setBreakouts(doc, { open: false, groups: [] });
     });
     await this.activity.record(boardId, user, 'brought everyone back from breakouts');
+  }
+
+  /**
+   * Takes the facilitator's seat: only one person holds it, so two facilitators don't pull everyone's view about. It's
+   * free when nobody has it; a board owner can take it from someone else.
+   */
+  async claimFacilitator(user: User, boardId: string): Promise<void> {
+    const board = await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => {
+      const now = facilitatorOf(doc);
+      if (now.userId && now.userId !== user.id && board.role !== 'owner') throw new ConflictException(`${now.name} is facilitating; they or a board owner can hand it over`);
+      setFacilitator(doc, { id: user.id, name: user.name });
+    });
+  }
+
+  /** Gives the seat up (the facilitator, or a board owner). */
+  async releaseFacilitator(user: User, boardId: string): Promise<void> {
+    const board = await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => {
+      const now = facilitatorOf(doc);
+      if (now.userId && now.userId !== user.id && board.role !== 'owner') throw new ConflictException(`${now.name} is facilitating`);
+      setFacilitator(doc, null);
+    });
+  }
+
+  /** The facilitator brings everyone's view to what they're looking at; it takes the seat first if it's free. */
+  async bringEveryone(user: User, boardId: string, view: { cx: number; cy: number; zoom: number }): Promise<void> {
+    await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => {
+      const now = facilitatorOf(doc);
+      if (now.userId && now.userId !== user.id) throw new ConflictException(`${now.name} is facilitating, so only they can bring everyone`);
+      if (!now.userId) setFacilitator(doc, { id: user.id, name: user.name });
+      spotlight(doc, user.name, view);
+    });
   }
 
   async #edit(user: User, boardId: string, change: (doc: Y.Doc) => void): Promise<void> {
