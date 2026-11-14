@@ -84,6 +84,9 @@ export function nodeProblem(doc: Y.Doc, update: Uint8Array): string | null {
 
   for (const s of structs) {
     if (!(s instanceof Y.Item)) continue;
+    // A value set and then set again in the same change arrives already deleted, with nothing in it: there's
+    // nothing to check, and the value that replaced it is checked on its own.
+    if (s.content instanceof Y.ContentDeleted) continue;
     const { parent, key } = placeOf(s);
     if (parent === 'nodes' && key !== null) {
       if (!(s.content instanceof Y.ContentType && s.content.type instanceof Y.Map)) return `node ${key} is not a node`;

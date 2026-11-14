@@ -65,6 +65,24 @@ describe('what a board node may hold', () => {
     expect(nodeProblem(board, clientChange(board, (nodes) => nodes.set('e', node({ kind: 'note', text: 7 }))))).toMatch(/^e\.text: /);
   });
 
+  it('accepts a field, or a node, set twice in one change: the first arrives already deleted, with nothing in it', () => {
+    const change = clientChange(board, (nodes) => {
+      const n1 = nodes.get('n1') as Y.Map<unknown>;
+      n1.set('z', 5);
+      n1.set('z', 6);
+      nodes.set('twice', node({ kind: 'note', x: 1 }));
+      nodes.set('twice', node({ kind: 'note', x: 2 }));
+    });
+    expect(Y.decodeUpdate(change).structs.some((s) => s instanceof Y.Item && s.content instanceof Y.ContentDeleted)).toBe(true);
+    expect(nodeProblem(board, change)).toBeNull();
+    // The value that stays is still checked.
+    expect(nodeProblem(board, clientChange(board, (nodes) => {
+      const n1 = nodes.get('n1') as Y.Map<unknown>;
+      n1.set('z', 5);
+      n1.set('z', Number.NaN);
+    }))).toMatch(/^n1\.z: /);
+  });
+
   it('refuses a bad value set again on an existing node, which arrives without its key', () => {
     expect(nodeProblem(board, clientChange(board, (nodes) => (nodes.get('n1') as Y.Map<unknown>).set('x', Number.POSITIVE_INFINITY)))).toMatch(/^n1\.x: /);
   });
