@@ -51,7 +51,7 @@ const READ_ONLY = `This person can view the board but not change it, so you can'
 
 const COLOR = { type: 'string', enum: [...NOTE_COLORS] };
 
-const TOOLS: ToolDef[] = [
+export const TOOLS: ToolDef[] = [
   {
     name: 'add_notes',
     description: `Adds sticky notes to the board, beside the notes in focus. Use it to write ideas, summaries, action items or answers as notes. At most ${MAX_NEW_NOTES} at a time.`,

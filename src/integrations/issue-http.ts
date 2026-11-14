@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import http from 'node:http';
 import https from 'node:https';
+import { assertPublicHost } from '../unfurl/addresses';
 import { guardedLookup } from '../unfurl/unfurl';
 
 /** What came back from an issue tracker. */
@@ -21,6 +22,11 @@ export class IssueHttp {
   request(url: string, init: { method: string; headers: Record<string, string>; body?: unknown }): Promise<HttpReply> {
     const target = new URL(url);
     if (target.protocol !== 'https:') return Promise.reject(new Error('Issue trackers are reached over https only'));
+    try {
+      assertPublicHost(target);
+    } catch (err) {
+      return Promise.reject(err);
+    }
     const body = init.body === undefined ? undefined : JSON.stringify(init.body);
     return new Promise((resolve, reject) => {
       const req = (target.protocol === 'https:' ? https : http).request(
