@@ -37,12 +37,7 @@ export const MAX_LEDGER = 100;
 export function snapshot(doc: Y.Doc): Snapshot {
   const snap: Snapshot = new Map();
   nodesOf(doc).forEach((node, id) => {
-    if (!(node instanceof Y.Map)) return;
-    const attrs: Attrs = {};
-    node.forEach((value, key) => {
-      if (!(value instanceof Y.AbstractType)) attrs[key] = value;
-    });
-    snap.set(id, attrs);
+    if (node instanceof Y.Map) snap.set(id, attrsOf(node));
   });
   return snap;
 }
@@ -89,6 +84,86 @@ export function capture(doc: Y.Doc, ids: readonly string[]): LedgerEntry['create
   });
 }
 
+/**
+ * Collects one model run's changes a tool call at a time. Each call is measured inside its own transaction, so edits
+ * people (or another run) make while the model is thinking are never counted as the model's.
+ */
+export class ChangeTracker {
+  readonly #created = new Map<string, { attrs: Attrs; text?: string }>();
+  readonly #removed = new Map<string, Attrs>();
+  readonly #changed = new Map<string, { before: Attrs; after: Attrs }>();
+
+  /** Runs one change (call it inside a transaction) and notes what it did. */
+  track<T>(doc: Y.Doc, change: (doc: Y.Doc) => T): T {
+    const before = snapshot(doc);
+    const result = change(doc);
+    const after = snapshot(doc);
+    for (const [id, was] of before) {
+      if (after.has(id)) continue;
+      if (this.#created.delete(id)) continue;
+      if (was['kind'] === 'frame') this.#removed.set(id, { ...was, ...this.#changed.get(id)?.before });
+      this.#changed.delete(id);
+    }
+    const nodes = nodesOf(doc);
+    for (const [id, now] of after) {
+      const was = before.get(id);
+      if (!was || this.#created.has(id)) {
+        if (!was || !same(was, now)) {
+          const text = nodes.get(id)?.get('text');
+          this.#created.set(id, { attrs: now, ...(text instanceof Y.XmlFragment ? { text: markup(text) } : {}) });
+        }
+        continue;
+      }
+      const keys = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => !same(was[k], now[k]));
+      if (!keys.length) continue;
+      const entry = this.#changed.get(id) ?? { before: {}, after: {} };
+      for (const k of keys) {
+        if (!(k in entry.before)) entry.before[k] = was[k];
+        entry.after[k] = now[k];
+      }
+      for (const k of Object.keys(entry.after)) {
+        if (same(entry.before[k], entry.after[k])) {
+          delete entry.before[k];
+          delete entry.after[k];
+        }
+      }
+      if (Object.keys(entry.after).length) this.#changed.set(id, entry);
+      else this.#changed.delete(id);
+    }
+    return result;
+  }
+
+  get empty(): boolean {
+    return !this.#created.size && !this.#removed.size && !this.#changed.size;
+  }
+
+  /** The run's changes, for its ledger entry. */
+  changes(): Pick<LedgerEntry, 'created' | 'createdNodes' | 'removed' | 'changed'> {
+    return {
+      created: [...this.#created.keys()],
+      createdNodes: [...this.#created].map(([id, node]) => ({ id, ...node })),
+      removed: [...this.#removed].map(([id, attrs]) => ({ id, attrs })),
+      changed: [...this.#changed].map(([id, c]) => ({ id, ...c })),
+    };
+  }
+}
+
+/** A node's properties as they are now. */
+function attrsOf(node: Y.Map<unknown>): Attrs {
+  const attrs: Attrs = {};
+  node.forEach((value, key) => {
+    if (!(value instanceof Y.AbstractType)) attrs[key] = value;
+  });
+  return attrs;
+}
+
+/** Whether a node is still exactly as the ledger left it: its properties, and a note's text. */
+function untouched(node: unknown, attrs: Attrs, text?: string): node is Y.Map<unknown> {
+  if (!(node instanceof Y.Map) || !same(attrsOf(node), attrs)) return false;
+  const fragment: unknown = (node as Y.Map<unknown>).get('text');
+  return text === undefined || (fragment instanceof Y.XmlFragment && markup(fragment) === text);
+}
+
 export function record(doc: Y.Doc, entry: LedgerEntry): void {
   const ledger = ledgerOf(doc);
   doc.transact(() => {
@@ -99,7 +174,10 @@ export function record(doc: Y.Doc, entry: LedgerEntry): void {
 
 export const ledgerEntries = (doc: Y.Doc): LedgerEntry[] => ledgerOf(doc).toArray();
 
-/** Takes an entry's changes back. Says why not when it can't. */
+/**
+ * Takes an entry's changes back, leaving alone anything someone has changed since: a note the model wrote that's since
+ * been edited or moved stays, and a property is only put back while it's still the model's value. Says why not when it can't.
+ */
 export function undo(doc: Y.Doc, entryId: string): string | null {
   const ledger = ledgerOf(doc);
   const at = ledger.toArray().findIndex((e) => e.id === entryId);
@@ -107,29 +185,36 @@ export function undo(doc: Y.Doc, entryId: string): string | null {
   const entry = ledger.get(at);
   if (entry.undone) return 'That change was already undone';
   const nodes = nodesOf(doc);
+  const made = new Map((entry.createdNodes ?? []).map((n) => [n.id, n]));
   doc.transact(() => {
-    for (const id of entry.created) nodes.delete(id);
+    for (const id of entry.created) {
+      const was = made.get(id);
+      if (was && untouched(nodes.get(id), was.attrs, was.text)) nodes.delete(id);
+    }
     for (const { id, attrs } of entry.removed) {
       if (nodes.has(id)) continue;
       const frame = new Y.Map<unknown>();
       for (const [k, v] of Object.entries(attrs)) frame.set(k, v);
       nodes.set(id, frame);
     }
-    for (const { id, before } of entry.changed) {
-      const node = nodes.get(id);
-      if (!(node instanceof Y.Map)) continue;
-      for (const [k, v] of Object.entries(before)) {
-        if (v === undefined) node.delete(k);
-        else node.set(k, v);
-      }
-    }
+    for (const { id, before, after } of entry.changed) revert(nodes.get(id), after, before);
     ledger.delete(at, 1);
     ledger.insert(at, [{ ...entry, undone: true }]);
   });
   return null;
 }
 
-/** Puts an undone entry's changes back. Says why not when it can't. */
+/** Sets each property to `to` where it's still `from`; one someone has changed since is left as they made it. */
+function revert(node: unknown, from: Attrs, to: Attrs): void {
+  if (!(node instanceof Y.Map)) return;
+  for (const [k, v] of Object.entries(to)) {
+    if (!same(node.get(k), from[k])) continue;
+    if (v === undefined) node.delete(k);
+    else node.set(k, v);
+  }
+}
+
+/** Puts an undone entry's changes back, as carefully as undo takes them away. Says why not when it can't. */
 export function redo(doc: Y.Doc, entryId: string): string | null {
   const ledger = ledgerOf(doc);
   const at = ledger.toArray().findIndex((e) => e.id === entryId);
@@ -149,15 +234,8 @@ export function redo(doc: Y.Doc, entryId: string): string | null {
         fragment.insert(0, paragraphs(text));
       }
     }
-    for (const { id } of entry.removed) nodes.delete(id);
-    for (const { id, after } of entry.changed) {
-      const node = nodes.get(id);
-      if (!(node instanceof Y.Map)) continue;
-      for (const [k, v] of Object.entries(after)) {
-        if (v === undefined) node.delete(k);
-        else node.set(k, v);
-      }
-    }
+    for (const { id, attrs } of entry.removed) if (untouched(nodes.get(id), attrs)) nodes.delete(id);
+    for (const { id, before, after } of entry.changed) revert(nodes.get(id), before, after);
     ledger.delete(at, 1);
     ledger.insert(at, [{ ...entry, undone: false }]);
   });
