@@ -20,7 +20,7 @@ saved to Postgres by replacing the board's stored state. **Run exactly one API i
 
 | Variable | |
 |---|---|
-| `NODE_ENV=production` | Turns the development people picker off (`PEOPLE_PICKER` can't be true in production). Sign-in is then passkeys only. |
+| `NODE_ENV=production` | Turns the development people picker off, so sign-in is passkeys only. `PEOPLE_PICKER=true` would still turn it on: **never set it on a shared deployment**, as anyone could then act as anyone. |
 | `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGINS` | The UI's host name, and its origin(s) exactly as the browser sends them. Test sign-up behind the real reverse proxy. |
 | `MODEL_KEY_SECRET` | 32 random bytes (base64) that encrypt model keys and tracker tokens. **Back it up separately from the database**: without it, every stored key and token is unreadable and must be entered again. |
 | `DATABASE_URL`, `ES_NODE` | Postgres is the source of truth (boards, files, everything). Elasticsearch is only search; `npm run search:reindex` rebuilds it. |
