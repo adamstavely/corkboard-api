@@ -26,6 +26,15 @@ import type { WorkspaceUsageDto } from './admin.dto';
 const DAYS = 30;
 
 /** Workspace owners' view of the whole workspace: usage and spend, a full export, and deleting it. */
+/** What a workspace export doesn't hold, written into it, so nobody mistakes it for a backup that can be restored. */
+export const EXPORT_LEAVES_OUT = [
+  'The contents of attached images and files (they are listed by name only)',
+  'Board-by-board sharing and access',
+  'Saved versions and the history of changes',
+  'Rich text formatting in notes (text is kept as plain lines)',
+  'Model and tracker keys and tokens',
+];
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -99,8 +108,9 @@ export class AdminService {
   }
 
   /**
-   * Everything in the workspace as one JSON document: its members, boards (their notes, frames, other things, tasks
-   * and chat, as plain data), folders, comments, and its models and trackers without their keys.
+   * The workspace's data as one JSON document: its members, boards (their notes, frames, other things, tasks and chat,
+   * as plain data), folders, comments, and its models and trackers without their keys. A partial export, not a backup:
+   * it says so in the file, and what it leaves out (see EXPORT_LEAVES_OUT).
    */
   async export(user: User, orgId: string): Promise<Record<string, unknown>> {
     await this.orgs.require(user.id, orgId, 'owner');
@@ -140,7 +150,17 @@ export class AdminService {
     }
     const models = await this.db.select({ label: modelProviders.label, kind: modelProviders.kind, model: modelProviders.model }).from(modelProviders).where(eq(modelProviders.orgId, orgId));
     const trackers = await this.db.select({ label: integrations.label, kind: integrations.kind, config: integrations.config }).from(integrations).where(eq(integrations.orgId, orgId));
-    return { workspace: { id: org.id, name: org.name }, exportedAt: new Date().toISOString(), members, folders, boards: boardsOut, models, trackers };
+    return {
+      workspace: { id: org.id, name: org.name },
+      exportedAt: new Date().toISOString(),
+      kind: 'partial-data-export',
+      leavesOut: EXPORT_LEAVES_OUT,
+      members,
+      folders,
+      boards: boardsOut,
+      models,
+      trackers,
+    };
   }
 
   /**
