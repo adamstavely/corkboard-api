@@ -140,4 +140,22 @@ describe('Real-time collaboration', () => {
     await request(t.app.getHttpServer()).delete(`/boards/${board.id}`).set(board.auth).expect(204);
     await closed;
   });
+
+  it("refuses a client's writes to chat and votes, which only the API makes", async () => {
+    const subject = randomUUID();
+    const board = await newBoard(subject);
+    const token = board.auth.Authorization.slice(7);
+    const forger = await connect(board.id, token);
+    const honest = await connect(board.id, token);
+    const watcher = await connect(board.id, token);
+
+    forger.document.getMap('votes').set('someone-else', Array(50).fill('n1'));
+    forger.document.getArray('chat').push([{ id: 'm', authorId: 'someone-else', name: 'Someone', at: 1, text: 'Forged' }]);
+    await new Promise((r) => setTimeout(r, 300));
+    const note = addNote(honest.document, 'Mine');
+
+    await eventually(() => watcher.document.getMap('nodes').has(note));
+    expect(watcher.document.getMap('votes').size).toBe(0);
+    expect(watcher.document.getArray('chat').length).toBe(0);
+  });
 });
