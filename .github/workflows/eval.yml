@@ -1,0 +1,37 @@
+name: Model evals
+
+# Run by hand (Actions → Model evals → Run workflow). Calls a real model with the EVAL_API_KEY secret, so it costs money.
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: anthropic, or openai for any OpenAI-compatible server
+        default: anthropic
+        type: choice
+        options: [anthropic, openai]
+      model:
+        description: Model id (blank for claude-opus-5-5 with anthropic)
+        required: false
+      base_url:
+        description: Base URL, for openai-compatible servers
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run eval
+        env:
+          EVAL_API_KEY: ${{ secrets.EVAL_API_KEY }}
+          EVAL_KIND: ${{ inputs.kind }}
+          EVAL_MODEL: ${{ inputs.model }}
+          EVAL_BASE_URL: ${{ inputs.base_url }}

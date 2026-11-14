@@ -19,7 +19,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "ts-node scripts/migrate.ts",
     "openapi:export": "nest build && node dist/export-openapi.js",
-    "search:reindex": "ts-node scripts/reindex.ts"
+    "search:reindex": "ts-node scripts/reindex.ts",
+    "eval": "jest --config jest.eval.config.js --runInBand"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
