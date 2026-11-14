@@ -54,7 +54,7 @@ export class VersionsService {
   }
 
   /** Updaters and owners: brings a version back for everyone, saving what's there first so it can be undone. */
-  async restore(user: User, boardId: string, versionId: string): Promise<void> {
+  async restore(user: User, boardId: string, versionId: string): Promise<{ beforeVersionId: string }> {
     await this.boards.get(user, boardId, 'updater');
     const [version] = await this.db
       .select()
@@ -62,7 +62,11 @@ export class VersionsService {
       .where(and(eq(boardVersions.id, versionId), eq(boardVersions.boardId, boardId)));
     if (!version) throw new NotFoundException('Version not found');
     const when = version.createdAt.toISOString().slice(0, 16).replace('T', ' ');
-    await this.db.insert(boardVersions).values({ boardId, state: await this.#current(user, boardId), createdBy: user.id, label: `Before restoring ${version.label.replace(/^(Before restoring )+/, '')}` });
+    // Its id goes back to whoever restored, so their Undo brings back exactly this, whatever anyone restores meanwhile.
+    const [before] = await this.db
+      .insert(boardVersions)
+      .values({ boardId, state: await this.#current(user, boardId), createdBy: user.id, label: `Before restoring ${version.label.replace(/^(Before restoring )+/, '')}` })
+      .returning({ id: boardVersions.id });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
       await connection.transact((doc) => restoreInto(doc, new Uint8Array(version.state)));
@@ -70,6 +74,7 @@ export class VersionsService {
       await connection.disconnect();
     }
     await this.activity.record(boardId, user, 'restored a version', version.label, `Saved ${when} UTC`);
+    return { beforeVersionId: before.id };
   }
 
   async #current(user: User, boardId: string): Promise<Buffer> {

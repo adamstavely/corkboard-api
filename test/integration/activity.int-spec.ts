@@ -78,12 +78,17 @@ describe('Activity, versions and notifications', () => {
     doc.getMap('nodes').clear();
     addNotes(doc, [{ text: 'Replaced', color: 'pink' }]);
     await new Promise((r) => setTimeout(r, 300));
-    await request(server).post(`/boards/${board.id}/versions/${v1.id}/restore`).set(ada).expect(204);
+    const { body: restored } = await request(server).post(`/boards/${board.id}/versions/${v1.id}/restore`).set(ada).expect(200);
     await eventually(() => notesOf(doc).map((n) => n.text).join() === 'Keep me');
 
     const { body: versions } = await request(server).get(`/boards/${board.id}/versions`).set(grace).expect(200);
     expect(versions.map((v: { label: string }) => v.label).slice(0, 2)).toEqual(['Before restoring Before cleanup', 'Before cleanup']);
     expect(versions[1].by).toBe('Ada Lovelace');
+    // The restore says which version undoes it: the one saved just before, whatever anyone restores after.
+    expect(restored).toEqual({ beforeVersionId: versions[0].id });
+    await request(server).post(`/boards/${board.id}/versions/${v1.id}/restore`).set(ada).expect(200);
+    await request(server).post(`/boards/${board.id}/versions/${restored.beforeVersionId}/restore`).set(ada).expect(200);
+    await eventually(() => notesOf(doc).map((n) => n.text).join() === 'Replaced');
     provider.destroy();
   });
 

@@ -379,6 +379,27 @@ export type Passkey = typeof passkeys.$inferSelect;
  * Notes written during a hidden writing round: kept here, seen only by their author, until a facilitator reveals them
  * all onto the board at once (see WritingService). Never in the board's document before then.
  */
+/** Where a hidden writing round is: open (taking notes), revealing (notes fixed, being put on the board) or closed. */
+export const writingStatus = pgEnum('writing_status', ['open', 'revealing', 'closed']);
+
+/**
+ * Hidden writing rounds, kept in the database so taking a note and revealing them are one ordered story: a write
+ * holds a share lock on its open round, and revealing takes the round out of `open` under an exclusive one, so every
+ * note it reveals was written before it and none can be written after.
+ */
+export const writingRounds = pgTable(
+  'writing_rounds',
+  {
+    id: uuid('id').primaryKey(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    status: writingStatus('status').notNull().default('open'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('writing_rounds_board_idx').on(t.boardId)],
+);
+
 export const noteDrafts = pgTable(
   'note_drafts',
   {
@@ -413,6 +434,28 @@ export const integrations = pgTable('integrations', {
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
 });
+
+/**
+ * A board task sent (or being sent) to an issue tracker. Claimed here before the tracker is called, one per task, so
+ * two exports at once can't both make an issue. `pending` while the call is out; `done` with the issue; `unknown`
+ * when the call failed without an answer, so it may or may not have made one.
+ */
+export const issueExports = pgTable(
+  'issue_exports',
+  {
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    taskId: text('task_id').notNull(),
+    integrationId: uuid('integration_id').references(() => integrations.id, { onDelete: 'set null' }),
+    status: text('status', { enum: ['pending', 'done', 'unknown'] }).notNull(),
+    kind: text('kind', { enum: ['github', 'linear', 'jira'] }).notNull(),
+    issueKey: text('issue_key'),
+    url: text('url'),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.taskId] })],
+);
 
 /** Tokens each model call used: for a workspace's usage and spend. */
 export const modelUsage = pgTable(

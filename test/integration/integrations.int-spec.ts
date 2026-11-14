@@ -9,11 +9,15 @@ describe('Sending tasks to issue trackers', () => {
   let t: TestApp;
   const sent: { url: string; body: unknown }[] = [];
   let next = 100;
+  /** How the fake tracker behaves: answers at once, answers after a pause, or never answers. */
+  let behaviour: 'answer' | 'slow' | 'silent' = 'answer';
   const fakeHttp = {
-    request: (url: string, init: { body?: unknown }) => {
+    request: async (url: string, init: { body?: unknown }) => {
       sent.push({ url, body: init.body });
+      if (behaviour === 'silent') throw new Error('The tracker took too long to answer');
+      if (behaviour === 'slow') await new Promise((r) => setTimeout(r, 300));
       const n = next++;
-      return Promise.resolve({ status: 201, json: { number: n, html_url: `https://github.com/acme/web/issues/${n}` } });
+      return { status: 201, json: { number: n, html_url: `https://github.com/acme/web/issues/${n}` } };
     },
   };
 
@@ -75,4 +79,41 @@ describe('Sending tasks to issue trackers', () => {
     await request(server).post(`/boards/${board.id}/tasks/export`).set(auth).send({ integrationId: gh.id }).expect(404);
     provider.destroy();
   });
+
+  it('makes one issue per task however many exports run at once, and holds a send that got no answer', async () => {
+    const server = t.app.getHttpServer();
+    const token = await t.token(randomUUID(), { name: 'Ada' });
+    const auth = { Authorization: `Bearer ${token}` };
+    const orgId = (await request(server).get('/me').set(auth)).body.orgs[0].id as string;
+    const { body: gh } = await request(server).post(`/orgs/${orgId}/integrations`).set(auth).send({ kind: 'github', label: 'Web repo', config: { repo: 'acme/web' }, token: 'ghp_x' }).expect(201);
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Plan' });
+    const doc = new Y.Doc();
+    const provider = await new Promise<HocuspocusProvider>((resolve) => {
+      const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token, document: doc, onSynced: (): void => resolve(p) });
+    });
+    doc.getMap('tasks').set('x', { id: 'x', key: 'T-1', title: 'Only once', status: 'todo', labels: [] });
+    await new Promise((r) => setTimeout(r, 300));
+
+    behaviour = 'slow';
+    const before = sent.length;
+    const both = await Promise.all([1, 2].map(() => request(server).post(`/boards/${board.id}/tasks/export`).set(auth).send({ integrationId: gh.id }).expect(200)));
+    expect(sent.length - before).toBe(1);
+    expect(both.flatMap((r) => r.body.exported)).toHaveLength(1);
+    expect(both.flatMap((r) => r.body.failed.map((f: { reason: string }) => f.reason))).toEqual(['This task is being sent right now.']);
+
+    // A send that gets no answer may have made an issue: it's held, then retried only when asked for by name.
+    doc.getMap('tasks').set('y', { id: 'y', key: 'T-2', title: 'Unclear', status: 'todo', labels: [] });
+    await new Promise((r) => setTimeout(r, 300));
+    behaviour = 'silent';
+    const { body: lost } = await request(server).post(`/boards/${board.id}/tasks/export`).set(auth).send({ integrationId: gh.id }).expect(200);
+    expect(lost.failed[0].reason).toContain('It may have been created');
+    behaviour = 'answer';
+    const { body: held } = await request(server).post(`/boards/${board.id}/tasks/export`).set(auth).send({ integrationId: gh.id }).expect(200);
+    expect(held.exported).toEqual([]);
+    expect(held.failed[0].reason).toContain('Check the tracker');
+    const { body: retried } = await request(server).post(`/boards/${board.id}/tasks/export`).set(auth).send({ integrationId: gh.id, taskIds: ['y'] }).expect(200);
+    expect(retried.exported.map((e: { taskKey: string }) => e.taskKey)).toEqual(['T-2']);
+    provider.destroy();
+  });
 });
+

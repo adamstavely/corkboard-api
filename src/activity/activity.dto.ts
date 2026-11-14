@@ -19,6 +19,12 @@ export class BoardVersionDto {
   by!: string | null;
 }
 
+/** A restore that happened: the version saved just before it, which is what undoing it brings back. */
+export class RestoredDto {
+  /** The board as it was before this restore, saved as a version; restore it to undo. */
+  beforeVersionId!: string;
+}
+
 export class SaveVersionDto {
   @IsOptional()
   @IsString()
