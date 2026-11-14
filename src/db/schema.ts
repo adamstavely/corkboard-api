@@ -1,4 +1,4 @@
-import { type AnyPgColumn, customType, integer, index, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, customType, integer, index, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -383,3 +383,19 @@ export const noteDrafts = pgTable(
   },
   (t) => [index('note_drafts_board_round_idx').on(t.boardId, t.round)],
 );
+
+/** A workspace's connections to issue trackers (GitHub, Linear, Jira), to send board tasks to. */
+export const integrations = pgTable('integrations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  kind: text('kind', { enum: ['github', 'linear', 'jira'] }).notNull(),
+  label: text('label').notNull(),
+  /** Where issues go: a repository, a team, a Jira site and project (see IntegrationConfig). */
+  config: jsonb('config').$type<Record<string, string>>().notNull(),
+  /** The access token, encrypted like model keys. */
+  tokenEncrypted: text('token_encrypted').notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: createdAt(),
+});

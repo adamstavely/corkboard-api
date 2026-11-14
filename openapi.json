@@ -1995,6 +1995,171 @@
         ]
       }
     },
+    "/orgs/{orgId}/integrations": {
+      "get": {
+        "operationId": "IntegrationsController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone in the workspace: its issue trackers (never their tokens).",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "post": {
+        "operationId": "IntegrationsController_create",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIntegrationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: connect GitHub, Linear or Jira.",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/orgs/{orgId}/integrations/{id}": {
+      "delete": {
+        "operationId": "IntegrationsController_remove",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/boards/{id}/tasks/export": {
+      "post": {
+        "operationId": "IntegrationsController_export",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportTasksDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: send the board's open tasks (or these) to a tracker; each remembers its issue.",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/boards/{id}/ledger/{entryId}/undo": {
       "post": {
         "operationId": "LedgerController_undo",
@@ -4438,6 +4603,187 @@
           "description",
           "image",
           "site"
+        ]
+      },
+      "IntegrationConfigDto": {
+        "type": "object",
+        "properties": {
+          "repo": {
+            "type": "string",
+            "description": "GitHub: the repository, \"owner/name\".",
+            "maxLength": 200
+          },
+          "teamId": {
+            "type": "string",
+            "description": "Linear: the team's id.",
+            "maxLength": 100
+          },
+          "baseUrl": {
+            "type": "string",
+            "description": "Jira: the site, project key, and the email the token belongs to.",
+            "maxLength": 200
+          },
+          "projectKey": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "IntegrationDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "github",
+              "linear",
+              "jira"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/IntegrationConfigDto"
+          },
+          "target": {
+            "type": "string",
+            "description": "Where issues go, in words: \"acme/web\", \"Linear team\", \"ENG on acme.atlassian.net\"."
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "config",
+          "target"
+        ]
+      },
+      "CreateIntegrationDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "github",
+              "linear",
+              "jira"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "config": {
+            "$ref": "#/components/schemas/IntegrationConfigDto"
+          },
+          "token": {
+            "type": "string",
+            "description": "A personal access token or API key; stored encrypted and never shown again.",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "config",
+          "token"
+        ]
+      },
+      "ExportTasksDto": {
+        "type": "object",
+        "properties": {
+          "integrationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskIds": {
+            "description": "Which tasks; by default, every one not done and not sent before.",
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "integrationId"
+        ]
+      },
+      "ExportedTaskDto": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "taskKey": {
+            "type": "string",
+            "description": "The task's key on the board (T-3) and the issue's in the tracker."
+          },
+          "issueKey": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "taskKey",
+          "issueKey",
+          "url"
+        ]
+      },
+      "ExportFailureDto": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "taskKey": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "taskKey",
+          "reason"
+        ]
+      },
+      "ExportResultDto": {
+        "type": "object",
+        "properties": {
+          "exported": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportedTaskDto"
+            }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportFailureDto"
+            }
+          },
+          "skipped": {
+            "type": "number",
+            "description": "Tasks left out because they'd been sent before."
+          }
+        },
+        "required": [
+          "exported",
+          "failed",
+          "skipped"
         ]
       },
       "AnchorDto": {

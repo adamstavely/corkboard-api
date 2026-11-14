@@ -18,11 +18,12 @@ export interface TestApp {
 }
 
 /** The app as main.ts builds it. `models` replaces the real model adapters, so tests never call a model API. */
-export async function createTestApp(options: { models?: ChatModelFactory } = {}): Promise<TestApp> {
+export async function createTestApp(options: { models?: ChatModelFactory; providers?: [unknown, unknown][] } = {}): Promise<TestApp> {
   process.env.MODEL_KEY_SECRET = randomBytes(32).toString('base64');
 
   let builder = Test.createTestingModule({ imports: [AppModule] });
   if (options.models) builder = builder.overrideProvider(CHAT_MODELS).useValue(options.models);
+  for (const [token, value] of options.providers ?? []) builder = builder.overrideProvider(token).useValue(value);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication();
   // Listening for real, so tests can open the collaboration socket.

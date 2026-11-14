@@ -28,6 +28,9 @@ import { RecapService } from './summary/recap.service';
 import { WritingController } from './facilitation/writing.controller';
 import { WritingService } from './facilitation/writing.service';
 import { UnfurlController } from './unfurl/unfurl.controller';
+import { IntegrationsController } from './integrations/integrations.controller';
+import { IntegrationsService } from './integrations/integrations.service';
+import { IssueHttp } from './integrations/issue-http';
 import { LedgerController } from './ledger/ledger.controller';
 import { LedgerService } from './ledger/ledger.service';
 import { FacilitationService } from './facilitation/facilitation.service';
@@ -70,6 +73,7 @@ import { SearchIndex } from './search/search-index';
     RecapController,
     WritingController,
     UnfurlController,
+    IntegrationsController,
     LedgerController,
     CommentsController,
     HealthController,
@@ -104,6 +108,8 @@ import { SearchIndex } from './search/search-index';
     SummaryService,
     RecapService,
     WritingService,
+    IntegrationsService,
+    IssueHttp,
     LedgerService,
     BoardsService,
     SearchIndex,
