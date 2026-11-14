@@ -268,8 +268,7 @@ export function addNotes(doc: Y.Doc, notes: { text: string; color: NoteColor }[]
   return ids;
 }
 
-export function newNote(doc: Y.Doc, note: { text: string; color: NoteColor }, at: { x: number; y: number }, z: number, author = 'assistant'): string {
-  const id = randomUUID();
+export function newNote(doc: Y.Doc, note: { text: string; color: NoteColor }, at: { x: number; y: number }, z: number, author = 'assistant', id: string = randomUUID()): string {
   const node = new Y.Map<unknown>();
   node.set('kind', 'note');
   node.set('x', at.x);
@@ -400,13 +399,17 @@ export interface AuthoredNote {
   color: NoteColor;
   author: string;
   authorName?: string;
+  /** The note's id on the board, when it must be the same each time (placing it again then does nothing). */
+  id?: string;
 }
 
 /**
  * Places written notes on the board in a grid: inside a frame (below what's in it already, growing it to fit) when
  * given one, else beside everything on the board. Returns their ids.
  */
-export function placeNotes(doc: Y.Doc, notes: AuthoredNote[], frameId?: string): string[] {
+export function placeNotes(doc: Y.Doc, all: AuthoredNote[], frameId?: string): string[] {
+  // Notes already on the board (placed by an earlier try) are left where they are.
+  const notes = all.filter((n) => !n.id || !nodesOf(doc).has(n.id));
   const frame = frameId ? framesOf(doc).find((f) => f.id === frameId) : undefined;
   const ids: string[] = [];
   doc.transact(() => {
@@ -437,7 +440,7 @@ export function placeNotes(doc: Y.Doc, notes: AuthoredNote[], frameId?: string):
 }
 
 function writeAuthored(doc: Y.Doc, note: AuthoredNote, at: { x: number; y: number }, z: number): string {
-  const id = newNote(doc, note, at, z, note.author);
+  const id = newNote(doc, note, at, z, note.author, note.id);
   if (note.authorName) nodesOf(doc).get(id)?.set('authorName', note.authorName);
   return id;
 }

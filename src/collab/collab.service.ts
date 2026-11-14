@@ -226,7 +226,8 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
 
   /**
    * Lets a share link's viewers go when it expires (now, if it already has), replacing any earlier deadline. Checked
-   * against the database when the time comes, in case the link was changed meanwhile.
+   * against the database when the time comes, in case the link was changed meanwhile. If that check fails, the viewers
+   * are let go anyway (it fails closed): the deadline was known, and they can reconnect once the link checks out again.
    */
   watchLink(linkId: string, expiresAt: number | null): void {
     clearTimeout(this.#expiries.get(linkId));
@@ -241,7 +242,10 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
           if (!link || !isLive(link)) this.disconnectLink(linkId);
           else this.watchLink(linkId, link.expiresAt?.getTime() ?? null);
         },
-        (err: unknown) => this.#log.warn(`Couldn't check share link ${linkId}: ${String(err)}`),
+        (err: unknown) => {
+          this.#log.warn(`Couldn't check share link ${linkId} at its deadline, so its viewers were let go: ${String(err)}`);
+          this.disconnectLink(linkId);
+        },
       );
     }, wait);
     timer.unref();

@@ -1108,8 +1108,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoredDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1117,7 +1124,7 @@
             "bearer": []
           }
         ],
-        "summary": "Updaters and owners: bring a version back for everyone (what's there now is saved first).",
+        "summary": "Updaters and owners: bring a version back for everyone. What's there now is saved first; its id undoes this.",
         "tags": [
           "activity"
         ]
@@ -4245,6 +4252,18 @@
             "maxLength": 120
           }
         }
+      },
+      "RestoredDto": {
+        "type": "object",
+        "properties": {
+          "beforeVersionId": {
+            "type": "string",
+            "description": "The board as it was before this restore, saved as a version; restore it to undo."
+          }
+        },
+        "required": [
+          "beforeVersionId"
+        ]
       },
       "NotificationDto": {
         "type": "object",

@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user';
 import { BoardsService } from '../boards/boards.service';
 import type { User } from '../db/schema';
-import { BoardEventDto, BoardVersionDto, SaveVersionDto } from './activity.dto';
+import { BoardEventDto, BoardVersionDto, SaveVersionDto, RestoredDto } from './activity.dto';
 import { ActivityService } from './activity.service';
 import { VersionsService } from './activity';
 
@@ -53,10 +53,10 @@ export class ActivityController {
     return this.versions.save(user, id, body.label);
   }
 
-  /** Updaters and owners: bring a version back for everyone (what's there now is saved first). */
+  /** Updaters and owners: bring a version back for everyone. What's there now is saved first; its id undoes this. */
   @Post('versions/:versionId/restore')
-  @HttpCode(204)
-  restore(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('versionId', ParseUUIDPipe) versionId: string): Promise<void> {
+  @HttpCode(200)
+  restore(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('versionId', ParseUUIDPipe) versionId: string): Promise<RestoredDto> {
     return this.versions.restore(user, id, versionId);
   }
 }

@@ -4,6 +4,9 @@ import request from 'supertest';
 import * as Y from 'yjs';
 import { framesOf, inFrame, newFrame, notesOf } from '../../src/assist/board-edit';
 import { writingOf } from '../../src/facilitation/writing-doc';
+import { eq } from 'drizzle-orm';
+import { DB, type Db } from '../../src/db/db.module';
+import { noteDrafts, writingRounds } from '../../src/db/schema';
 import { createTestApp, type TestApp } from './app';
 
 describe('Hidden writing', () => {
@@ -114,4 +117,42 @@ describe('Hidden writing', () => {
     expect(notesOf(doc).map((n) => n.text)).not.toContain('Never seen');
     await request(server).post(`${base}/reveal`).set(ada).expect(409);
   });
+
+  it('never accepts a note and then loses it: every write racing the reveal is either revealed or refused', async () => {
+    const { server, ada, grace, board, doc } = await people();
+    const base = `/boards/${board.id}/writing`;
+    await request(server).post(base).set(ada).send({ anonymous: false }).expect(204);
+    await request(server).post(`${base}/drafts`).set(grace).send({ text: 'Before' }).expect(201);
+
+    const writes = Array.from({ length: 8 }, (_, i) => request(server).post(`${base}/drafts`).set(grace).send({ text: `Racing ${i}` }));
+    const [revealed, ...answers] = await Promise.all([request(server).post(`${base}/reveal`).set(ada), ...writes]);
+    expect(revealed.status).toBe(200);
+    expect(answers.every((a) => a.status === 201 || a.status === 409)).toBe(true);
+    const accepted = answers.filter((a) => a.status === 201).map((a) => a.body.text as string);
+
+    await settle(() => notesOf(doc).length === 1 + accepted.length);
+    expect(notesOf(doc).map((n) => n.text).sort()).toEqual(['Before', ...accepted].sort());
+    expect(revealed.body).toEqual({ revealed: 1 + accepted.length });
+    const db = t.app.get<Db>(DB);
+    expect(await db.select().from(noteDrafts).where(eq(noteDrafts.boardId, board.id))).toEqual([]);
+  });
+
+  it('can reveal again after a reveal fell over partway, placing each note once', async () => {
+    const { server, ada, grace, board, doc } = await people();
+    const base = `/boards/${board.id}/writing`;
+    await request(server).post(base).set(ada).send({ anonymous: false }).expect(204);
+    await request(server).post(`${base}/drafts`).set(grace).send({ text: 'Only once' }).expect(201);
+    // As if a reveal fixed the notes, then the server stopped before putting them on the board.
+    const round = writingOf(doc).round!;
+    await t.app.get<Db>(DB).update(writingRounds).set({ status: 'revealing' }).where(eq(writingRounds.id, round));
+    // Writing has ended for everyone, though the board still shows the round.
+    await request(server).post(`${base}/drafts`).set(grace).send({ text: 'Too late' }).expect(409);
+
+    await request(server).post(`${base}/reveal`).set(ada).expect(200);
+    await settle(() => notesOf(doc).length === 1);
+    expect(notesOf(doc).map((n) => n.text)).toEqual(['Only once']);
+    await request(server).post(`${base}/reveal`).set(ada).expect(409);
+    expect(notesOf(doc)).toHaveLength(1);
+  });
 });
+

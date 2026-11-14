@@ -5,7 +5,7 @@ import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import { InjectDb, type Db } from '../db/db.module';
-import { integrations, users, type User } from '../db/schema';
+import { integrations, issueExports, users, type User } from '../db/schema';
 import { SecretBox } from '../models/secret-box';
 import { OrgsService } from '../orgs/orgs.service';
 import { checkConfig, createIssue, type IntegrationConfig, type IntegrationKind } from './exporters';
@@ -93,7 +93,25 @@ export class IntegrationsService {
         (fresh.some((t) => t.assignee) ? await this.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, fresh.flatMap((t) => (t.assignee ? [t.assignee] : [])))) : []).map((u) => [u.id, u.name]),
       );
       const result: ExportResultDto = { exported: [], failed: [], skipped: chosen.length - fresh.length };
+      const link = (taskId: string, made: { key: string; url: string }) =>
+        connection.transact((d) => {
+          const tasks = d.getMap<StoredTask>('tasks');
+          const now = tasks.get(taskId);
+          if (now && !now.external) tasks.set(taskId, { ...now, external: { kind: row.kind, key: made.key, url: made.url } });
+        });
       for (const task of fresh) {
+        // Claim the task first, so another export running now can't send it too. Asked for by name, an earlier send
+        // that ended without an answer is tried again (the person has checked the tracker).
+        const claim = await this.#claim(boardId, task.id, row.id, row.kind, !!taskIds?.includes(task.id));
+        if (claim.kind === 'done') {
+          await link(task.id, claim);
+          result.skipped++;
+          continue;
+        }
+        if (claim.kind === 'busy') {
+          result.failed.push({ taskId: task.id, taskKey: task.key, reason: claim.reason });
+          continue;
+        }
         const body = [
           `From the Corkboard board “${board.title}”, task ${task.key}.`,
           task.assignee && assignees.get(task.assignee) ? `Owner: ${assignees.get(task.assignee)}` : '',
@@ -102,18 +120,34 @@ export class IntegrationsService {
         ]
           .filter(Boolean)
           .join('\n\n');
+        let answered = false;
         try {
-          const made = await createIssue((url, init) => this.http.request(url, init), row.kind, row.config, token, { title: task.title, body });
-          await connection.transact((d) => {
-            const tasks = d.getMap<StoredTask>('tasks');
-            const now = tasks.get(task.id);
-            if (now) tasks.set(task.id, { ...now, external: { kind: row.kind, key: made.key, url: made.url } });
-          });
+          const made = await createIssue(
+            (url, init) => this.http.request(url, init).then((reply) => ((answered = true), reply)),
+            row.kind,
+            row.config,
+            token,
+            { title: task.title, body },
+          );
+          await this.db
+            .update(issueExports)
+            .set({ status: 'done', issueKey: made.key, url: made.url })
+            .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
+          await link(task.id, made);
           result.exported.push({ taskId: task.id, taskKey: task.key, issueKey: made.key, url: made.url });
         } catch (err) {
-          result.failed.push({ taskId: task.id, taskKey: task.key, reason: (err as Error).message });
+          const message = (err as Error).message;
+          if (answered) {
+            // The tracker said no: nothing was made, so the task is free to send again.
+            await this.db.delete(issueExports).where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
+            result.failed.push({ taskId: task.id, taskKey: task.key, reason: message });
+          } else {
+            // No answer: it may have been made. Held until someone checks and sends it again by name.
+            await this.db.update(issueExports).set({ status: 'unknown' }).where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
+            result.failed.push({ taskId: task.id, taskKey: task.key, reason: `${message} It may have been created: check ${row.label} before sending it again.` });
+          }
           // A refused token or a missing repository fails every task the same way: stop there.
-          if (/token was refused|not found/.test((err as Error).message)) break;
+          if (/token was refused|not found/.test(message)) break;
         }
       }
       if (result.exported.length) await this.activity.record(boardId, user, `sent tasks to ${row.label}`, `${result.exported.length} task${result.exported.length === 1 ? '' : 's'}`);
@@ -121,5 +155,38 @@ export class IntegrationsService {
     } finally {
       await connection.disconnect();
     }
+  }
+
+  /**
+   * Claims a task for sending: free, or already sent (with its issue), or held by another send that's under way or
+   * ended without an answer. `retryUnknown` takes over one that ended without an answer.
+   */
+  async #claim(
+    boardId: string,
+    taskId: string,
+    integrationId: string,
+    kind: 'github' | 'linear' | 'jira',
+    retryUnknown: boolean,
+  ): Promise<{ kind: 'claimed' } | { kind: 'done'; key: string; url: string } | { kind: 'busy'; reason: string }> {
+    const [claimed] = await this.db
+      .insert(issueExports)
+      .values({ boardId, taskId, integrationId, kind, status: 'pending' })
+      .onConflictDoNothing()
+      .returning({ taskId: issueExports.taskId });
+    if (claimed) return { kind: 'claimed' };
+    const [held] = await this.db.select().from(issueExports).where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, taskId)));
+    if (!held) return this.#claim(boardId, taskId, integrationId, kind, retryUnknown);
+    if (held.status === 'done' && held.issueKey && held.url) return { kind: 'done', key: held.issueKey, url: held.url };
+    if (held.status === 'unknown' && retryUnknown) {
+      const [taken] = await this.db
+        .update(issueExports)
+        .set({ status: 'pending', integrationId, kind })
+        .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, taskId), eq(issueExports.status, 'unknown')))
+        .returning({ taskId: issueExports.taskId });
+      if (taken) return { kind: 'claimed' };
+    }
+    return held.status === 'unknown'
+      ? { kind: 'busy', reason: 'An earlier send got no answer and may have created an issue. Check the tracker, then send this task again.' }
+      : { kind: 'busy', reason: 'This task is being sent right now.' };
   }
 }
