@@ -2,7 +2,7 @@ import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post, Put } f
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { BreakoutTimerDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
+import { BreakoutTimerDto, BringEveryoneDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
 import { FacilitationService } from './facilitation.service';
 
 @ApiTags('facilitation')
@@ -63,5 +63,25 @@ export class FacilitationController {
   @HttpCode(204)
   endBreakouts(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.facilitation.endBreakouts(user, id);
+  }
+
+  /** Updaters and owners: take the facilitator's seat (owners can take it from someone). */
+  @Post('facilitator')
+  @HttpCode(204)
+  claimFacilitator(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.facilitation.claimFacilitator(user, id);
+  }
+
+  @Delete('facilitator')
+  @HttpCode(204)
+  releaseFacilitator(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.facilitation.releaseFacilitator(user, id);
+  }
+
+  /** The facilitator: bring everyone's view to this. */
+  @Post('spotlight')
+  @HttpCode(204)
+  bringEveryone(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: BringEveryoneDto): Promise<void> {
+    return this.facilitation.bringEveryone(user, id, body);
   }
 }

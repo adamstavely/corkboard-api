@@ -87,3 +87,44 @@ export function timerOf(doc: Y.Doc): TimerState {
   const endsAt = t.get('endsAt');
   return { endsAt: typeof endsAt === 'number' ? endsAt : null, seconds: Number(t.get('seconds') ?? 0), label: text('label'), by: text('by') };
 }
+
+/** Who's facilitating, if anyone: only they move everyone's view. */
+export interface FacilitatorState {
+  userId: string | null;
+  name: string;
+}
+
+/** The last time the facilitator brought everyone to what they were looking at. */
+export interface SpotlightState {
+  /** Goes up each time, so clients move once per call. */
+  n: number;
+  by: string;
+  view: { cx: number; cy: number; zoom: number } | null;
+}
+
+const facilitatorMap = (doc: Y.Doc) => doc.getMap<unknown>('facilitator');
+const spotlightMap = (doc: Y.Doc) => doc.getMap<unknown>('spotlight');
+
+export function facilitatorOf(doc: Y.Doc): FacilitatorState {
+  const m = facilitatorMap(doc);
+  const id = m.get('userId');
+  return { userId: typeof id === 'string' ? id : null, name: typeof m.get('name') === 'string' ? (m.get('name') as string) : '' };
+}
+
+export function setFacilitator(doc: Y.Doc, who: { id: string; name: string } | null): void {
+  const m = facilitatorMap(doc);
+  doc.transact(() => {
+    m.set('userId', who?.id ?? null);
+    m.set('name', who?.name ?? '');
+  });
+}
+
+export function spotlight(doc: Y.Doc, by: string, view: { cx: number; cy: number; zoom: number }): void {
+  const m = spotlightMap(doc);
+  doc.transact(() => {
+    m.set('n', Number(m.get('n') ?? 0) + 1);
+    m.set('by', by);
+    // A plain object: Yjs won't store class instances (the request's DTO).
+    m.set('view', { cx: view.cx, cy: view.cy, zoom: view.zoom });
+  });
+}
