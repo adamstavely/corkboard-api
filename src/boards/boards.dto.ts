@@ -20,6 +20,17 @@ export class BoardDto {
   /** Whether the person asking starred it, and when they last opened it. */
   starred!: boolean;
   lastVisitedAt!: Date | null;
+  /** The board this one carries on from, if it was started as its next session. */
+  continuesId!: string | null;
+}
+
+export class NextSessionDto {
+  /** The new board's title; by default the last one's, numbered up ("Sprint 13 retro"). */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  title?: string;
 }
 
 export class CreateBoardDto {

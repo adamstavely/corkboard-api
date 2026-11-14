@@ -14,12 +14,14 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
 import { CollabService } from '../collab/collab.service';
-import { BoardDocumentDto, BoardDto, BoardMemberDto, BoardTemplateDto, CreateBoardDto, SetBoardRoleDto, UpdateBoardDto } from './boards.dto';
+import { BoardDocumentDto, BoardDto, BoardMemberDto, BoardTemplateDto, CreateBoardDto, NextSessionDto, SetBoardRoleDto, UpdateBoardDto } from './boards.dto';
+import { carryOver, nextTitle } from './next-session';
+import type * as Y from 'yjs';
 import { BoardsService, type BoardWithRole } from './boards.service';
 import { OrganiseService } from '../organise/organise.service';
 import { applyTemplate, TEMPLATES } from './templates';
 
-const toDto = ({ id, orgId, title, createdAt, updatedAt, role, folderId = null, starred = false, lastVisitedAt = null }: BoardWithRole): BoardDto => ({
+const toDto = ({ id, orgId, title, createdAt, updatedAt, role, folderId = null, starred = false, lastVisitedAt = null, continuesId = null }: BoardWithRole): BoardDto => ({
   id,
   orgId,
   title,
@@ -29,6 +31,7 @@ const toDto = ({ id, orgId, title, createdAt, updatedAt, role, folderId = null, 
   folderId,
   starred,
   lastVisitedAt,
+  continuesId,
 });
 
 @ApiTags('boards')
@@ -71,6 +74,25 @@ export class BoardsController {
       }
     }
     return toDto(board);
+  }
+
+  /**
+   * Updaters and owners: the next session's board. It has the same frames, the tasks not yet done, and their notes; it
+   * goes in the same workspace and folder, owned by whoever started it.
+   */
+  @Post('boards/:id/next')
+  async next(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: NextSessionDto): Promise<BoardDto> {
+    const last = await this.boards.get(user, id, 'updater');
+    const board = await this.boards.create(user, last.orgId, body.title?.trim() || nextTitle(last.title), last.id);
+    if (last.folderId) await this.organise.moveBoard(user, board.id, last.folderId);
+    const from = await this.collab.hocuspocus.openDirectConnection(last.id, { user });
+    const to = await this.collab.hocuspocus.openDirectConnection(board.id, { user });
+    try {
+      await to.transact((doc) => carryOver(from.document as unknown as Y.Doc, doc));
+    } finally {
+      await Promise.all([from.disconnect(), to.disconnect()]);
+    }
+    return toDto({ ...board, folderId: last.folderId });
   }
 
   @Get('boards/:id')

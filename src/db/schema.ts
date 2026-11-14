@@ -90,6 +90,8 @@ export const boards = pgTable('boards', {
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   /** The folder it's filed in, if any; deleting the folder leaves it unfiled. */
   folderId: uuid('folder_id').references((): AnyPgColumn => boardFolders.id, { onDelete: 'set null' }),
+  /** The board this one carries on from: last sprint's retro, say. */
+  continuesId: uuid('continues_id').references((): AnyPgColumn => boards.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
