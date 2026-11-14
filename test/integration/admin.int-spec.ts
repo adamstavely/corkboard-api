@@ -65,6 +65,9 @@ describe('Workspace admin', () => {
     expect(text).toContain('Deploys are slow');
     expect(text).not.toContain('sk-very-secret');
     expect(exported.body.members.map((p: { role: string }) => p.role).sort()).toEqual(['owner', 'reader']);
+    // It says what it is, and what it leaves out, so nobody takes it for a backup.
+    expect(exported.body.kind).toBe('partial-data-export');
+    expect(exported.body.leavesOut.join(' ')).toContain('attached images and files');
 
     // Deleting: not your only workspace, and only with its name typed.
     await request(server).delete(`/orgs/${orgId}/admin`).set(auth).send({ confirm: "Ada's workspace" }).expect(409);
