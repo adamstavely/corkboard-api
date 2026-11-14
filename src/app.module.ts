@@ -27,6 +27,7 @@ import { RecapController } from './summary/recap.controller';
 import { RecapService } from './summary/recap.service';
 import { WritingController } from './facilitation/writing.controller';
 import { WritingService } from './facilitation/writing.service';
+import { UnfurlController } from './unfurl/unfurl.controller';
 import { LedgerController } from './ledger/ledger.controller';
 import { LedgerService } from './ledger/ledger.service';
 import { FacilitationService } from './facilitation/facilitation.service';
@@ -68,6 +69,7 @@ import { SearchIndex } from './search/search-index';
     SummaryController,
     RecapController,
     WritingController,
+    UnfurlController,
     LedgerController,
     CommentsController,
     HealthController,
