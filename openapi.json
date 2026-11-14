@@ -1534,6 +1534,278 @@
         ]
       }
     },
+    "/boards/{id}/writing": {
+      "post": {
+        "operationId": "WritingController_start",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartWritingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: start a hidden writing round. 409 if one is running.",
+        "tags": [
+          "facilitation"
+        ]
+      },
+      "delete": {
+        "operationId": "WritingController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: end the round without revealing; its notes are thrown away.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/writing/reveal": {
+      "post": {
+        "operationId": "WritingController_reveal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevealedDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: put every note from the round on the board, and end it.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/writing/drafts": {
+      "get": {
+        "operationId": "WritingController_mine",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/NoteDraftDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up: your notes in the running round. Nobody else's.",
+        "tags": [
+          "facilitation"
+        ]
+      },
+      "post": {
+        "operationId": "WritingController_write",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteDraftDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up, while a round runs: write a hidden note.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/writing/drafts/{draftId}": {
+      "patch": {
+        "operationId": "WritingController_edit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoteDraftDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "facilitation"
+        ]
+      },
+      "delete": {
+        "operationId": "WritingController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/boards/{id}/ledger/{entryId}/undo": {
       "post": {
         "operationId": "LedgerController_undo",
@@ -3765,6 +4037,73 @@
           "model",
           "by",
           "at"
+        ]
+      },
+      "StartWritingDto": {
+        "type": "object",
+        "properties": {
+          "anonymous": {
+            "type": "boolean",
+            "description": "Revealed notes carry no author's name."
+          },
+          "frameId": {
+            "type": "string",
+            "description": "A frame to put the notes in when they're revealed; else they go beside the board's notes.",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "anonymous"
+        ]
+      },
+      "RevealedDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "NoteDraftDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "color",
+          "at"
+        ]
+      },
+      "WriteDraftDto": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "enum": [
+              "yellow",
+              "pink",
+              "blue",
+              "green",
+              "purple",
+              "gray"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "text"
         ]
       },
       "CommentAuthorDto": {

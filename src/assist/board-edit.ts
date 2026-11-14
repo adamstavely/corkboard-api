@@ -393,3 +393,51 @@ export function setColors(doc: Y.Doc, ids: string[], color: NoteColor): number {
   });
   return found;
 }
+
+/** A note to place, and who wrote it: a user id, or "anonymous" (with no name) when they write anonymously. */
+export interface AuthoredNote {
+  text: string;
+  color: NoteColor;
+  author: string;
+  authorName?: string;
+}
+
+/**
+ * Places written notes on the board in a grid: inside a frame (below what's in it already, growing it to fit) when
+ * given one, else beside everything on the board. Returns their ids.
+ */
+export function placeNotes(doc: Y.Doc, notes: AuthoredNote[], frameId?: string): string[] {
+  const frame = frameId ? framesOf(doc).find((f) => f.id === frameId) : undefined;
+  const ids: string[] = [];
+  doc.transact(() => {
+    let z = topZ(doc);
+    if (!frame) {
+      const near = notesOf(doc);
+      const right = near.length ? Math.max(...near.map((n) => n.x)) + NOTE_SIZE.w + GAP * 3 : 0;
+      const top = near.length ? Math.min(...near.map((n) => n.y)) : 0;
+      notes.forEach((note, i) => {
+        const at = { x: Math.round(right + (i % COLUMNS) * (NOTE_SIZE.w + GAP)), y: Math.round(top + Math.floor(i / COLUMNS) * (NOTE_SIZE.h + GAP)) };
+        ids.push(writeAuthored(doc, note, at, ++z));
+      });
+      return;
+    }
+    const inside = notesOf(doc).filter((n) => inFrame({ ...n, ...NOTE_SIZE }, frame));
+    const columns = Math.max(1, Math.floor((frame.w - 2 * FRAME_PADDING + GAP) / (NOTE_SIZE.w + GAP)));
+    const top = Math.max(frame.y + FRAME_TITLE, ...inside.map((n) => n.y + NOTE_SIZE.h + GAP));
+    notes.forEach((note, i) => {
+      const at = { x: frame.x + FRAME_PADDING + (i % columns) * (NOTE_SIZE.w + GAP), y: top + Math.floor(i / columns) * (NOTE_SIZE.h + GAP) };
+      ids.push(writeAuthored(doc, note, at, ++z));
+    });
+    const rows = Math.ceil(notes.length / columns);
+    const bottom = top + rows * (NOTE_SIZE.h + GAP) - GAP + FRAME_PADDING;
+    const node = nodesOf(doc).get(frame.id);
+    if (node instanceof Y.Map && bottom > frame.y + frame.h) node.set('h', bottom - frame.y);
+  });
+  return ids;
+}
+
+function writeAuthored(doc: Y.Doc, note: AuthoredNote, at: { x: number; y: number }, z: number): string {
+  const id = newNote(doc, note, at, z, note.author);
+  if (note.authorName) nodesOf(doc).get(id)?.set('authorName', note.authorName);
+  return id;
+}
