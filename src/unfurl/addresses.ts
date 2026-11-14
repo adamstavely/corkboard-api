@@ -94,6 +94,11 @@ export function isPrivateAddress(address: string): boolean {
  * an address written in the URL without looking anything up.
  */
 export function assertPublicHost(url: URL): void {
+  if (hostIsPrivate(url)) throw new Error('That address is not allowed');
+}
+
+/** Whether a URL's host is written as a private address (see assertPublicHost). */
+export function hostIsPrivate(url: URL): boolean {
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  if (isIP(host) && isPrivateAddress(host)) throw new Error('That address is not allowed');
+  return isIP(host) !== 0 && isPrivateAddress(host);
 }
