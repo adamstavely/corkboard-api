@@ -32,3 +32,8 @@ export class NoteDraftDto {
   color!: string;
   at!: number;
 }
+
+/** What a reveal put on the board. */
+export class RevealedDto {
+  revealed!: number;
+}
