@@ -64,6 +64,17 @@ describe('Activity, versions and notifications', () => {
     const { body: v1 } = await request(server).post(`/boards/${board.id}/versions`).set(ada).send({ label: 'Before cleanup' }).expect(201);
     await request(server).post(`/boards/${board.id}/versions`).set(grace).send({}).expect(403);
 
+    // Anyone on the board can look at a version before it's restored.
+    const saved = await request(server).get(`/boards/${board.id}/versions/${v1.id}`).set(grace).buffer(true).parse((res, done) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => done(null, Buffer.concat(chunks)));
+    }).expect(200);
+    const preview = new Y.Doc();
+    Y.applyUpdate(preview, new Uint8Array(saved.body as Buffer));
+    expect(notesOf(preview).map((n) => n.text)).toEqual(['Keep me']);
+    await request(server).get(`/boards/${board.id}/versions/${randomUUID()}`).set(grace).expect(404);
+
     doc.getMap('nodes').clear();
     addNotes(doc, [{ text: 'Replaced', color: 'pink' }]);
     await new Promise((r) => setTimeout(r, 300));

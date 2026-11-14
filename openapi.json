@@ -803,6 +803,43 @@
         ]
       }
     },
+    "/boards/{id}/versions/{versionId}": {
+      "get": {
+        "operationId": "ActivityController_versionState",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone on the board: a version's content (a Yjs update), to look at before restoring it.",
+        "tags": [
+          "activity"
+        ]
+      }
+    },
     "/boards/{id}/versions/{versionId}/restore": {
       "post": {
         "operationId": "ActivityController_restore",
