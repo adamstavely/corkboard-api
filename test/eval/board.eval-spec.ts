@@ -154,6 +154,22 @@ run(`Model evals (${kind}: ${modelName || 'no model'})`, () => {
     expect(body.tldr.toLowerCase()).toMatch(/deploy/);
   });
 
+  it('recaps a session: the decision, owners named on the board, nothing invented', async () => {
+    const b = await board([
+      'Decision: we move to blue-green deploys',
+      'Grace sets up the second environment by Friday',
+      'Ada writes the rollback runbook',
+      'Who pays for the second environment?',
+    ]);
+    const { body } = await request(t.app.getHttpServer()).post(`/boards/${b.id}/recap`).set(auth).send({ modelId }).expect(200);
+
+    expect(body.decisions.map((d: { text: string }) => d.text.toLowerCase()).join(' ')).toMatch(/blue.?green/);
+    const owners = body.actions.map((a: { owner?: string }) => (a.owner ?? '').toLowerCase());
+    expect(owners).toEqual(expect.arrayContaining([expect.stringContaining('grace'), expect.stringContaining('ada')]));
+    expect(owners.every((o: string) => !o || /grace|ada/.test(o))).toBe(true);
+    expect(body.questions.join(' ').toLowerCase()).toMatch(/pay|cost/);
+  });
+
   it('answers about an image and the places marked on it', async () => {
     const server = t.app.getHttpServer();
     const b = await board([]);

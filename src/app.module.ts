@@ -23,6 +23,8 @@ import { ReactionsController } from './reactions/reactions.controller';
 import { ReactionsService } from './reactions/reactions';
 import { SummaryController } from './summary/summary.controller';
 import { SummaryService } from './summary/summary.service';
+import { RecapController } from './summary/recap.controller';
+import { RecapService } from './summary/recap.service';
 import { LedgerController } from './ledger/ledger.controller';
 import { LedgerService } from './ledger/ledger.service';
 import { FacilitationService } from './facilitation/facilitation.service';
@@ -62,6 +64,7 @@ import { SearchIndex } from './search/search-index';
     FilesController,
     ReactionsController,
     SummaryController,
+    RecapController,
     LedgerController,
     CommentsController,
     HealthController,
@@ -94,6 +97,7 @@ import { SearchIndex } from './search/search-index';
     FilesService,
     ReactionsService,
     SummaryService,
+    RecapService,
     LedgerService,
     BoardsService,
     SearchIndex,
