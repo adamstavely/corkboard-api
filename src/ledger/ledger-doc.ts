@@ -20,8 +20,11 @@ export interface LedgerEntry {
   /** What it did, in words: "Made 3 frames and moved 9 notes into them." */
   action: string;
   created: string[];
-  /** The created notes and frames as they were, to bring back on redo: a note's text as lines, `**bold**` kept. */
-  createdNodes: { id: string; attrs: Attrs; text?: string }[];
+  /**
+   * The created notes and frames as they were, to bring back on redo: a note's text as lines, `**bold**` kept.
+   * `edited`: someone else changed it between the model's steps, so undo leaves it, whatever it looks like.
+   */
+  createdNodes: { id: string; attrs: Attrs; text?: string; edited?: true }[];
   /** Frames it removed, with their properties, to put back. */
   removed: { id: string; attrs: Attrs }[];
   /** What it changed on existing notes and frames: each property before and after. */
@@ -90,12 +93,21 @@ export function capture(doc: Y.Doc, ids: readonly string[]): LedgerEntry['create
  */
 export class ChangeTracker {
   readonly #created = new Map<string, { attrs: Attrs; text?: string }>();
+  /** Created nodes someone else changed between tool calls: theirs too now, so undo mustn't delete them. */
+  readonly #edited = new Set<string>();
   readonly #removed = new Map<string, Attrs>();
   readonly #changed = new Map<string, { before: Attrs; after: Attrs }>();
 
   /** Runs one change (call it inside a transaction) and notes what it did. */
   track<T>(doc: Y.Doc, change: (doc: Y.Doc) => T): T {
     const before = snapshot(doc);
+    const nodes = nodesOf(doc);
+    // A note the model made that isn't as it left it has been changed by someone else meanwhile. That stays known even
+    // though what's recorded for redo is updated to its latest state below.
+    for (const [id, made] of this.#created) {
+      const node = nodes.get(id);
+      if (node instanceof Y.Map && !untouched(node, made.attrs, made.text)) this.#edited.add(id);
+    }
     const result = change(doc);
     const after = snapshot(doc);
     for (const [id, was] of before) {
@@ -104,7 +116,6 @@ export class ChangeTracker {
       if (was['kind'] === 'frame') this.#removed.set(id, { ...was, ...this.#changed.get(id)?.before });
       this.#changed.delete(id);
     }
-    const nodes = nodesOf(doc);
     for (const [id, now] of after) {
       const was = before.get(id);
       if (!was || this.#created.has(id)) {
@@ -141,7 +152,7 @@ export class ChangeTracker {
   changes(): Pick<LedgerEntry, 'created' | 'createdNodes' | 'removed' | 'changed'> {
     return {
       created: [...this.#created.keys()],
-      createdNodes: [...this.#created].map(([id, node]) => ({ id, ...node })),
+      createdNodes: [...this.#created].map(([id, node]) => ({ id, ...node, ...(this.#edited.has(id) ? { edited: true as const } : {}) })),
       removed: [...this.#removed].map(([id, attrs]) => ({ id, attrs })),
       changed: [...this.#changed].map(([id, c]) => ({ id, ...c })),
     };
@@ -189,7 +200,7 @@ export function undo(doc: Y.Doc, entryId: string): string | null {
   doc.transact(() => {
     for (const id of entry.created) {
       const was = made.get(id);
-      if (was && untouched(nodes.get(id), was.attrs, was.text)) nodes.delete(id);
+      if (was && !was.edited && untouched(nodes.get(id), was.attrs, was.text)) nodes.delete(id);
     }
     for (const { id, attrs } of entry.removed) {
       if (nodes.has(id)) continue;

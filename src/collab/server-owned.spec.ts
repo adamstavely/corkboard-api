@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { serverOwnedIn } from './server-owned';
+import { serverOwnedIn, UNRESOLVED } from './server-owned';
 
 /** A client's change to a copy of the server's document, as the update it would send. */
 function clientChange(server: Y.Doc, change: (doc: Y.Doc) => void): Uint8Array {
@@ -37,5 +37,55 @@ describe('server-owned parts of a board', () => {
     expect(serverOwnedIn(server, clientChange(server, (d) => d.getArray('chat').delete(0, 1)))).toBe('chat');
     expect(serverOwnedIn(server, clientChange(server, (d) => (d.getMap('timer').get('state') as Y.Map<unknown>).set('ends', 99)))).toBe('timer');
     expect(serverOwnedIn(server, clientChange(server, (d) => d.getMap('ledger').set('x', 1)))).toBe('ledger');
+  });
+
+  it("refuses an update built on the API's next item before it exists, which Yjs would otherwise apply later unchecked", () => {
+    const board = new Y.Doc();
+    board.getArray('chat').push(['m1']);
+    // What the API will write next, from its own client: the attacker predicts it.
+    const predicted = new Y.Doc();
+    Y.applyUpdate(predicted, Y.encodeStateAsUpdate(board));
+    predicted.clientID = board.clientID;
+    predicted.getArray('chat').push(['m2']);
+    expect(predicted.getArray('chat').length).toBe(2);
+    const attacker = new Y.Doc();
+    Y.applyUpdate(attacker, Y.encodeStateAsUpdate(predicted));
+    const before = Y.encodeStateVector(attacker);
+    attacker.getArray('chat').push(['forged']);
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(attacker, before))).toBe(UNRESOLVED);
+  });
+
+  it('refuses updates after a gap in a client\'s changes, and deletes of things not here', () => {
+    const board = new Y.Doc();
+    board.getMap('nodes').set('a', 1);
+    const client = new Y.Doc();
+    Y.applyUpdate(client, Y.encodeStateAsUpdate(board));
+    client.getMap('nodes').set('b', 2);
+    const afterB = Y.encodeStateVector(client);
+    client.getMap('nodes').set('c', 3);
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(client, afterB))).toBe(UNRESOLVED);
+
+    const other = new Y.Doc();
+    Y.applyUpdate(other, Y.encodeStateAsUpdate(board));
+    other.getMap('nodes').set('d', 4);
+    const afterD = Y.encodeStateVector(other);
+    other.getMap('nodes').delete('d');
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(other, afterD))).toBe(UNRESOLVED);
+  });
+
+  it('still lets someone type in a note another person has just deleted', () => {
+    const board = new Y.Doc();
+    const note = new Y.Map<unknown>();
+    board.getMap('nodes').set('n', note);
+    const text = new Y.XmlText();
+    note.set('text', text);
+    text.insert(0, 'Hello');
+    const typist = new Y.Doc();
+    Y.applyUpdate(typist, Y.encodeStateAsUpdate(board));
+    // Deleted on the server (its insides collected) while the typist, who hasn't heard yet, types.
+    board.getMap('nodes').delete('n');
+    const before = Y.encodeStateVector(typist);
+    ((typist.getMap('nodes').get('n') as Y.Map<unknown>).get('text') as Y.XmlText).insert(5, ' there');
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(typist, before))).toBeNull();
   });
 });
