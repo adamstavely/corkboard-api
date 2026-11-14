@@ -77,10 +77,10 @@ export class BoardsService {
   }
 
   /** A new board, owned by whoever made it. Updaters and owners of the workspace can make them. */
-  async create(user: User, orgId: string, title: string): Promise<BoardWithRole> {
+  async create(user: User, orgId: string, title: string, continuesId?: string): Promise<BoardWithRole> {
     await this.orgs.require(user.id, orgId, 'updater');
     const board = await this.db.transaction(async (tx) => {
-      const [made] = await tx.insert(boards).values({ orgId, title: title.trim(), createdBy: user.id }).returning();
+      const [made] = await tx.insert(boards).values({ orgId, title: title.trim(), createdBy: user.id, continuesId: continuesId ?? null }).returning();
       await tx.insert(boardMembers).values({ boardId: made.id, userId: user.id, role: 'owner' });
       return made;
     });

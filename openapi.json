@@ -2421,6 +2421,52 @@
         ]
       }
     },
+    "/boards/{id}/next": {
+      "post": {
+        "operationId": "BoardsController_next",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: the next session's board. It has the same frames, the tasks not yet done, and their notes; it\ngoes in the same workspace and folder, owned by whoever started it.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
     "/boards/{id}": {
       "get": {
         "operationId": "BoardsController_get",
@@ -4538,6 +4584,11 @@
             "format": "date-time",
             "type": "string",
             "nullable": true
+          },
+          "continuesId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The board this one carries on from, if it was started as its next session."
           }
         },
         "required": [
@@ -4549,7 +4600,8 @@
           "updatedAt",
           "folderId",
           "starred",
-          "lastVisitedAt"
+          "lastVisitedAt",
+          "continuesId"
         ]
       },
       "BoardTemplateDto": {
@@ -4601,6 +4653,16 @@
         "required": [
           "title"
         ]
+      },
+      "NextSessionDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The new board's title; by default the last one's, numbered up (\"Sprint 13 retro\").",
+            "maxLength": 200
+          }
+        }
       },
       "UpdateBoardDto": {
         "type": "object",
