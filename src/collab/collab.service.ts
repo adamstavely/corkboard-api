@@ -13,6 +13,7 @@ import { atLeast, type Role } from '../access/roles';
 import type { User } from '../db/schema';
 import { SearchIndex } from '../search/search-index';
 import { LinksService } from '../links/links.service';
+import { serverOwnedIn } from './server-owned';
 
 /** Who someone viewing through a share link is: nobody in particular. */
 const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', createdAt: new Date(0) };
@@ -53,6 +54,8 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
   readonly #wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 * 1024 });
   readonly hocuspocus: Hocuspocus<CollabContext>;
   #server: Server | undefined;
+  /** Connections made read-only for the one message being refused. */
+  readonly #refusing = new WeakSet<object>();
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
@@ -86,6 +89,23 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
         // Their edits are refused here, whatever the client does; they still see everyone else's, and share presence.
         connectionConfig.readOnly = !atLeast(role, 'updater');
         return { user, role };
+      },
+      // A client's update that would change chat, votes or anything else only the API writes is refused, the way a
+      // read-only client's edits are: that message isn't applied. Yjs applies each client's changes in order, so its
+      // later edits wait on the refused one and it falls out of sync until it reloads; well-behaved clients never write
+      // these parts.
+      beforeSync: ({ type, payload, connection, document, documentName, context }) => {
+        if ((type !== 1 && type !== 2) || connection.readOnly) return Promise.resolve();
+        const owned = serverOwnedIn(document, payload);
+        if (!owned) return Promise.resolve();
+        this.#log.warn(`Refused ${context.user.id}'s change to "${owned}" on board ${documentName}`);
+        connection.readOnly = true;
+        this.#refusing.add(connection);
+        return Promise.resolve();
+      },
+      afterHandleMessage: ({ connection }) => {
+        if (this.#refusing.delete(connection)) connection.readOnly = false;
+        return Promise.resolve();
       },
       extensions: [
         new Database({
