@@ -15,6 +15,8 @@ import { ActivityService } from './activity/activity.service';
 import { NotificationsController } from './activity/notifications.controller';
 import { NotificationsService } from './activity/notifications';
 import { NotificationHub } from './activity/notification-hub';
+import { PasskeysController } from './auth/passkeys.controller';
+import { PasskeysService } from './auth/passkeys.service';
 import { FilesController } from './files/files.controller';
 import { FilesService } from './files/files.service';
 import { ReactionsController } from './reactions/reactions.controller';
@@ -56,6 +58,7 @@ import { SearchIndex } from './search/search-index';
     LinksController,
     ActivityController,
     NotificationsController,
+    PasskeysController,
     FilesController,
     ReactionsController,
     SummaryController,
@@ -87,6 +90,7 @@ import { SearchIndex } from './search/search-index';
     VersionsService,
     NotificationsService,
     NotificationHub,
+    PasskeysService,
     FilesService,
     ReactionsService,
     SummaryService,

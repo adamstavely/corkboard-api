@@ -302,3 +302,56 @@ export type BoardAccess = (typeof boardAccess.enumValues)[number];
 export type OrgInvite = typeof orgInvites.$inferSelect;
 export type ModelProvider = typeof modelProviders.$inferSelect;
 export type ProviderKind = (typeof providerKind.enumValues)[number];
+
+/** A person's passkeys: the public half of each, to check sign-ins against. */
+export const passkeys = pgTable(
+  'passkeys',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The credential's id, base64url, as the browser reports it. */
+    credentialId: text('credential_id').notNull().unique(),
+    publicKey: bytea('public_key').notNull(),
+    counter: integer('counter').notNull().default(0),
+    transports: text('transports').array().notNull().default([]),
+    /** What they called it, or where it was made ("Chrome on Mac"). */
+    label: text('label').notNull(),
+    createdAt: createdAt(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => [index('passkeys_user_idx').on(t.userId)],
+);
+
+/** Signed-in browsers. Only a hash of each token is kept. */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    createdAt: createdAt(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sessions_user_idx').on(t.userId)],
+);
+
+/** A sign-in or sign-up under way: the challenge the passkey must sign, used once, for a few minutes. */
+export const authChallenges = pgTable('auth_challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  challenge: text('challenge').notNull(),
+  purpose: text('purpose', { enum: ['register', 'login', 'add'] }).notNull(),
+  /** Who's adding a passkey, or (signing up) the id the new person will get. */
+  userId: uuid('user_id').notNull(),
+  name: text('name'),
+  email: text('email'),
+  /** What to call the passkey once it's made. */
+  label: text('label'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+});
+
+export type Passkey = typeof passkeys.$inferSelect;

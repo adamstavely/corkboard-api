@@ -927,6 +927,299 @@
         ]
       }
     },
+    "/auth/config": {
+      "get": {
+        "operationId": "PasskeysController_config",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthConfigDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Whether the development picker is on, so the sign-in page knows what to offer.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sign-up/options": {
+      "post": {
+        "operationId": "PasskeysController_signUpOptions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpOptionsRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyChallengeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Signing up, step one: the options for the browser to make a passkey with.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sign-up/verify": {
+      "post": {
+        "operationId": "PasskeysController_signUp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAnswerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Signing up, step two: the new passkey. Makes the account and signs in.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sign-in/options": {
+      "post": {
+        "operationId": "PasskeysController_signInOptions",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyChallengeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Signing in, step one: a challenge for any of this site's passkeys.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sign-in/verify": {
+      "post": {
+        "operationId": "PasskeysController_signIn",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAnswerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Signing in, step two: the passkey's signature.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/sign-out": {
+      "post": {
+        "operationId": "PasskeysController_signOut",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ends this browser's session.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/me/passkeys": {
+      "get": {
+        "operationId": "PasskeysController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Your passkeys.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/me/passkeys/options": {
+      "post": {
+        "operationId": "PasskeysController_addOptions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPasskeyOptionsRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyChallengeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Adding a passkey on another device, step one.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/me/passkeys/verify": {
+      "post": {
+        "operationId": "PasskeysController_add",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAnswerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Adding a passkey, step two.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/me/passkeys/{id}": {
+      "delete": {
+        "operationId": "PasskeysController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Removes one of your passkeys (not the last).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/boards/{id}/files": {
       "post": {
         "operationId": "FilesController_upload",
@@ -2905,6 +3198,143 @@
           }
         }
       },
+      "AuthConfigDto": {
+        "type": "object",
+        "properties": {
+          "picker": {
+            "type": "boolean",
+            "description": "The development picker is on: people can pick who they are without signing in."
+          }
+        },
+        "required": [
+          "picker"
+        ]
+      },
+      "SignUpOptionsRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "label": {
+            "type": "string",
+            "description": "What to call the passkey (\"MacBook\").",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ]
+      },
+      "PasskeyChallengeDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "WebAuthn options as JSON, for the browser (e.g. @simplewebauthn/browser)."
+          }
+        },
+        "required": [
+          "challengeId",
+          "options"
+        ]
+      },
+      "PasskeyAnswerDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The WebAuthn response as JSON."
+          }
+        },
+        "required": [
+          "challengeId",
+          "response"
+        ]
+      },
+      "PersonDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
+        ]
+      },
+      "SessionDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "person": {
+            "$ref": "#/components/schemas/PersonDto"
+          }
+        },
+        "required": [
+          "token",
+          "person"
+        ]
+      },
+      "PasskeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number"
+          },
+          "lastUsedAt": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "createdAt",
+          "lastUsedAt"
+        ]
+      },
+      "AddPasskeyOptionsRequestDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      },
       "BoardFileDto": {
         "type": "object",
         "properties": {
@@ -3257,25 +3687,6 @@
         },
         "required": [
           "status"
-        ]
-      },
-      "PersonDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "email"
         ]
       },
       "CreatePersonDto": {

@@ -64,6 +64,13 @@
       "when": 1794551011289,
       "tag": "0008_moaning_aaron_stack",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794630766159,
+      "tag": "0009_passkeys_sessions",
+      "breakpoints": true
     }
   ]
 }

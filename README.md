@@ -2,7 +2,7 @@
 
 Backend for **Corkboard**, a collaborative whiteboard where a model you bring (any provider) can group notes, draft action items and build timelines. The frontend is [corkboard-ui](https://github.com/adamstavely/corkboard-ui).
 
-NestJS, Postgres (Drizzle), real-time sync with Hocuspocus, search with Elasticsearch, no sign-in (people pick who they are), and an assistant that works with whichever model a workspace brings.
+NestJS, Postgres (Drizzle), real-time sync with Hocuspocus, search with Elasticsearch, passkey sign-in (with a people picker for local development), and an assistant that works with whichever model a workspace brings.
 
 ## Run it locally
 
@@ -17,7 +17,8 @@ Migrations run when the API starts. Open the UI, pick who you are or add yoursel
 
 ## How it fits together
 
-- **Identity:** there is no sign-in, so only run Corkboard locally or somewhere private. `GET /people` lists everyone and `POST /people` adds someone (name and email; the email must be new), with a workspace they own. Every other request carries `Authorization: Bearer <person id>`, and the collaboration socket takes the same id as its token.
+- **Identity:** people sign up and in with passkeys (WebAuthn): `POST /auth/sign-up/options` then `/auth/sign-up/verify`, and `POST /auth/sign-in/options` then `/auth/sign-in/verify`. Each returns a session token (`cbs_…`, 30 days; only its hash is stored) to send as `Authorization: Bearer <token>`. The collaboration socket takes the same token. `POST /auth/sign-out` ends it, and `/me/passkeys` adds or removes passkeys (never the last). Set `WEBAUTHN_RP_ID` to the UI's host name and `WEBAUTHN_ORIGINS` to its origins (defaults: `localhost`, `http://localhost:4300`). Emails aren't verified yet.
+- **Development picker:** with `PEOPLE_PICKER=true` (the default unless `NODE_ENV=production`), `GET /people` lists everyone and `POST /people` adds someone. A picked person's id then works as their bearer token, and someone added this way can claim their account with a passkey. `GET /auth/config` tells the UI whether the picker is on. Never turn it on anywhere shared.
 - **Workspaces (orgs):** boards belong to a workspace. A board in a workspace you're not in is reported as not found. Admins invite people by email (`POST /orgs/{orgId}/invites`), change roles and remove people; anyone can leave; a workspace always keeps one admin. An invite is matched to the person with that email. They accept or decline it from `GET /me/invites`. Admins will also configure the workspace's model providers.
 - **Boards:** metadata in `boards`, content in `board_documents` as one encoded Yjs update.
 - **Real-time sync:** clients connect to the WebSocket at `/collab` (the UI reaches it as `/api/collab`), with the board id as the document name and their person id as the token. Hocuspocus checks they can see the board, loads it from Postgres, relays changes and presence between everyone on it, and saves it 2 seconds after the last change (at least every 10 seconds while editing continues) and when the last person leaves. Deleting a board disconnects everyone on it. `GET /boards/{id}/document` returns the last saved state, read-only.
