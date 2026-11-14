@@ -101,4 +101,28 @@ describe('Comments', () => {
     expect(heard.map((p) => JSON.parse(p))).toEqual([{ type: 'comments' }]);
     provider.destroy();
   });
+
+  it('pins comments to spots on an image, keeping where each sits', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'B' });
+    const add = (nodeId: string, body: string, anchor?: { x: number; y: number }) =>
+      request(server).post(`/boards/${board.id}/comments`).set(ada.auth).send({ nodeId, body, ...(anchor ? { anchor } : {}) });
+
+    const { body: left } = await add('img@pin-1', 'This logo is too small', { x: 0.1, y: 0.2 }).expect(201);
+    expect(left).toMatchObject({ nodeId: 'img@pin-1', anchor: { x: 0.1, y: 0.2 } });
+    await add('img@pin-2', 'Check the colour', { x: 0.9, y: 0.75 }).expect(201);
+    // A reply keeps the pin where it was.
+    const { body: reply } = await add('img@pin-1', 'Agreed', { x: 0.5, y: 0.5 }).expect(201);
+    expect(reply.anchor).toEqual({ x: 0.1, y: 0.2 });
+    await add('img@pin-3', 'Off the image', { x: 1.5, y: 0.2 }).expect(400);
+
+    const { body: threads } = await request(server).get(`/boards/${board.id}/comments`).set(ada.auth).expect(200);
+    expect(threads.map((th: { nodeId: string; anchor: unknown }) => [th.nodeId, th.anchor])).toEqual([
+      ['img@pin-1', { x: 0.1, y: 0.2 }],
+      ['img@pin-2', { x: 0.9, y: 0.75 }],
+    ]);
+    await add('note-1', 'A plain comment').expect(201);
+    expect((await request(server).get(`/boards/${board.id}/comments`).set(ada.auth)).body.at(-1).anchor).toBeNull();
+  });
 });

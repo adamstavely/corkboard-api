@@ -85,6 +85,13 @@
       "when": 1794633917464,
       "tag": "0011_board_continues",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794635874779,
+      "tag": "0012_comment_anchors",
+      "breakpoints": true
     }
   ]
 }

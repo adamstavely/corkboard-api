@@ -31,12 +31,12 @@ export class CommentsService {
   }
 
   /** Adds a comment to the note or frame's thread, starting it if need be, and reopening it if it was resolved. */
-  async add(user: User, boardId: string, nodeId: string, body: string): Promise<CommentThreadDto> {
+  async add(user: User, boardId: string, nodeId: string, body: string, anchor?: { x: number; y: number }): Promise<CommentThreadDto> {
     const board = await this.boards.get(user, boardId, 'commenter');
     const threadId = await this.db.transaction(async (tx) => {
       const [thread] = await tx
         .insert(commentThreads)
-        .values({ boardId, nodeId })
+        .values({ boardId, nodeId, ...(anchor ? { anchorX: anchor.x, anchorY: anchor.y } : {}) })
         .onConflictDoUpdate({ target: [commentThreads.boardId, commentThreads.nodeId], set: { resolvedAt: null, resolvedBy: null } })
         .returning({ id: commentThreads.id });
       await tx.insert(comments).values({ threadId: thread.id, authorId: user.id, body: body.trim() });
@@ -109,6 +109,7 @@ export class CommentsService {
     return threads.map((t) => ({
       id: t.id,
       nodeId: t.nodeId,
+      anchor: t.anchorX !== null && t.anchorY !== null ? { x: t.anchorX, y: t.anchorY } : null,
       resolvedAt: t.resolvedAt,
       comments: rows
         .filter((c) => c.threadId === t.id)
