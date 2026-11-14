@@ -86,7 +86,7 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
         try {
           user = await this.users.byToken(token);
         } catch {
-          throw new Error('Pick who you are first');
+          throw new Error('Sign in first');
         }
         const { role } = await this.boards.access(user, documentName);
         // Their edits are refused here, whatever the client does; they still see everyone else's, and share presence.

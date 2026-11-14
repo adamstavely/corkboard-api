@@ -11,7 +11,7 @@ export const Public = () => SetMetadata(PUBLIC, true);
 
 export type AuthedRequest = Request & { user: User };
 
-/** Every route needs a bearer token, the id of the person the caller picked, except those marked @Public(). */
+/** Every route needs a bearer token (a session's, or in development a picked person's id), except those marked @Public(). */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
@@ -24,11 +24,11 @@ export class AuthGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<AuthedRequest>();
     const [scheme, token] = req.headers.authorization?.split(' ') ?? [];
-    if (scheme?.toLowerCase() !== 'bearer' || !token) throw new UnauthorizedException('Pick who you are first');
+    if (scheme?.toLowerCase() !== 'bearer' || !token) throw new UnauthorizedException('Sign in first');
     try {
       req.user = await this.users.byToken(token);
     } catch {
-      throw new UnauthorizedException('Pick who you are first');
+      throw new UnauthorizedException('Sign in first');
     }
     return true;
   }
