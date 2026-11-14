@@ -38,6 +38,22 @@ describe('Images and files on boards', () => {
     return { server, auth, readerAuth, orgId, board };
   }
 
+  it("gives a board's files to anyone with a live share link, and only that board's", async () => {
+    const { server, auth, orgId, board } = await setup();
+    const { body: file } = await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', PNG, { filename: 'dot.png', contentType: 'image/png' }).expect(201);
+    const { body: other } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Other' });
+    const { body: elsewhere } = await request(server).post(`/boards/${other.id}/files`).set(auth).attach('file', PNG, { filename: 'x.png', contentType: 'image/png' }).expect(201);
+    const { body: link } = await request(server).post(`/boards/${board.id}/links`).set(auth).send({}).expect(201);
+
+    const got = await request(server).get(`/shared/${link.token}/files/${file.id}`).expect(200);
+    expect(Buffer.from(got.body as Buffer).equals(PNG)).toBe(true);
+    await request(server).get(`/shared/${link.token}/files/${elsewhere.id}`).expect(404);
+    await request(server).get(`/shared/not-a-token/files/${file.id}`).expect(410);
+
+    await request(server).delete(`/boards/${board.id}/links/${link.id}`).set(auth).expect(204);
+    await request(server).get(`/shared/${link.token}/files/${file.id}`).expect(410);
+  });
+
   it('takes images and documents from updaters, gives them to anyone on the board, and refuses the rest', async () => {
     const { server, auth, readerAuth, board } = await setup();
     const { body: file } = await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', PNG, { filename: 'dot.png', contentType: 'image/png' }).expect(201);

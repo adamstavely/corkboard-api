@@ -600,6 +600,43 @@
         ]
       }
     },
+    "/shared/{token}/files/{fileId}": {
+      "get": {
+        "operationId": "LinksController_file",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone with a link: a file on the board it opens, while the link is live (410 after).",
+        "tags": [
+          "links"
+        ]
+      }
+    },
     "/shared/{token}": {
       "get": {
         "operationId": "LinksController_open",
@@ -3068,6 +3105,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "A hash of every note's content when it was made; the board has moved on when it differs."
           }
         },
         "required": [

@@ -27,4 +27,6 @@ export class BoardSummaryDto {
   by!: string;
   at!: number;
   basis!: string[];
+  /** A hash of every note's content when it was made; the board has moved on when it differs. */
+  fingerprint?: string;
 }
