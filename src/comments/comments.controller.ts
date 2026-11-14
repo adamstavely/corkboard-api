@@ -20,7 +20,7 @@ export class CommentsController {
   /** Commenters and up: comment on a note or frame. Returns its thread. */
   @Post('comments')
   add(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: AddCommentDto): Promise<CommentThreadDto> {
-    return this.comments.add(user, id, body.nodeId, body.body);
+    return this.comments.add(user, id, body.nodeId, body.body, body.anchor);
   }
 
   /** Commenters and up: resolve a thread, or reopen it. */

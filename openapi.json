@@ -4440,6 +4440,25 @@
           "site"
         ]
       },
+      "AnchorDto": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ]
+      },
       "CommentAuthorDto": {
         "type": "object",
         "properties": {
@@ -4489,7 +4508,17 @@
           },
           "nodeId": {
             "type": "string",
-            "description": "The note or frame's id in the board's document; it may since have been deleted."
+            "description": "The note or frame's id in the board's document (it may since have been deleted); a pin's is \"<image id>@<pin id>\"."
+          },
+          "anchor": {
+            "nullable": true,
+            "description": "Where a pinned comment sits on its image.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AnchorDto"
+              }
+            ]
           },
           "resolvedAt": {
             "format": "date-time",
@@ -4506,6 +4535,7 @@
         "required": [
           "id",
           "nodeId",
+          "anchor",
           "resolvedAt",
           "comments"
         ]
@@ -4520,6 +4550,14 @@
           "body": {
             "type": "string",
             "maxLength": 4000
+          },
+          "anchor": {
+            "description": "Starting a comment pinned to a spot on an image: where. Kept from the thread's first comment.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AnchorDto"
+              }
+            ]
           }
         },
         "required": [

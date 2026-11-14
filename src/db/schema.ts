@@ -1,4 +1,4 @@
-import { type AnyPgColumn, customType, integer, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, customType, integer, index, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -187,6 +187,9 @@ export const commentThreads = pgTable(
       .notNull()
       .references(() => boards.id, { onDelete: 'cascade' }),
     nodeId: text('node_id').notNull(),
+    /** For a comment pinned to a spot on an image: where, as fractions of its width and height. */
+    anchorX: real('anchor_x'),
+    anchorY: real('anchor_y'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
