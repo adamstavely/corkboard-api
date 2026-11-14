@@ -840,6 +840,33 @@
         ]
       }
     },
+    "/me/notifications/stream": {
+      "get": {
+        "operationId": "NotificationsController_stream",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A live stream (server-sent events) that says \"changed\" the moment you have a new notification; fetch the list\nthen. A \"ping\" every 25 seconds keeps proxies from closing it.",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/me/notifications": {
       "get": {
         "operationId": "NotificationsController_mine",

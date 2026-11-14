@@ -14,6 +14,7 @@ import { VersionsService } from './activity/activity';
 import { ActivityService } from './activity/activity.service';
 import { NotificationsController } from './activity/notifications.controller';
 import { NotificationsService } from './activity/notifications';
+import { NotificationHub } from './activity/notification-hub';
 import { FilesController } from './files/files.controller';
 import { FilesService } from './files/files.service';
 import { ReactionsController } from './reactions/reactions.controller';
@@ -85,6 +86,7 @@ import { SearchIndex } from './search/search-index';
     ActivityService,
     VersionsService,
     NotificationsService,
+    NotificationHub,
     FilesService,
     ReactionsService,
     SummaryService,

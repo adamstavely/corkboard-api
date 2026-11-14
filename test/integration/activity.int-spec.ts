@@ -109,4 +109,32 @@ describe('Activity, versions and notifications', () => {
     // Nothing new reaches her, and what she had about the board is hidden while she can't open it.
     expect(await replies()).toEqual([]);
   });
+
+  it('tells people over a live stream the moment they have something new, and only them', async () => {
+    const { server, ada, grace, board } = await people();
+    const base = t.collabUrl.replace('ws://', 'http://').replace('/collab', '');
+    const listen = (auth: { Authorization: string }) => {
+      const controller = new AbortController();
+      const heard: string[] = [];
+      const done = fetch(`${base}/me/notifications/stream`, { headers: auth, signal: controller.signal }).then(async (res) => {
+        expect(res.headers.get('content-type')).toContain('text/event-stream');
+        const reader = res.body!.getReader();
+        for (;;) {
+          const { value, done: end } = await reader.read();
+          if (end) return;
+          heard.push(...new TextDecoder().decode(value).split('\n').filter((l) => l.startsWith('event: ')));
+        }
+      }).catch(() => undefined);
+      return { heard, stop: () => { controller.abort(); return done; } };
+    };
+    const graceHears = listen(grace);
+    const adaHears = listen(ada);
+    await new Promise((r) => setTimeout(r, 300));
+
+    await request(server).post(`/boards/${board.id}/comments`).set(ada).send({ nodeId: 'n', body: 'Over to you @Grace' }).expect(201);
+    for (let i = 0; i < 60 && !graceHears.heard.length; i++) await new Promise((r) => setTimeout(r, 50));
+    expect(graceHears.heard).toEqual(['event: changed']);
+    expect(adaHears.heard).toEqual([]);
+    await Promise.all([graceHears.stop(), adaHears.stop()]);
+  });
 });

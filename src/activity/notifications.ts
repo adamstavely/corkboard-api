@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
+import { NotificationHub } from './notification-hub';
 import { boardRole } from '../access/roles';
 import { boardMembers, boards, notifications, orgMembers, type User } from '../db/schema';
 import type { NotificationDto, ReadNotificationsDto } from './notifications.dto';
@@ -22,7 +23,10 @@ export function mentioned(text: string, people: readonly { id: string; name: str
 export class NotificationsService {
   readonly #log = new Logger(NotificationsService.name);
 
-  constructor(@InjectDb() private readonly db: Db) {}
+  constructor(
+    @InjectDb() private readonly db: Db,
+    private readonly hub: NotificationHub,
+  ) {}
 
   async notify(
     userIds: Iterable<string>,
@@ -43,6 +47,7 @@ export class NotificationsService {
           link: n.link ?? null,
         })),
       );
+      await this.hub.announce(ids);
     } catch (err) {
       this.#log.warn(`Couldn't notify ${ids.length} people: ${String(err)}`);
     }
@@ -83,5 +88,7 @@ export class NotificationsService {
     const mine = and(eq(notifications.userId, user.id), isNull(notifications.readAt));
     if (body.all) await this.db.update(notifications).set({ readAt: new Date() }).where(mine);
     else if (body.ids?.length) await this.db.update(notifications).set({ readAt: new Date() }).where(and(mine, inArray(notifications.id, body.ids)));
+    // Their other tabs and devices catch up too.
+    await this.hub.announce([user.id]).catch(() => undefined);
   }
 }
