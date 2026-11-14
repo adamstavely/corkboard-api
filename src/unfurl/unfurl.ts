@@ -1,7 +1,9 @@
 import { lookup as dnsLookup, type LookupAddress } from 'node:dns';
 import http from 'node:http';
 import https from 'node:https';
-import { isIP } from 'node:net';
+import { assertPublicHost, isPrivateAddress } from './addresses';
+
+export { isPrivateAddress } from './addresses';
 
 /** What a link card shows. */
 export interface LinkPreview {
@@ -16,17 +18,6 @@ export interface LinkPreview {
 const MAX_BYTES = 512 * 1024;
 const TIMEOUT_MS = 5000;
 const MAX_REDIRECTS = 3;
-
-/** Addresses a link may never reach: this machine, private networks, link-local (cloud metadata) and the like. */
-export function isPrivateAddress(address: string): boolean {
-  const v4 = address.startsWith('::ffff:') ? address.slice(7) : address;
-  if (isIP(v4) === 4) {
-    const [a, b] = v4.split('.').map(Number);
-    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
-  }
-  const v6 = address.toLowerCase();
-  return v6 === '::' || v6 === '::1' || v6.startsWith('fc') || v6.startsWith('fd') || v6.startsWith('fe8') || v6.startsWith('fe9') || v6.startsWith('fea') || v6.startsWith('feb');
-}
 
 /** Resolves a host, refusing it if any address it has is private; used as the connection's own lookup. */
 export function guardedLookup(hostname: string, options: object, callback: (err: Error | null, address: string | LookupAddress[], family?: number) => void): void {
@@ -120,7 +111,7 @@ export async function unfurl(raw: string): Promise<LinkPreview> {
   for (let hops = 0; hops <= MAX_REDIRECTS; hops++) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Only web links can be previewed');
     if (url.username || url.password) throw new Error('Links with a password in them are not previewed');
-    if (isIP(url.hostname.replace(/^\[|\]$/g, '')) && isPrivateAddress(url.hostname.replace(/^\[|\]$/g, ''))) throw new Error('That address is not allowed');
+    assertPublicHost(url);
     const res = await get(url);
     if (res.location && res.status >= 300 && res.status < 400) {
       url = new URL(res.location, url);

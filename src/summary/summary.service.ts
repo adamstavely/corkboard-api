@@ -17,7 +17,7 @@ const SYSTEM = `You summarise a whiteboard a team shares on Corkboard. The board
 
 Call write_summary once with: a TL;DR of one or two sentences; a short paragraph of summary; the key points, decisions and action items (with owners when the board names them), each citing the ids of the notes it rests on; and two or three questions the team might ask next. Use only what's on the board, and never invent names.`;
 
-const TOOL: ToolDef = {
+export const TOOL: ToolDef = {
   name: 'write_summary',
   description: 'Writes the board summary everyone on the board sees.',
   parameters: {

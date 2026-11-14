@@ -28,7 +28,7 @@ const ITEM = {
   additionalProperties: false,
 };
 
-const TOOL: ToolDef = {
+export const TOOL: ToolDef = {
   name: 'write_recap',
   description: "Writes the session's recap, which is posted to the board's chat for everyone.",
   parameters: {
@@ -43,11 +43,12 @@ const TOOL: ToolDef = {
           type: 'object',
           properties: {
             text: { type: 'string', description: 'The action, starting with a verb.' },
-            owner: { type: 'string', description: 'Who does it, as the board names them. Omit when nobody is named.' },
-            due: { type: 'string', description: 'When, as the board says it. Omit when it does not.' },
+            // Required but nullable: strict tool schemas (OpenAI's) need every property listed in required.
+            owner: { type: ['string', 'null'], description: 'Who does it, as the board names them; null when nobody is named.' },
+            due: { type: ['string', 'null'], description: 'When, as the board says it; null when it does not.' },
             note_ids: { type: 'array', items: { type: 'string' } },
           },
-          required: ['text', 'note_ids'],
+          required: ['text', 'owner', 'due', 'note_ids'],
           additionalProperties: false,
         },
       },
