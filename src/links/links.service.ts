@@ -32,7 +32,7 @@ export class LinksService {
     return rows.map(({ link, by }) => toDto(link, by ?? 'Someone'));
   }
 
-  async create(user: User, boardId: string, label?: string, expiresInDays?: number): Promise<ShareLinkDto> {
+  async create(user: User, boardId: string, label?: string, expiresInDays?: number, canEdit = false): Promise<ShareLinkDto> {
     await this.boards.get(user, boardId, 'owner');
     const [link] = await this.db
       .insert(boardShareLinks)
@@ -40,11 +40,12 @@ export class LinksService {
         boardId,
         token: randomBytes(24).toString('base64url'),
         label: label?.trim() || null,
+        canEdit,
         createdBy: user.id,
         expiresAt: expiresInDays ? new Date(Date.now() + expiresInDays * 86_400_000) : null,
       })
       .returning();
-    await this.activity.record(boardId, user, 'made a share link', link.label ?? undefined);
+    await this.activity.record(boardId, user, canEdit ? 'made an editable share link' : 'made a share link', link.label ?? undefined);
     return toDto(link, user.name);
   }
 
@@ -97,7 +98,7 @@ export class LinksService {
       .update(boardShareLinks)
       .set({ opens: sql`${boardShareLinks.opens} + 1`, lastOpenedAt: new Date() })
       .where(eq(boardShareLinks.id, row.link.id));
-    return { boardId: row.link.boardId, title: row.title };
+    return { boardId: row.link.boardId, title: row.title, canEdit: row.link.canEdit };
   }
 }
 
@@ -106,6 +107,7 @@ function toDto(link: LinkRow, by: string): ShareLinkDto {
     id: link.id,
     token: link.token,
     label: link.label,
+    canEdit: link.canEdit,
     createdBy: by,
     createdAt: link.createdAt.getTime(),
     expiresAt: link.expiresAt?.getTime() ?? null,

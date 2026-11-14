@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 
 /** A link that lets anyone who has it view the board, live and read-only. */
 export class ShareLinkDto {
@@ -6,6 +6,8 @@ export class ShareLinkDto {
   /** The secret part of the link: the page's URL is /shared/{token}. */
   token!: string;
   label!: string | null;
+  /** Whoever has it can change the board, not just look. */
+  canEdit!: boolean;
   createdBy!: string;
   /** Epoch ms. */
   createdAt!: number;
@@ -20,6 +22,11 @@ export class CreateShareLinkDto {
   @IsString()
   @MaxLength(80)
   label?: string;
+
+  /** Let whoever has the link change the board, not just look. */
+  @IsOptional()
+  @IsBoolean()
+  canEdit?: boolean;
 
   /** Days until it stops working; without it, it works until revoked. */
   @IsOptional()
@@ -40,4 +47,6 @@ export class ShareLinkExpiryDto {
 export class SharedBoardDto {
   boardId!: string;
   title!: string;
+  /** The link lets its holder change the board. */
+  canEdit!: boolean;
 }

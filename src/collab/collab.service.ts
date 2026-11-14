@@ -74,13 +74,14 @@ export class CollabService implements OnApplicationBootstrap, OnApplicationShutd
       maxDebounce: 10_000,
       onAuthenticate: async ({ token, documentName, connectionConfig }): Promise<CollabContext> => {
         if (!UUID.test(documentName)) throw new Error('Board not found');
-        // Someone with a share link: read-only, as a guest, on that link's board only.
+        // Someone with a share link: as a guest, on that link's board only, read-only unless the link lets them edit.
         if (token.startsWith(LINK)) {
           const link = await this.links.byToken(token.slice(LINK.length));
           if (!link || link.boardId !== documentName) throw new Error('This link has been turned off or has expired');
-          connectionConfig.readOnly = true;
+          // An editable link's guests change the board like updaters; chat, votes and the rest stay the API's.
+          connectionConfig.readOnly = !link.canEdit;
           this.watchLink(link.id, link.expiresAt?.getTime() ?? null);
-          return { user: GUEST, role: 'reader', linkId: link.id };
+          return { user: GUEST, role: link.canEdit ? 'updater' : 'reader', linkId: link.id };
         }
         let user: User;
         try {

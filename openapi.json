@@ -4012,6 +4012,10 @@
             "type": "string",
             "nullable": true
           },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Whoever has it can change the board, not just look."
+          },
           "createdBy": {
             "type": "string"
           },
@@ -4038,6 +4042,7 @@
           "id",
           "token",
           "label",
+          "canEdit",
           "createdBy",
           "createdAt",
           "expiresAt",
@@ -4052,6 +4057,10 @@
           "label": {
             "type": "string",
             "maxLength": 80
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Let whoever has the link change the board, not just look."
           },
           "expiresInDays": {
             "type": "number",
@@ -4082,11 +4091,16 @@
           },
           "title": {
             "type": "string"
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "The link lets its holder change the board."
           }
         },
         "required": [
           "boardId",
-          "title"
+          "title",
+          "canEdit"
         ]
       },
       "BoardEventDto": {

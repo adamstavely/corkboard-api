@@ -1,4 +1,4 @@
-import { type AnyPgColumn, customType, integer, index, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, boolean, customType, integer, index, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
@@ -148,6 +148,8 @@ export const boardShareLinks = pgTable('board_share_links', {
   /** The secret in the link. */
   token: text('token').notNull().unique(),
   label: text('label'),
+  /** Whoever has the link can change the board (add, move, write), not just look; never chat, votes or settings. */
+  canEdit: boolean('can_edit').notNull().default(false),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
