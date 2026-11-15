@@ -181,3 +181,23 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
   });
   return ids;
 }
+
+/**
+ * Places a layout to the right of everything on the board (or at the top left of an empty one), so it covers nothing.
+ * Returns the new things' ids by key, and how many frames and notes it made.
+ */
+export function placeBeside(doc: Y.Doc, layout: Layout, author = 'assistant'): { ids: Map<string, string>; frames: number; notes: number } {
+  let right = -Infinity;
+  let top = Infinity;
+  doc.getMap<Y.Map<unknown>>('nodes').forEach((node) => {
+    if (!(node instanceof Y.Map) || node.get('kind') === 'connector') return;
+    const x = Number(node.get('x') ?? 0);
+    const y = Number(node.get('y') ?? 0);
+    const w = Number(node.get('w') ?? 0);
+    if (Number.isFinite(x + w)) right = Math.max(right, x + w);
+    if (Number.isFinite(y)) top = Math.min(top, y);
+  });
+  const at = Number.isFinite(right) ? { x: right + 160, y: Number.isFinite(top) ? top : 0 } : { x: 0, y: 0 };
+  const ids = applyLayout(doc, layout, at, author);
+  return { ids, frames: layout.frames?.length ?? 0, notes: layout.notes?.length ?? 0 };
+}

@@ -238,6 +238,85 @@ describe('Model connections and the assistant', () => {
     ada$.destroy();
   });
 
+  it('sets a board up from a prompt beside what is there, and puts work on the task board', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Launch' });
+    const doc = new Y.Doc();
+    const ada$ = await new Promise<HocuspocusProvider>((resolve) => {
+      const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: doc, onSynced: (): void => resolve(p) });
+    });
+    const [ship] = addNotes(doc, [{ text: 'Ship the beta by Friday', color: 'yellow' }]);
+    await new Promise((r) => setTimeout(r, 200));
+    const me = (await request(server).get('/me').set(ada.auth)).body as { id: string; name: string };
+
+    script = async (req) => {
+      expect(req.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['build_layout', 'add_tasks']));
+      // A layout the board can't show is turned back.
+      await expect(req.execute('build_layout', { layout: { notes: [{ text: 'x', x: -5, y: 0 }] } })).rejects.toThrow(/position/);
+      await req.execute('build_layout', {
+        layout: {
+          texts: [{ text: 'Pre-mortem', size: 'lg', x: 0, y: 0 }],
+          frames: [
+            { key: 'why', title: 'Why it failed', x: 0, y: 80, w: 464, h: 600 },
+            // Strict tool calling sends null for what isn't given.
+            { key: 'now', title: 'What we do now', x: 528, y: 80, w: 464, h: 600, fill: null, border: null },
+          ],
+          notes: [{ text: 'One reason per note', color: 'pink', x: 32, y: 128 }],
+          arrows: [{ from: 'why', to: 'now' }],
+        },
+      });
+      await req.execute('add_tasks', { tasks: [{ title: 'Write release notes', owner: me.name.toUpperCase(), due: '2026-11-20', priority: 3, note_id: ship }, { title: 'Book the demo', owner: 'Zed' }] });
+      return 'Set up a pre-mortem and added two tasks.';
+    };
+    const res = await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Set up a pre-mortem for the launch' }).expect(200);
+    expect(res.body).toMatchObject({ framesAdded: 2, notesAdded: 1 });
+
+    for (let i = 0; i < 50 && framesOf(doc).length < 2; i++) await new Promise((r) => setTimeout(r, 50));
+    const frames = framesOf(doc);
+    expect(frames.map((f) => f.title).sort()).toEqual(['What we do now', 'Why it failed']);
+    // Beside the note that was there, not over it.
+    const note = notesOf(doc).find((n) => n.id === ship)!;
+    expect(Math.min(...frames.map((f) => f.x))).toBeGreaterThan(note.x + 200);
+    expect([...doc.getMap<Y.Map<unknown>>('nodes').values()].some((n) => n.get('kind') === 'connector')).toBe(true);
+
+    const tasks = [...doc.getMap<{ key: string; title: string; assignee?: string; due?: string; noteId?: string }>('tasks').values()];
+    expect(tasks.find((x) => x.title === 'Write release notes')).toMatchObject({ key: 'T-1', assignee: me.id, due: '2026-11-20', noteId: ship });
+    // Someone who isn't a member keeps their name in the title.
+    expect(tasks.find((x) => x.key === 'T-2')!.title).toBe('Zed: Book the demo');
+    ada$.destroy();
+  });
+
+  it("catches someone up on what others did while they were away, and says so when nothing happened", async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const grace = await person();
+    const { body: invite } = await request(server).post(`/orgs/${ada.orgId}/invites`).set(ada.auth).send({ email: grace.email, role: 'updater' });
+    await request(server).post(`/me/invites/${invite.id}/accept`).set(grace.auth).expect(201);
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Review' });
+    const since = Date.now();
+    const catchUp = () => request(server).post(`/boards/${board.id}/summary/catch-up`).set(ada.auth).send({ modelId: m.id, since });
+
+    // Only her own doings since: nothing to tell, and no model call.
+    await request(server).put(`/boards/${board.id}/timer`).set(ada.auth).send({ seconds: 60 }).expect(204);
+    script = () => Promise.reject(new Error('should not be asked'));
+    expect((await catchUp().expect(200)).body).toMatchObject({ events: 0, points: [] });
+
+    await request(server).post(`/boards/${board.id}/comments`).set(grace.auth).send({ nodeId: 'n1', body: 'Cut the carousel' }).expect(201);
+    let prompt = '';
+    script = async (req) => {
+      prompt = req.prompt;
+      await req.execute('write_catchup', { summary: 'Grace commented on the hero.', points: [{ text: 'Cut the carousel?', note_ids: ['nope'] }] });
+      return 'Done.';
+    };
+    const { body } = await catchUp().expect(200);
+    expect(body).toMatchObject({ summary: 'Grace commented on the hero.', events: 1, points: [{ text: 'Cut the carousel?', noteIds: [] }] });
+    expect(prompt).toContain('Cut the carousel');
+    expect(prompt).not.toContain('started the timer');
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();

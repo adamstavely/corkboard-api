@@ -27,6 +27,7 @@ import { ReactionsController } from './reactions/reactions.controller';
 import { ReactionsService } from './reactions/reactions';
 import { SummaryController } from './summary/summary.controller';
 import { SummaryService } from './summary/summary.service';
+import { CatchUpService } from './summary/catchup.service';
 import { RecapController } from './summary/recap.controller';
 import { RecapService } from './summary/recap.service';
 import { WritingController } from './facilitation/writing.controller';
@@ -117,6 +118,7 @@ import { SearchIndex } from './search/search-index';
     FilesService,
     ReactionsService,
     SummaryService,
+    CatchUpService,
     RecapService,
     WritingService,
     IntegrationsService,
