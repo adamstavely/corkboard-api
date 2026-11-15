@@ -36,3 +36,19 @@ export class DeleteWorkspaceDto {
   @MaxLength(200)
   confirm!: string;
 }
+
+/** One thing that happened on a board, for the workspace's audit log: always who really did it. */
+export class AuditEventDto {
+  at!: number;
+  boardId!: string;
+  board!: string;
+  /** Null once their account is gone, or for something the API did itself. */
+  actorId!: string | null;
+  actorName!: string;
+  actorEmail!: string | null;
+  action!: string;
+  target!: string | null;
+  detail!: string | null;
+  /** It was anonymous on the board (who did it shows there only to its owners). */
+  restricted!: boolean;
+}

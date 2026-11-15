@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, count, countDistinct, desc, eq, gt, inArray, sql, sum } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, gt, gte, inArray, sql, sum } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { CollabService } from '../collab/collab.service';
 import { InjectDb, type Db } from '../db/db.module';
@@ -21,7 +21,7 @@ import {
 import { OrgsService } from '../orgs/orgs.service';
 import { BoardsService } from '../boards/boards.service';
 import { SearchIndex } from '../search/search-index';
-import type { WorkspaceUsageDto } from './admin.dto';
+import type { AuditEventDto, WorkspaceUsageDto } from './admin.dto';
 
 const DAYS = 30;
 
@@ -167,6 +167,34 @@ export class AdminService {
    * Deletes the workspace and everything in it, for good. The name must be typed out, and nobody can delete the last
    * workspace they belong to.
    */
+  /**
+   * Workspace owners: every board's history in the workspace, oldest first (after `since`, epoch ms, when given): who
+   * did what, by their id, name and email, including what was anonymous on a board, and participants from outside it.
+   */
+  async audit(user: User, orgId: string, since?: number): Promise<AuditEventDto[]> {
+    await this.orgs.require(user.id, orgId, 'owner');
+    const rows = await this.db
+      .select({ e: boardEvents, board: boards.title, email: users.email })
+      .from(boardEvents)
+      .innerJoin(boards, eq(boards.id, boardEvents.boardId))
+      .leftJoin(users, eq(users.id, boardEvents.actorId))
+      .where(and(eq(boards.orgId, orgId), since ? gte(boardEvents.createdAt, new Date(since + 1)) : undefined))
+      .orderBy(asc(boardEvents.createdAt))
+      .limit(50_000);
+    return rows.map(({ e, board, email }) => ({
+      at: e.createdAt.getTime(),
+      boardId: e.boardId,
+      board,
+      actorId: e.actorId,
+      actorName: e.actorName,
+      actorEmail: email ?? null,
+      action: e.action,
+      target: e.target,
+      detail: e.detail,
+      restricted: e.restricted,
+    }));
+  }
+
   async remove(user: User, orgId: string, confirm: string): Promise<void> {
     await this.orgs.require(user.id, orgId, 'owner');
     const [org] = await this.db.select().from(orgs).where(eq(orgs.id, orgId));

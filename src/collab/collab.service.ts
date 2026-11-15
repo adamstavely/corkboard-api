@@ -17,6 +17,8 @@ import { serverOwnedIn } from './server-owned';
 import { nodeProblem } from './node-schema';
 import { canChangeLocked, lockProblem } from './locks';
 import { project } from './projection';
+import { describe as describeEdits, touchedBy, touched, type Touched } from './edit-log';
+import { ActivityService } from '../activity/activity.service';
 import { ParticipantsStore } from '../feedback/participants.store';
 
 /** Who someone viewing through a share link is: nobody in particular. */
@@ -38,6 +40,8 @@ const PROJECTION = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 export const projectionName = (boardId: string, userId: string) => `${boardId}~p~${userId}`;
 /** How long after a change to a board its projections catch up. */
 const PROJECT_MS = 200;
+/** People's edits made straight in a board are summed up in its history this often, a line per person. */
+const EDIT_LOG_MS = 30_000;
 
 interface CollabContext {
   user: User;
@@ -86,6 +90,8 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
   #signedOut: { unsubscribe(): void } | undefined;
   /** For each board with projections open: a connection keeping the board loaded, and a pending catch-up. */
   readonly #projected = new Map<string, { hold: Promise<{ disconnect(): Promise<void> }>; timer?: NodeJS.Timeout }>();
+  /** Edits not yet in the history: per board and person, what they touched. */
+  readonly #edits = new Map<string, { boardId: string; user: User; touched: Touched; timer: NodeJS.Timeout }>();
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
@@ -94,6 +100,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     private readonly search: SearchIndex,
     private readonly links: LinksService,
     private readonly participants: ParticipantsStore,
+    private readonly activity: ActivityService,
   ) {
     this.hocuspocus = new Hocuspocus<CollabContext>({
       name: 'corkboard',
@@ -182,8 +189,11 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         // This one isn't among the open documents yet: fill it now.
         await this.#project(boardId, [[documentName, document]]);
       },
-      onChange: ({ documentName }) => {
+      onChange: ({ documentName, document, update, connection, context }) => {
         if (this.#projected.has(documentName)) this.refreshProjections(documentName);
+        // Someone's own edit, from their board (the API's edits record themselves).
+        const user = (context as CollabContext | undefined)?.user;
+        if (connection && user && !(context).linkId && UUID.test(documentName)) this.#logEdit(documentName, user, document, update);
         return Promise.resolve();
       },
       afterUnloadDocument: async ({ documentName }) => {
@@ -262,6 +272,8 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
    */
   async beforeApplicationShutdown(): Promise<void> {
     this.#server?.off('upgrade', this.#onUpgrade);
+    // What people edited since the last summary goes in the history before the database closes.
+    await this.flushEdits();
     clearInterval(this.#sweep);
     this.#signedOut?.unsubscribe();
     // Save every open board now, rather than trusting a debounced store to land before the database closes.
@@ -346,6 +358,36 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     for (const [name, document] of this.hocuspocus.documents) {
       if (name === boardId || PROJECTION.exec(name)?.[1] === boardId) document.broadcastStateless(message);
     }
+  }
+
+  #logEdit(boardId: string, user: User, doc: Y.Doc, update: Uint8Array): void {
+    const key = `${boardId} ${user.id}`;
+    let pending = this.#edits.get(key);
+    try {
+      if (!pending) {
+        const timer = setTimeout(() => void this.#flushEdits(key), EDIT_LOG_MS);
+        timer.unref();
+        pending = { boardId, user, touched: touched(), timer };
+        this.#edits.set(key, pending);
+      }
+      touchedBy(doc, update, pending.touched);
+    } catch (err) {
+      this.#log.warn(`Couldn't follow ${user.id}'s edit on board ${boardId}: ${String(err)}`);
+    }
+  }
+
+  /** Puts everyone's edits not yet summed up into the history now. */
+  async flushEdits(): Promise<void> {
+    await Promise.all([...this.#edits.keys()].map((key) => this.#flushEdits(key)));
+  }
+
+  async #flushEdits(key: string): Promise<void> {
+    const pending = this.#edits.get(key);
+    if (!pending) return;
+    this.#edits.delete(key);
+    clearTimeout(pending.timer);
+    const said = describeEdits(pending.touched);
+    if (said) await this.activity.record(pending.boardId, pending.user, 'edited the board', undefined, said);
   }
 
   /** Brings a board's open projections up to date shortly (its participants or what they may see changed). */

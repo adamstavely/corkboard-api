@@ -1,9 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Query, Res } from '@nestjs/common';
+import { ApiBearerAuth, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { DeleteWorkspaceDto, WorkspaceUsageDto } from './admin.dto';
+import { AuditEventDto, DeleteWorkspaceDto, WorkspaceUsageDto } from './admin.dto';
 import { AdminService } from './admin.service';
 
 @ApiTags('admin')
@@ -26,6 +26,17 @@ export class AdminController {
     const day = new Date().toISOString().slice(0, 10);
     res.set({ 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="corkboard-workspace-${day}.json"` });
     res.send(JSON.stringify(data, null, 2));
+  }
+
+  /**
+   * Workspace owners: the audit log, every board's history oldest first (after `since`, epoch ms): who really did
+   * what, by id, name and email, including what was anonymous on a board and people from outside the workspace.
+   */
+  @Get('audit')
+  @ApiQuery({ name: 'since', required: false, type: Number })
+  audit(@CurrentUser() user: User, @Param('orgId', ParseUUIDPipe) orgId: string, @Query('since') since?: string): Promise<AuditEventDto[]> {
+    const after = Number(since);
+    return this.admin.audit(user, orgId, Number.isFinite(after) && after > 0 ? after : undefined);
   }
 
   /** Workspace owners: delete the workspace and everything in it, typing its name to confirm. */

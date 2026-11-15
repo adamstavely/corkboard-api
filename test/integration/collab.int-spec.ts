@@ -2,6 +2,7 @@ import { HocuspocusProvider } from '@hocuspocus/provider';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import * as Y from 'yjs';
+import { CollabService } from '../../src/collab/collab.service';
 import { SearchIndex } from '../../src/search/search-index';
 import { createTestApp, type TestApp } from './app';
 
@@ -192,5 +193,18 @@ describe('Real-time collaboration', () => {
     const facilitator = await connect(ada.id, grace.Authorization.slice(7));
     (facilitator.document.getMap('nodes').get(frameId) as Y.Map<unknown>).set('x', 500);
     await eventually(() => (watcher.document.getMap('nodes').get(frameId) as Y.Map<unknown>).get('x') === 500);
+  });
+
+  it('puts what each person edited straight on the board into its history, under their name', async () => {
+    const subject = randomUUID();
+    const board = await newBoard(subject);
+    const provider = await connect(board.id, board.auth.Authorization.slice(7));
+    const note = addNote(provider.document, 'Mine');
+    await eventually(() => t.app.get(CollabService).hocuspocus.documents.get(board.id)?.getMap('nodes').has(note) === true);
+    (provider.document.getMap('nodes').get(note) as Y.Map<unknown>).set('x', 40);
+    await new Promise((r) => setTimeout(r, 300));
+    await t.app.get(CollabService).flushEdits();
+    const { body: events } = await request(t.app.getHttpServer()).get(`/boards/${board.id}/activity`).set(board.auth).expect(200);
+    expect(events.find((e: { action: string }) => e.action === 'edited the board')).toMatchObject({ detail: '1 added' });
   });
 });
