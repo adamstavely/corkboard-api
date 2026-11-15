@@ -8090,6 +8090,21 @@
           "instruction"
         ]
       },
+      "CitedFileDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "name"
+        ]
+      },
       "AssistResultDto": {
         "type": "object",
         "properties": {
@@ -8117,6 +8132,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "citedFiles": {
+            "description": "The board's files the answer drew on.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CitedFileDto"
+            }
           }
         },
         "required": [
@@ -8125,7 +8147,8 @@
           "notesChanged",
           "framesAdded",
           "notesMoved",
-          "citedNoteIds"
+          "citedNoteIds",
+          "citedFiles"
         ]
       }
     }

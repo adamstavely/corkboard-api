@@ -38,6 +38,12 @@ export class AssistRequestDto {
   history?: AssistTurnDto[];
 }
 
+/** A file on the board an answer drew on. */
+export class CitedFileDto {
+  fileId!: string;
+  name!: string;
+}
+
 export class AssistResultDto {
   /** The model's answer, for the person who asked. */
   reply!: string;
@@ -49,4 +55,6 @@ export class AssistResultDto {
   notesMoved!: number;
   /** Notes the answer is about, most relevant first, for the person to find on the board. */
   citedNoteIds!: string[];
+  /** The board's files the answer drew on. */
+  citedFiles!: CitedFileDto[];
 }

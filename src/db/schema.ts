@@ -298,6 +298,24 @@ export const boardFiles = pgTable(
   (t) => [index('board_files_board').on(t.boardId)],
 );
 
+/** The text the assistant can search and read in a board's file, taken out once when it's added. */
+export const boardFileTexts = pgTable(
+  'board_file_texts',
+  {
+    fileId: uuid('file_id')
+      .primaryKey()
+      .references(() => boardFiles.id, { onDelete: 'cascade' }),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    text: text('text').notNull(),
+    /** How many pieces it's searched in. */
+    chunks: integer('chunks').notNull(),
+    extractedAt: timestamp('extracted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('board_file_texts_board').on(t.boardId)],
+);
+
 /** Who did what on a board, newest last: the board's activity. Kept when the person is gone. */
 export const boardEvents = pgTable(
   'board_events',

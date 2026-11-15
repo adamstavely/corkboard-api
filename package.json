@@ -14,12 +14,13 @@
     "start:prod": "node dist/main",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "jest",
-    "test:int": "jest --config jest.int.config.js --runInBand",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:int": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.int.config.js --runInBand",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "ts-node scripts/migrate.ts",
     "openapi:export": "nest build && node dist/export-openapi.js",
     "search:reindex": "ts-node scripts/reindex.ts",
+    "files:extract": "ts-node scripts/extract-files.ts",
     "eval": "jest --config jest.eval.config.js --runInBand"
   },
   "dependencies": {
@@ -36,9 +37,11 @@
     "class-transformer": "0.5.1",
     "class-validator": "0.15.1",
     "drizzle-orm": "0.45.4",
+    "mammoth": "1.13.0",
     "pg": "8.23.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "unpdf": "1.9.1",
     "ws": "8.22.2",
     "y-protocols": "1.0.7",
     "yjs": "13.6.33"

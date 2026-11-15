@@ -1,13 +1,15 @@
 import type { Response } from 'express';
-import { BadGatewayException, BadRequestException, Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { BoardsService } from '../boards/boards.service';
 import { InjectDb, type Db } from '../db/db.module';
-import { boardFiles, type User } from '../db/schema';
+import { boardFileTexts, boardFiles, type User } from '../db/schema';
 import { ModelError, type ImageType, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
 import type { AskImageDto, BoardFileDto, ImageAnswerDto } from './files.dto';
 import { ActivityService } from '../activity/activity.service';
+import { SearchIndex } from '../search/search-index';
+import { chunks, extractText, READABLE } from './extract';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -80,16 +82,19 @@ export function sendFile(res: Response, file: StoredFile): void {
 
 @Injectable()
 export class FilesService {
+  readonly #log = new Logger('Files');
+
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly boards: BoardsService,
     private readonly providers: ProvidersService,
     private readonly activity: ActivityService,
+    private readonly search: SearchIndex,
   ) {}
 
   /** Updaters and owners: stores a file for the board; the page places it on the board. */
   async upload(user: User, boardId: string, file: Upload | undefined): Promise<BoardFileDto> {
-    await this.boards.get(user, boardId, 'updater');
+    const board = await this.boards.get(user, boardId, 'updater');
     if (!file) throw new BadRequestException('Choose a file to add');
     if (file.size > MAX_FILE_BYTES) throw new PayloadTooLargeException('Files can be up to 10 MB');
     if (!ALLOWED.has(file.mimetype)) throw new BadRequestException(`${file.originalname} isn't a kind of file boards take: images, PDFs, text and Office documents`);
@@ -99,7 +104,42 @@ export class FilesService {
       .values({ boardId, uploadedBy: user.id, name, mime: file.mimetype, size: file.size, data: file.buffer })
       .returning({ id: boardFiles.id, name: boardFiles.name, mime: boardFiles.mime, size: boardFiles.size });
     await this.activity.record(boardId, user, 'added a file', name);
+    await this.readText({ boardId, orgId: board.orgId }, { id: row.id, name, mime: file.mimetype }, file.buffer);
     return row;
+  }
+
+  /**
+   * Takes a file's text out and indexes it, so the assistant can search and read it. A file that can't be read is still
+   * added; it just isn't searchable.
+   */
+  async readText(board: { boardId: string; orgId: string }, file: { id: string; name: string; mime: string }, data: Buffer): Promise<boolean> {
+    if (!READABLE.has(file.mime)) return false;
+    try {
+      const text = await extractText(file.mime, data);
+      if (!text) return false;
+      const pieces = chunks(text);
+      await this.db
+        .insert(boardFileTexts)
+        .values({ fileId: file.id, boardId: board.boardId, text, chunks: pieces.length })
+        .onConflictDoUpdate({ target: boardFileTexts.fileId, set: { text, chunks: pieces.length, extractedAt: new Date() } });
+      await this.search.indexFileChunks({ orgId: board.orgId, boardId: board.boardId, fileId: file.id, fileName: file.name }, pieces);
+      return true;
+    } catch (err) {
+      this.#log.warn(`Couldn't read the text of ${file.name} (${file.id}): ${String(err)}`);
+      return false;
+    }
+  }
+
+  /** Part of a file's text, from a character on: for the assistant to read on from a search hit. */
+  async textOf(boardId: string, fileId: string, from = 0, length = 6000): Promise<{ name: string; text: string; from: number; total: number } | null> {
+    const [row] = await this.db
+      .select({ text: boardFileTexts.text, name: boardFiles.name })
+      .from(boardFileTexts)
+      .innerJoin(boardFiles, eq(boardFiles.id, boardFileTexts.fileId))
+      .where(and(eq(boardFileTexts.fileId, fileId), eq(boardFileTexts.boardId, boardId)));
+    if (!row) return null;
+    const start = Math.max(0, Math.min(from, row.text.length));
+    return { name: row.name, text: row.text.slice(start, start + length), from: start, total: row.text.length };
   }
 
   async get(user: User, boardId: string, fileId: string): Promise<StoredFile> {
