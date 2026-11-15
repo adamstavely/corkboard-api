@@ -6,7 +6,7 @@ import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
 import { randomUUID } from 'node:crypto';
-import { agendaOf, answerPoll, castVote, endPoll, pollOf, startPoll, facilitatorOf, setAgenda, setAgendaStep, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
+import { agendaOf, answerPoll, setPrivacy, castVote, endPoll, pollOf, startPoll, facilitatorOf, setAgenda, setAgendaStep, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
 import { ActivityService } from '../activity/activity.service';
 
 const DEFAULT_VOTES = 3;
@@ -201,6 +201,17 @@ export class FacilitationService {
       const problem = answerPoll(doc, user.id, answer);
       if (problem) throw new ConflictException(problem);
     });
+  }
+
+  /** The facilitator (or an updater, when nobody is): turn private mode on or off. */
+  async setPrivacy(user: User, boardId: string, on: boolean): Promise<void> {
+    await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => {
+      const now = facilitatorOf(doc);
+      if (now.userId && now.userId !== user.id) throw new ConflictException(`${now.name} is facilitating, so only they can change private mode`);
+      setPrivacy(doc, on, user.name);
+    });
+    await this.activity.record(boardId, user, on ? 'turned private mode on' : 'turned private mode off');
   }
 
   async #edit(user: User, boardId: string, change: (doc: Y.Doc) => void): Promise<void> {

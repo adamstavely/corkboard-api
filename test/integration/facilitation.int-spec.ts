@@ -4,7 +4,7 @@ import request from 'supertest';
 import * as Y from 'yjs';
 import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
 import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
-import { agendaOf, facilitatorOf, pollCounts, pollOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
+import { agendaOf, facilitatorOf, pollCounts, pollOf, privacyOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
 import { createTestApp, type TestApp } from './app';
 
 const eventually = async (check: () => boolean, ms = 5000) => {
@@ -225,5 +225,23 @@ describe('Dot voting and the shared timer', () => {
     await answer(linus, 5).expect(409);
     await request(server).put(`/boards/${board.id}/poll/end`).set(ada.auth).send({ clear: true }).expect(204);
     await eventually(() => pollOf(doc) === null);
+  });
+
+  it('turns private mode on and off, for the facilitator alone once there is one', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const grace = await joined(ada, 'updater');
+    const linus = await joined(ada, 'commenter');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Vote' });
+    const doc = await open(board.id, linus);
+    const privacy = (who: Person, on: boolean) => request(server).put(`/boards/${board.id}/privacy`).set(who.auth).send({ on });
+
+    await privacy(linus, true).expect(403);
+    await privacy(grace, true).expect(204);
+    await eventually(() => privacyOf(doc).on);
+    await request(server).post(`/boards/${board.id}/facilitator`).set(ada.auth).expect(204);
+    await privacy(grace, false).expect(409);
+    await privacy(ada, false).expect(204);
+    await eventually(() => !privacyOf(doc).on);
   });
 });
