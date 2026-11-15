@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { notesOf } from '../assist/board-edit';
@@ -11,11 +11,17 @@ import { InjectDb, type Db } from '../db/db.module';
 import { pokerEstimates, type User } from '../db/schema';
 import { clearPoker, DECKS, markEstimated, pokerOf, revealPoker, startPoker, type Deck, type Poker } from './poker-doc';
 
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
 /**
  * Planning poker: a facilitator (updater or owner) puts up a task, a note or just a title, and everyone estimates it
  * with the same deck. Estimates stay on the server until the facilitator reveals them all at once, so nobody anchors
  * on anyone else's; the board shows only who has estimated. Commenters estimate too, and outside feedback participants
  * through their own route (ParticipationService), each counted once under who they are.
+ *
+ * Starting, estimating, revealing and clearing each hold the board's poker lock (a Postgres advisory lock) while they
+ * read the round and change it, so they happen one after another: an estimate is either in the reveal or refused,
+ * never accepted and then left out.
  */
 @Injectable()
 export class PokerService {
@@ -30,7 +36,7 @@ export class PokerService {
     await this.boards.get(user, boardId, 'updater');
     const round = randomUUID();
     let title = what.title?.trim() ?? '';
-    await this.#edit(user, boardId, (doc) => {
+    const change = (doc: Y.Doc) => {
       if (what.taskId) {
         const task = tasksOf(doc).find((t) => t.id === what.taskId);
         if (!task) throw new BadRequestException('That task is not on the board');
@@ -42,9 +48,13 @@ export class PokerService {
       }
       if (!title) throw new BadRequestException('Say what is being estimated: a task, a note or a title');
       startPoker(doc, { round, deck, taskId: what.taskId ?? null, noteId: what.taskId ? null : (what.noteId ?? null), title, startedBy: user.name });
+    };
+    await this.db.transaction(async (tx) => {
+      await this.#lock(tx, boardId);
+      await this.#edit(user, boardId, change);
+      // Anything left from an earlier round goes.
+      await tx.delete(pokerEstimates).where(and(eq(pokerEstimates.boardId, boardId), ne(pokerEstimates.round, round)));
     });
-    // Anything left from an earlier round goes.
-    await this.db.delete(pokerEstimates).where(and(eq(pokerEstimates.boardId, boardId), ne(pokerEstimates.round, round)));
     await this.activity.record(boardId, user, 'started planning poker', title);
   }
 
@@ -56,17 +66,21 @@ export class PokerService {
 
   /** An estimate from someone whose access the caller has already checked (a feedback participant). */
   async estimateAs(user: User, boardId: string, value: string): Promise<void> {
-    const poker = await this.#poker(user, boardId);
-    if (!poker) throw new ConflictException('No planning poker round is running');
-    if (poker.revealed) throw new ConflictException('The estimates have been revealed');
-    if (!(DECKS[poker.deck] as readonly string[]).includes(value)) throw new BadRequestException('That is not a card in the deck');
-    await this.db
-      .insert(pokerEstimates)
-      .values({ boardId, round: poker.round, userId: user.id, value })
-      .onConflictDoUpdate({ target: [pokerEstimates.boardId, pokerEstimates.round, pokerEstimates.userId], set: { value } });
-    await this.#edit(user, boardId, (doc) => {
-      const problem = markEstimated(doc, poker.round, user.id);
-      if (problem) throw new ConflictException(problem);
+    await this.db.transaction(async (tx) => {
+      // Read under the lock: a reveal either already happened (refused here) or waits until this estimate is in.
+      await this.#lock(tx, boardId);
+      const poker = await this.#poker(user, boardId);
+      if (!poker) throw new ConflictException('No planning poker round is running');
+      if (poker.revealed) throw new ConflictException('The estimates have been revealed');
+      if (!(DECKS[poker.deck] as readonly string[]).includes(value)) throw new BadRequestException('That is not a card in the deck');
+      await tx
+        .insert(pokerEstimates)
+        .values({ boardId, round: poker.round, userId: user.id, value })
+        .onConflictDoUpdate({ target: [pokerEstimates.boardId, pokerEstimates.round, pokerEstimates.userId], set: { value } });
+      await this.#edit(user, boardId, (doc) => {
+        const problem = markEstimated(doc, poker.round, user.id);
+        if (problem) throw new ConflictException(problem);
+      });
     });
   }
 
@@ -89,15 +103,21 @@ export class PokerService {
   /** Updaters and owners: show everyone's estimates at once. */
   async reveal(user: User, boardId: string): Promise<void> {
     await this.boards.get(user, boardId, 'updater');
-    const poker = await this.#poker(user, boardId);
-    if (!poker) throw new ConflictException('No planning poker round is running');
-    const rows = await this.db
-      .select({ userId: pokerEstimates.userId, value: pokerEstimates.value })
-      .from(pokerEstimates)
-      .where(and(eq(pokerEstimates.boardId, boardId), eq(pokerEstimates.round, poker.round)));
-    await this.#edit(user, boardId, (doc) => {
-      if (pokerOf(doc)?.round !== poker.round) throw new ConflictException('That round of planning poker has ended');
-      revealPoker(doc, new Map(rows.map((r) => [r.userId, r.value])));
+    // The round is closed to estimates (revealed) before the lock is let go, so every estimate it accepted is in it.
+    const { poker, rows } = await this.db.transaction(async (tx) => {
+      await this.#lock(tx, boardId);
+      const poker = await this.#poker(user, boardId);
+      if (!poker) throw new ConflictException('No planning poker round is running');
+      if (poker.revealed) throw new ConflictException('The estimates have already been revealed');
+      const rows = await tx
+        .select({ userId: pokerEstimates.userId, value: pokerEstimates.value })
+        .from(pokerEstimates)
+        .where(and(eq(pokerEstimates.boardId, boardId), eq(pokerEstimates.round, poker.round)));
+      await this.#edit(user, boardId, (doc) => {
+        if (pokerOf(doc)?.round !== poker.round) throw new ConflictException('That round of planning poker has ended');
+        revealPoker(doc, new Map(rows.map((r) => [r.userId, r.value])));
+      });
+      return { poker, rows };
     });
     await this.activity.record(boardId, user, 'revealed the estimates', poker.title, `${rows.length} estimate${rows.length === 1 ? '' : 's'}`);
   }
@@ -105,11 +125,19 @@ export class PokerService {
   /** Updaters and owners: put planning poker away. */
   async clear(user: User, boardId: string): Promise<void> {
     await this.boards.get(user, boardId, 'updater');
-    await this.#edit(user, boardId, (doc) => {
-      if (!pokerOf(doc)) throw new ConflictException('No planning poker round is running');
-      clearPoker(doc);
+    await this.db.transaction(async (tx) => {
+      await this.#lock(tx, boardId);
+      await this.#edit(user, boardId, (doc) => {
+        if (!pokerOf(doc)) throw new ConflictException('No planning poker round is running');
+        clearPoker(doc);
+      });
+      await tx.delete(pokerEstimates).where(eq(pokerEstimates.boardId, boardId));
     });
-    await this.db.delete(pokerEstimates).where(eq(pokerEstimates.boardId, boardId));
+  }
+
+  /** Takes the board's poker lock until the transaction ends. */
+  async #lock(tx: Tx, boardId: string): Promise<void> {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`poker:${boardId}`}, 0))`);
   }
 
   async #poker(user: User, boardId: string): Promise<Poker | null> {

@@ -178,8 +178,15 @@ export class WritingService {
     if (!writing.open) throw new ConflictException('No writing round is running');
     const round = writing.round;
     if (round) {
+      // Only an open round can be cancelled. Its status decides between cancelling and revealing, whichever takes it
+      // first: once a reveal has it, the notes are going on the board and can't be thrown away (and the other way round).
       await this.db.transaction(async (tx) => {
-        await tx.update(writingRounds).set({ status: 'closed' }).where(eq(writingRounds.id, round));
+        const [taken] = await tx
+          .update(writingRounds)
+          .set({ status: 'closed' })
+          .where(and(eq(writingRounds.id, round), eq(writingRounds.boardId, boardId), eq(writingRounds.status, 'open')))
+          .returning({ id: writingRounds.id });
+        if (!taken) throw new ConflictException('The notes are already being revealed, so the round can no longer be cancelled');
         await tx.delete(noteDrafts).where(and(eq(noteDrafts.boardId, boardId), eq(noteDrafts.round, round)));
       });
     }
