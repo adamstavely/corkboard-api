@@ -167,6 +167,52 @@ export const boardShareLinks = pgTable('board_share_links', {
   createdAt: createdAt(),
 });
 
+/** What participants from outside the team see of each other's feedback; the team always sees everything, named. */
+export const feedbackVisibility = pgEnum('feedback_visibility', ['names', 'anonymous', 'own']);
+
+/**
+ * A board's feedback link: anyone signed in who has it can join the board as a participant, from any workspace, to
+ * comment, add notes, react, vote and answer polls. One live link per board.
+ */
+export const boardFeedbackLinks = pgTable(
+  'board_feedback_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    /** The secret in the link. */
+    token: text('token').notNull().unique(),
+    visibility: feedbackVisibility('visibility').notNull().default('anonymous'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('board_feedback_links_board').on(t.boardId)],
+);
+
+/**
+ * Someone from outside the board's workspace who joined it through its feedback link. Their pseudonym ("Participant 4")
+ * is what other participants see when names are hidden; it stays theirs on that board.
+ */
+export const boardParticipants = pgTable(
+  'board_participants',
+  {
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    pseudonym: integer('pseudonym').notNull(),
+    linkId: uuid('link_id').references(() => boardFeedbackLinks.id, { onDelete: 'set null' }),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Set by the team to keep someone out. */
+    blockedAt: timestamp('blocked_at', { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.userId] }), uniqueIndex('board_participants_pseudonym').on(t.boardId, t.pseudonym), index('board_participants_user').on(t.userId)],
+);
+
 /** A board role for one person, set on the board: any role, or none at all to keep them out. */
 export const boardAccess = pgEnum('board_access', ['none', 'reader', 'commenter', 'updater', 'owner']);
 

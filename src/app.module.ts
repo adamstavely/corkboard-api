@@ -8,6 +8,8 @@ import { FacilitationController } from './facilitation/facilitation.controller';
 import { OrganiseController } from './organise/organise.controller';
 import { OrganiseService } from './organise/organise.service';
 import { LinksController } from './links/links.controller';
+import { FeedbackController } from './feedback/feedback.controller';
+import { FeedbackService } from './feedback/feedback.service';
 import { LinksService } from './links/links.service';
 import { ActivityController } from './activity/activity.controller';
 import { VersionsService } from './activity/activity';
@@ -66,6 +68,7 @@ import { SearchIndex } from './search/search-index';
     FacilitationController,
     OrganiseController,
     LinksController,
+    FeedbackController,
     ActivityController,
     NotificationsController,
     PasskeysController,
@@ -101,6 +104,7 @@ import { SearchIndex } from './search/search-index';
     FacilitationService,
     OrganiseService,
     LinksService,
+    FeedbackService,
     ActivityService,
     VersionsService,
     NotificationsService,
