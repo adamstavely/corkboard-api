@@ -88,4 +88,28 @@ describe('server-owned parts of a board', () => {
     ((typist.getMap('nodes').get('n') as Y.Map<unknown>).get('text') as Y.XmlText).insert(5, ' there');
     expect(serverOwnedIn(board, Y.encodeStateAsUpdate(typist, before))).toBeNull();
   });
+
+  it("takes a browser's whole saved copy, with the server's own replaced values and deletes, and still refuses forgeries in it", () => {
+    const board = new Y.Doc();
+    board.getMap('timer').set('endsAt', 1);
+    board.getMap('timer').set('endsAt', 2);
+    board.getMap('votes').set('ada', ['n1']);
+    board.getMap('votes').delete('ada');
+    // The browser's copy, everything the server wrote included, plus a note of its own.
+    const browser = new Y.Doc();
+    Y.applyUpdate(browser, Y.encodeStateAsUpdate(board));
+    browser.getMap('nodes').set('mine', new Y.Map());
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(browser))).toBeNull();
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(browser, Y.encodeStateVector(board)))).toBeNull();
+
+    // Riding along with all that, a new value or a delete of the server's is still refused.
+    const forger = new Y.Doc();
+    Y.applyUpdate(forger, Y.encodeStateAsUpdate(board));
+    forger.getMap('timer').set('endsAt', 99);
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(forger))).toBe('timer');
+    const deleter = new Y.Doc();
+    Y.applyUpdate(deleter, Y.encodeStateAsUpdate(board));
+    deleter.getMap('timer').delete('endsAt');
+    expect(serverOwnedIn(board, Y.encodeStateAsUpdate(deleter))).toBe('timer');
+  });
 });
