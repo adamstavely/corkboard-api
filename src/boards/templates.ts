@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { FRAME_PADDING, FRAME_TITLE, NOTE_SIZE, type NoteColor } from '../assist/board-edit';
-import { setAgenda } from '../facilitation/facilitation-doc';
+import { setAgenda, type StepActivity } from '../facilitation/facilitation-doc';
 import { randomUUID } from 'node:crypto';
 import { applyLayout, layoutSize, type FrameBorder, type FrameFill, type Layout } from './layout';
 
@@ -16,7 +16,7 @@ export interface BoardTemplate {
   category: TemplateCategory;
   layout: Layout;
   /** How a session on it runs, a step at a time; `frame` is a frame's key in the layout. */
-  agenda?: { title: string; minutes: number; frame?: string }[];
+  agenda?: { title: string; minutes: number; frame?: string; activity?: StepActivity }[];
 }
 
 const COLUMN = { w: 2 * NOTE_SIZE.w + 3 * FRAME_PADDING, h: 640 };
@@ -95,9 +95,9 @@ export const TEMPLATES: BoardTemplate[] = [
     category: 'retro',
     agenda: [
       { title: 'Check in', minutes: 3 },
-      { title: 'What went well', minutes: 5, frame: 'col0' },
-      { title: 'What could be better', minutes: 5, frame: 'col1' },
-      { title: 'Vote', minutes: 3 },
+      { title: 'What went well', minutes: 5, frame: 'col0', activity: { kind: 'writing', anonymous: true } },
+      { title: 'What could be better', minutes: 5, frame: 'col1', activity: { kind: 'writing', anonymous: true } },
+      { title: 'Vote', minutes: 3, activity: { kind: 'vote', votesEach: 3 } },
       { title: 'Actions', minutes: 10, frame: 'col2' },
     ],
     layout: columns([
@@ -192,7 +192,7 @@ export const TEMPLATES: BoardTemplate[] = [
     agenda: [
       { title: 'Sketch eight ideas', minutes: 8 },
       { title: 'Share', minutes: 10 },
-      { title: 'Vote', minutes: 3 },
+      { title: 'Vote', minutes: 3, activity: { kind: 'vote', votesEach: 3 } },
     ],
     layout: merge(
       { texts: [{ text: 'Crazy 8s: one idea a minute. Set an 8-minute timer, then vote.', size: 'lg', x: 0, y: 0, w: 1200 }] },
@@ -216,9 +216,9 @@ export const TEMPLATES: BoardTemplate[] = [
     description: 'Ideas, grouped into themes, scored for value and effort, and turned into actions.',
     category: 'ideate',
     agenda: [
-      { title: 'Ideas', minutes: 8, frame: 'ideas' },
+      { title: 'Ideas', minutes: 8, frame: 'ideas', activity: { kind: 'writing', anonymous: true } },
       { title: 'Group into themes', minutes: 5, frame: 'themes' },
-      { title: 'Vote', minutes: 3, frame: 'themes' },
+      { title: 'Vote', minutes: 3, frame: 'themes', activity: { kind: 'vote', votesEach: 3 } },
       { title: 'Value and effort', minutes: 8 },
       { title: 'Actions', minutes: 8, frame: 'actions' },
     ],
@@ -353,9 +353,9 @@ export const TEMPLATES: BoardTemplate[] = [
     description: 'Imagine the project failed, then work out why, and what to do about it now.',
     category: 'analyse',
     agenda: [
-      { title: 'Why it failed', minutes: 7, frame: 'col0' },
+      { title: 'Why it failed', minutes: 7, frame: 'col0', activity: { kind: 'writing', anonymous: true } },
       { title: 'Warning signs', minutes: 5, frame: 'col1' },
-      { title: 'Vote on the biggest risks', minutes: 3 },
+      { title: 'Vote on the biggest risks', minutes: 3, activity: { kind: 'vote', votesEach: 3 } },
       { title: 'What we do now', minutes: 10, frame: 'col2' },
     ],
     layout: headed(
@@ -474,7 +474,7 @@ export const TEMPLATES: BoardTemplate[] = [
 export function applyTemplate(doc: Y.Doc, template: BoardTemplate): void {
   const ids = applyLayout(doc, template.layout, { x: 0, y: 0 });
   if (template.agenda)
-    setAgenda(doc, template.agenda.map((s) => ({ id: randomUUID(), title: s.title, seconds: s.minutes * 60, frameId: (s.frame && ids.get(s.frame)) || null })));
+    setAgenda(doc, template.agenda.map((s) => ({ id: randomUUID(), title: s.title, seconds: s.minutes * 60, frameId: (s.frame && ids.get(s.frame)) || null, activity: s.activity ?? null })));
 }
 
 /** The frames' outlines, scaled into a 100-wide box, to draw a template's preview. */

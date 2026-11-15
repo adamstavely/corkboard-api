@@ -5,6 +5,7 @@ import * as Y from 'yjs';
 import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
 import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
 import { agendaOf, facilitatorOf, pollCounts, pollOf, privacyOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
+import { writingOf } from '../../src/facilitation/writing-doc';
 import { createTestApp, type TestApp } from './app';
 
 const eventually = async (check: () => boolean, ms = 5000) => {
@@ -198,6 +199,44 @@ describe('Dot voting and the shared timer', () => {
     await eventually(() => timerOf(doc).endsAt !== null);
     await go(ada, null).expect(204);
     await eventually(() => agendaOf(doc).current === null && timerOf(doc).endsAt === null);
+  });
+
+  it("starts each step's activity, and wraps it up on moving on: notes revealed, vote finished, poll closed", async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const linus = await joined(ada, 'commenter');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Retro' });
+    const doc = await open(board.id, linus);
+    const frameId = newFrame(await open(board.id, ada), 'Went well', { x: 0, y: 0, w: 800, h: 600 }, 1);
+    await eventually(() => doc.getMap('nodes').has(frameId));
+    const go = (step: number | null) => request(server).post(`/boards/${board.id}/agenda/go`).set(ada.auth).send({ step });
+    const steps = (activities: unknown[]) => request(server).put(`/boards/${board.id}/agenda`).set(ada.auth).send({ steps: activities.map((activity, i) => ({ title: `Step ${i + 1}`, seconds: 60, frameId: i === 0 ? frameId : null, activity })) });
+
+    // A poll step needs its question, and options unless it's fist to five.
+    await steps([{ kind: 'poll', pollKind: 'choice', question: 'First?', options: ['Only one'] }]).expect(400);
+    await steps([{ kind: 'poll', pollKind: 'fist' }]).expect(400);
+    await steps([{ kind: 'writing', anonymous: true }, { kind: 'vote', votesEach: 2 }, { kind: 'poll', pollKind: 'fist', question: 'Ready?' }]).expect(204);
+    await eventually(() => agendaOf(doc).steps.length === 3);
+    expect(agendaOf(doc).steps[1].activity).toEqual({ kind: 'vote', votesEach: 2 });
+
+    await go(0).expect(204);
+    await eventually(() => writingOf(doc).open);
+    expect(writingOf(doc)).toMatchObject({ anonymous: true, frameId });
+    await request(server).post(`/boards/${board.id}/writing/drafts`).set(linus.auth).send({ text: 'Shipped on time' }).expect(201);
+
+    // Moving on reveals the notes into the step's frame and opens the vote.
+    await go(1).expect(204);
+    await eventually(() => !writingOf(doc).open && votingOf(doc).open);
+    expect(notesOf(doc).map((n) => n.text)).toContain('Shipped on time');
+    expect(votingOf(doc).votesEach).toBe(2);
+
+    await go(2).expect(204);
+    await eventually(() => !votingOf(doc).open && !!pollOf(doc)?.open);
+    expect(pollOf(doc)).toMatchObject({ question: 'Ready?', kind: 'fist' });
+
+    // Ending the agenda closes the poll to show its result.
+    await go(null).expect(204);
+    await eventually(() => pollOf(doc)?.open === false);
   });
 
   it('lets updaters run a poll that commenters answer, but not readers', async () => {
