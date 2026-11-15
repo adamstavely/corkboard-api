@@ -43,7 +43,7 @@ describe("a page's readable text", () => {
   });
 
   it('reads the whole body when there is no main part worth taking, and stops at the limit', () => {
-    expect(readableText('<body><p>Hello</p><div>World</div></body>')).toBe('Hello\nWorld');
+    expect(readableText('<html><head><title>Example Domain</title></head><body><p>Hello</p><div>World</div></body></html>')).toBe('Hello\nWorld');
     expect(readableText(`<p>${'a '.repeat(30_000)}</p>`).length).toBe(20_000);
   });
 });
