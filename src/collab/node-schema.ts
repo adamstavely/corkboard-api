@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { decoded } from './decoded';
 import { existing, type ID } from './server-owned';
 
 /** Limits on a node's fields, matching what the board shows (corkboard-ui's board-doc.ts). */
@@ -55,9 +56,8 @@ export interface Places {
 export type Place = { parent: 'nodes' | Y.Item | null; key: string | null };
 
 /** Works out where an update's items sit, through the document's items and the update's own. */
-export function placesIn(doc: Y.Doc, structs: (Y.Item | Y.GC | Y.Skip)[]): Places {
-  const known = structs.filter((s): s is Y.Item | Y.GC => s instanceof Y.Item || s instanceof Y.GC);
-  const within = (id: ID) => known.find((i) => i.id.client === id.client && i.id.clock <= id.clock && id.clock < i.id.clock + i.length);
+export function placesIn(doc: Y.Doc, update: Uint8Array): Places {
+  const { within } = decoded(update);
   const find = (id: ID) => existing(doc, id) ?? within(id);
   const nodes = doc.getMap('nodes');
 
@@ -94,8 +94,8 @@ export function placesIn(doc: Y.Doc, structs: (Y.Item | Y.GC | Y.Skip)[]): Place
  * the update is applied, so a bad node is never saved or sent on to anyone.
  */
 export function nodeProblem(doc: Y.Doc, update: Uint8Array): string | null {
-  const { structs } = Y.decodeUpdate(update);
-  const { placeOf, isNode } = placesIn(doc, structs);
+  const { structs } = decoded(update);
+  const { placeOf, isNode } = placesIn(doc, update);
 
   for (const s of structs) {
     if (!(s instanceof Y.Item)) continue;

@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { atLeast, type Role } from '../access/roles';
+import { decoded } from './decoded';
 import { placesIn } from './node-schema';
 import { alreadyHas, existing } from './server-owned';
 
@@ -16,9 +17,11 @@ export function canChangeLocked(doc: Y.Doc, role: Role, userId: string): boolean
  * if it wouldn't. Checked only for people who may not (see canChangeLocked).
  */
 export function lockProblem(doc: Y.Doc, update: Uint8Array): string | null {
-  const { structs, ds } = Y.decodeUpdate(update);
-  const { placeOf, isNode, find } = placesIn(doc, structs);
-  const lockedNode = (node: Y.Item) => node.content instanceof Y.ContentType && node.content.type instanceof Y.Map && node.content.type.get('locked') === true;
+  const { structs, ds } = decoded(update);
+  const { placeOf, isNode, find } = placesIn(doc, update);
+  // Only a node already on the board can be locked: one new in this update isn't in a document yet (reading it would
+  // only warn), and locking it as it's made is caught as locking.
+  const lockedNode = (node: Y.Item) => node.content instanceof Y.ContentType && node.content.type instanceof Y.Map && node.content.type.doc === doc && node.content.type.get('locked') === true;
 
   /** The node an item is in (or is), and the field of the node it's under, if any. */
   const nodeOf = (item: Y.Item): { node: Y.Item; field: string | null } | null => {

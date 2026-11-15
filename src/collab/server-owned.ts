@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { decoded } from './decoded';
 
 /**
  * The parts of a board's document only the API writes, through its own direct connections: chat, votes, the timer,
@@ -52,9 +53,8 @@ export const UNRESOLVED = '(unresolved)';
  * well-behaved client only ever builds on what the server already has.
  */
 export function serverOwnedIn(doc: Y.Doc, update: Uint8Array): string | null {
-  const { structs, ds } = Y.decodeUpdate(update);
+  const { structs, ds, within } = decoded(update);
   const items = structs.filter((s): s is Y.Item => s instanceof Y.Item);
-  const known = structs.filter((s): s is Y.Item | Y.GC => s instanceof Y.Item || s instanceof Y.GC);
   const roots = new Map<Y.Item, string | null>();
 
   // Nothing may start after a gap: everything before it, from that client, must be here or in this update.
@@ -62,8 +62,6 @@ export function serverOwnedIn(doc: Y.Doc, update: Uint8Array): string | null {
   for (const s of structs) firstClock.set(s.id.client, Math.min(firstClock.get(s.id.client) ?? Infinity, s.id.clock));
   for (const [client, clock] of firstClock) if (clock > Y.getState(doc.store, client)) return UNRESOLVED;
 
-  // An id can point into the middle of an item (a run of text, or several array entries).
-  const within = (id: ID) => known.find((i) => i.id.client === id.client && i.id.clock <= id.clock && id.clock < i.id.clock + i.length);
   const find = (id: ID): Y.Item | Y.GC | undefined => existing(doc, id) ?? within(id);
   const rootOf = (item: Y.Item, depth = 0): string | null => {
     if (depth > 1000) return UNRESOLVED;

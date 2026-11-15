@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { decoded } from './decoded';
 import { alreadyHas, existing, SERVER_OWNED, type ID } from './server-owned';
 
 /** The parts of a board clients write: its items, its tasks and the task counter. Everything else is the API's. */
@@ -58,9 +59,7 @@ function metaProblem(key: string, value: unknown): string | null {
  * is applied: a bad task is never saved or sent on, so it can't stop a board from opening.
  */
 export function rootProblem(doc: Y.Doc, update: Uint8Array): string | null {
-  const { structs } = Y.decodeUpdate(update);
-  const known = structs.filter((s): s is Y.Item | Y.GC => s instanceof Y.Item || s instanceof Y.GC);
-  const within = (id: ID) => known.find((i) => i.id.client === id.client && i.id.clock <= id.clock && id.clock < i.id.clock + i.length);
+  const { structs, within } = decoded(update);
   const find = (id: ID) => existing(doc, id) ?? within(id);
   const rootName = (type: Y.AbstractType<unknown>): string | null => {
     for (const [name, t] of doc.share) if (t === type) return name;
