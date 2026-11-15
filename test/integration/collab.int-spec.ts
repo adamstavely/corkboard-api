@@ -158,4 +158,39 @@ describe('Real-time collaboration', () => {
     expect(watcher.document.getMap('votes').size).toBe(0);
     expect(watcher.document.getArray('chat').length).toBe(0);
   });
+
+  it("refuses an updater's changes to locked things, until they're the facilitator", async () => {
+    const server = t.app.getHttpServer();
+    const ada = await newBoard(randomUUID());
+    const graceSubject = randomUUID();
+    const grace = { Authorization: `Bearer ${await t.token(graceSubject)}` };
+    await request(server).get('/me').set(grace).expect(200);
+    const { body: invite } = await request(server).post(`/orgs/${ada.orgId}/invites`).set(ada.auth).send({ email: `${graceSubject}@corkboard.test`, role: 'updater' });
+    await request(server).post(`/me/invites/${invite.id}/accept`).set(grace).expect(201);
+
+    const owner = await connect(ada.id, ada.auth.Authorization.slice(7));
+    const watcher = await connect(ada.id, ada.auth.Authorization.slice(7));
+    const frameId = randomUUID();
+    owner.document.transact(() => {
+      const frame = new Y.Map<unknown>();
+      owner.document.getMap('nodes').set(frameId, frame);
+      frame.set('kind', 'frame');
+      frame.set('x', 0);
+      frame.set('locked', true);
+    });
+    await eventually(() => watcher.document.getMap('nodes').has(frameId));
+
+    const updater = await connect(ada.id, grace.Authorization.slice(7));
+    (updater.document.getMap('nodes').get(frameId) as Y.Map<unknown>).set('x', 500);
+    await new Promise((r) => setTimeout(r, 300));
+    const note = addNote(owner.document, 'Still works');
+    await eventually(() => watcher.document.getMap('nodes').has(note));
+    expect((watcher.document.getMap('nodes').get(frameId) as Y.Map<unknown>).get('x')).toBe(0);
+
+    // As the facilitator, Grace may.
+    await request(server).post(`/boards/${ada.id}/facilitator`).set(grace).expect(204);
+    const facilitator = await connect(ada.id, grace.Authorization.slice(7));
+    (facilitator.document.getMap('nodes').get(frameId) as Y.Map<unknown>).set('x', 500);
+    await eventually(() => (watcher.document.getMap('nodes').get(frameId) as Y.Map<unknown>).get('x') === 500);
+  });
 });

@@ -44,19 +44,23 @@ function fieldProblem(key: string, content: Y.Item['content']): string | null {
   }
 }
 
-/**
- * Why an update would put something malformed under `nodes` (anything but a map as a node, or a field the board can't
- * show: a NaN position, a negative or vast size, a million-row table…), or null if it wouldn't. The guard runs before
- * the update is applied, so a bad node is never saved or sent on to anyone.
- */
-export function nodeProblem(doc: Y.Doc, update: Uint8Array): string | null {
-  const { structs } = Y.decodeUpdate(update);
+/** Where an update's items sit: their parent (the nodes map, or the item of the type they're in) and their key. */
+export interface Places {
+  placeOf: (item: Y.Item) => Place;
+  /** Whether an item is a node itself: an entry of the nodes map. */
+  isNode: (item: Y.Item) => boolean;
+  /** An item by id, in the document or in the update. */
+  find: (id: ID) => Y.Item | Y.GC | undefined;
+}
+export type Place = { parent: 'nodes' | Y.Item | null; key: string | null };
+
+/** Works out where an update's items sit, through the document's items and the update's own. */
+export function placesIn(doc: Y.Doc, structs: (Y.Item | Y.GC | Y.Skip)[]): Places {
   const known = structs.filter((s): s is Y.Item | Y.GC => s instanceof Y.Item || s instanceof Y.GC);
   const within = (id: ID) => known.find((i) => i.id.client === id.client && i.id.clock <= id.clock && id.clock < i.id.clock + i.length);
   const find = (id: ID) => existing(doc, id) ?? within(id);
   const nodes = doc.getMap('nodes');
 
-  type Place = { parent: 'nodes' | Y.Item | null; key: string | null };
   const places = new Map<Y.Item, Place>();
   /** Where an item sits: its parent (the nodes map, or the item of the type it's in) and its key. A map entry set again
    * names neither; they're its left neighbour's. */
@@ -81,6 +85,17 @@ export function nodeProblem(doc: Y.Doc, update: Uint8Array): string | null {
     const { parent, key } = placeOf(item);
     return parent === 'nodes' && key !== null;
   };
+  return { placeOf, isNode, find };
+}
+
+/**
+ * Why an update would put something malformed under `nodes` (anything but a map as a node, or a field the board can't
+ * show: a NaN position, a negative or vast size, a million-row table…), or null if it wouldn't. The guard runs before
+ * the update is applied, so a bad node is never saved or sent on to anyone.
+ */
+export function nodeProblem(doc: Y.Doc, update: Uint8Array): string | null {
+  const { structs } = Y.decodeUpdate(update);
+  const { placeOf, isNode } = placesIn(doc, structs);
 
   for (const s of structs) {
     if (!(s instanceof Y.Item)) continue;

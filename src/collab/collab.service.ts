@@ -15,6 +15,7 @@ import { SearchIndex } from '../search/search-index';
 import { isLive, LinksService } from '../links/links.service';
 import { serverOwnedIn } from './server-owned';
 import { nodeProblem } from './node-schema';
+import { canChangeLocked, lockProblem } from './locks';
 
 /** Who someone viewing through a share link is: nobody in particular. */
 const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', createdAt: new Date(0) };
@@ -121,12 +122,17 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         this.#checked.set(connection, now);
       },
       // A client's update that would change chat, votes or anything else only the API writes, that depends on something
-      // the server doesn't have, or that writes a malformed node, is refused the way a read-only client's edits are:
+      // the server doesn't have, that writes a malformed node, or that changes something locked (unless they're an owner
+      // or the facilitator), is refused the way a read-only client's edits are:
       // that message isn't applied. Yjs applies each client's changes in order, so its later edits wait on the refused one
       // and it falls out of sync until it reloads; well-behaved clients never write these.
       beforeSync: ({ type, payload, connection, document, documentName, context }) => {
         if ((type !== 1 && type !== 2) || connection.readOnly) return Promise.resolve();
-        const refused = serverOwnedIn(document, payload) ?? nodeProblem(document, payload);
+        const refused =
+          serverOwnedIn(document, payload) ??
+          nodeProblem(document, payload) ??
+          // Guests (share links) are never the owner or the facilitator.
+          (context.linkId || !canChangeLocked(document, context.role ?? 'reader', context.user.id) ? lockProblem(document, payload) : null);
         if (!refused) return Promise.resolve();
         this.#log.warn(`Refused ${context.user.id}'s change on board ${documentName}: ${refused}`);
         connection.readOnly = true;
