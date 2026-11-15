@@ -335,6 +335,41 @@ describe('Model connections and the assistant', () => {
     expect(minds).toHaveLength(4);
   });
 
+  it('draws a diagram from Mermaid, sees it on the board, and rewrites it', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Flow' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const diagrams = async () => {
+      const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+      return [...doc.getMap<Y.Map<unknown>>('nodes').entries()].filter(([, n]) => n.get('kind') === 'diagram').map(([id, n]) => ({ id, source: n.get('source') }));
+    };
+
+    let refused = '';
+    script = async (req) => {
+      refused = await req.execute('make_diagram', { source: 'pie title Pets' }).catch((e: Error) => e.message);
+      await req.execute('make_diagram', { source: 'flowchart TD\n  a[Ask] --> b{Approve?}' });
+      return 'Drew it.';
+    };
+    await ask('Draw the approval flow');
+    expect(refused).toMatch(/Start the text/);
+    const [drawn] = await diagrams();
+    expect(drawn.source).toBe('flowchart TD\n  a[Ask] --> b{Approve?}');
+
+    let prompt = '';
+    script = async (req) => {
+      prompt = req.prompt;
+      await req.execute('change_diagram', { diagram_id: drawn.id, source: 'flowchart LR\n  a[Ask] --> b{Approve?} --> c[Ship]' });
+      return 'Added shipping.';
+    };
+    await ask('Add shipping to the diagram');
+    expect(prompt).toContain('"diagrams":[{"id":"' + drawn.id);
+    expect((await diagrams())[0].source).toContain('c[Ship]');
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();

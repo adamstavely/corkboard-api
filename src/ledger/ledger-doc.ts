@@ -256,7 +256,7 @@ export function redo(doc: Y.Doc, entryId: string): string | null {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** "Made 3 frames, moved 9 notes into them and added 2 notes." – a model run's changes in words. */
-export function describe(c: { notesAdded: number; notesChanged: number; framesAdded: number; notesMoved: number; tasksAdded?: number; appsMade?: number; appsChanged?: number }): string {
+export function describe(c: { notesAdded: number; notesChanged: number; framesAdded: number; notesMoved: number; tasksAdded?: number; appsMade?: number; appsChanged?: number; diagramsMade?: number; diagramsChanged?: number }): string {
   const parts = [
     c.framesAdded ? `made ${plural(c.framesAdded, 'frame')}` : '',
     c.notesMoved ? `moved ${plural(c.notesMoved, 'note')} into ${c.framesAdded === 1 ? 'it' : 'them'}` : '',
@@ -265,6 +265,8 @@ export function describe(c: { notesAdded: number; notesChanged: number; framesAd
     c.tasksAdded ? `added ${plural(c.tasksAdded, 'task')}` : '',
     c.appsMade ? `made ${plural(c.appsMade, 'app')}` : '',
     c.appsChanged ? `changed ${plural(c.appsChanged, 'app')}` : '',
+    c.diagramsMade ? `drew ${plural(c.diagramsMade, 'diagram')}` : '',
+    c.diagramsChanged ? `changed ${plural(c.diagramsChanged, 'diagram')}` : '',
   ].filter(Boolean);
   if (!parts.length) return 'Changed the board';
   const line = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0];
