@@ -133,12 +133,12 @@ export async function unfurl(raw: string): Promise<LinkPreview> {
 export const MAX_PAGE_TEXT = 20_000;
 
 /**
- * What a page says, as plain text: its <main> or <article> if it has one, without scripts, styles, navigation, headers
+ * What a page says, as plain text: its <main> or <article> if it has one, without its <head>, scripts, styles, navigation, headers
  * and footers; headings, paragraphs and list items each on their own line.
  */
 export function readableText(html: string): string {
   let body = html.replace(/<!--[\s\S]*?-->/g, '');
-  body = body.replace(/<(script|style|noscript|template|svg|iframe|nav|header|footer|aside|form)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  body = body.replace(/<(head|script|style|noscript|template|svg|iframe|nav|header|footer|aside|form)\b[\s\S]*?<\/\1\s*>/gi, ' ');
   const main = /<(main|article)\b[^>]*>([\s\S]*?)<\/\1\s*>/i.exec(body)?.[2];
   if (main && main.replace(/<[^>]+>/g, '').trim().length > 200) body = main;
   return body
