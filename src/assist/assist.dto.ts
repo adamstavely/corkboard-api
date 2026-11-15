@@ -44,6 +44,12 @@ export class CitedFileDto {
   name!: string;
 }
 
+/** A web page an answer drew on. */
+export class CitedPageDto {
+  url!: string;
+  title!: string;
+}
+
 export class AssistResultDto {
   /** The model's answer, for the person who asked. */
   reply!: string;
@@ -57,4 +63,6 @@ export class AssistResultDto {
   citedNoteIds!: string[];
   /** The board's files the answer drew on. */
   citedFiles!: CitedFileDto[];
+  /** The web pages the answer drew on. */
+  citedPages!: CitedPageDto[];
 }

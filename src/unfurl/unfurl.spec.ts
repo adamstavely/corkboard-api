@@ -1,4 +1,4 @@
-import { isPrivateAddress, readPreview, unfurl } from './unfurl';
+import { isPrivateAddress, readPreview, unfurl, readableText } from './unfurl';
 
 describe('link previews', () => {
   it('refuses private, loopback and metadata addresses', () => {
@@ -28,5 +28,22 @@ describe('link previews', () => {
       site: 'Example',
     });
     expect(readPreview('<title>Only a title</title>', new URL('http://www.example.org/'))).toMatchObject({ title: 'Only a title', image: null, site: 'example.org' });
+  });
+});
+
+describe("a page's readable text", () => {
+  it('keeps the main content, a line per block, without scripts, navigation or markup', () => {
+    const filler = 'The pilot runs for twelve weeks with three teams. '.repeat(6);
+    const html = `<html><head><title>T</title><style>p{}</style></head><body>
+      <nav><a href="/">Home</a></nav>
+      <header>Site header</header>
+      <main><h1>Pilot plan</h1><p>${filler}</p><ul><li>One &amp; two</li><li>Three</li></ul><script>alert(1)</script></main>
+      <footer>Footer</footer></body></html>`;
+    expect(readableText(html)).toBe(`Pilot plan\n${filler.trim()}\n- One & two\n- Three`);
+  });
+
+  it('reads the whole body when there is no main part worth taking, and stops at the limit', () => {
+    expect(readableText('<html><head><title>Example Domain</title></head><body><p>Hello</p><div>World</div></body></html>')).toBe('Hello\nWorld');
+    expect(readableText(`<p>${'a '.repeat(30_000)}</p>`).length).toBe(20_000);
   });
 });

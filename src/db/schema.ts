@@ -527,6 +527,20 @@ export const issueExports = pgTable(
 );
 
 /** Tokens each model call used: for a workspace's usage and spend. */
+export const searchProvider = pgEnum('search_provider', ['brave', 'tavily']);
+
+/** What a workspace's assistant may use beyond the board: web search, through a search service with the workspace's key. */
+export const workspaceTools = pgTable('workspace_tools', {
+  orgId: uuid('org_id')
+    .primaryKey()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  webSearch: boolean('web_search').notNull().default(false),
+  searchProvider: searchProvider('search_provider'),
+  searchKeyEncrypted: text('search_key_encrypted'),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const modelUsage = pgTable(
   'model_usage',
   {

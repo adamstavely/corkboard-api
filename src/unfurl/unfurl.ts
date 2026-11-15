@@ -31,12 +31,12 @@ export function guardedLookup(hostname: string, options: object, callback: (err:
   });
 }
 
-function get(url: URL): Promise<{ status: number; location?: string; type: string; body: string }> {
+function get(url: URL, agent = 'CorkboardLinkPreview/1.0'): Promise<{ status: number; location?: string; type: string; body: string }> {
   return new Promise((resolve, reject) => {
     const lib = url.protocol === 'https:' ? https : http;
     const req = lib.get(
       url,
-      { lookup: guardedLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': 'CorkboardLinkPreview/1.0', Accept: 'text/html,application/xhtml+xml' } },
+      { lookup: guardedLookup, timeout: TIMEOUT_MS, headers: { 'User-Agent': agent, Accept: 'text/html,application/xhtml+xml' } },
       (res) => {
         const status = res.statusCode ?? 0;
         if (status >= 300 && status < 400) {
@@ -105,20 +105,56 @@ export function readPreview(html: string, url: URL): LinkPreview {
   return { url: url.href, title: title.slice(0, 300) || url.hostname, description: description.slice(0, 500), image, site: meta('og:site_name').slice(0, 100) || url.hostname.replace(/^www\./, '') };
 }
 
-/** Fetches a public web page's preview, following a few redirects, never to a private address. */
-export async function unfurl(raw: string): Promise<LinkPreview> {
+/** A public web page's HTML, following a few redirects, never to a private address; the body is empty if it isn't HTML. */
+async function fetchPublic(raw: string, agent?: string): Promise<{ url: URL; body: string }> {
   let url = new URL(raw);
   for (let hops = 0; hops <= MAX_REDIRECTS; hops++) {
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Only web links can be previewed');
-    if (url.username || url.password) throw new Error('Links with a password in them are not previewed');
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Only web links can be read');
+    if (url.username || url.password) throw new Error('Links with a password in them are not read');
     assertPublicHost(url);
-    const res = await get(url);
+    const res = await get(url, agent);
     if (res.location && res.status >= 300 && res.status < 400) {
       url = new URL(res.location, url);
       continue;
     }
     if (res.status >= 400) throw new Error(`The page answered ${res.status}`);
-    return res.body ? readPreview(res.body, url) : { url: url.href, title: url.hostname, description: '', image: null, site: url.hostname.replace(/^www\./, '') };
+    return { url, body: res.body };
   }
   throw new Error('Too many redirects');
+}
+
+/** Fetches a public web page's preview, following a few redirects, never to a private address. */
+export async function unfurl(raw: string): Promise<LinkPreview> {
+  const { url, body } = await fetchPublic(raw);
+  return body ? readPreview(body, url) : { url: url.href, title: url.hostname, description: '', image: null, site: url.hostname.replace(/^www\./, '') };
+}
+
+/** The most of a page's text the assistant reads. */
+export const MAX_PAGE_TEXT = 20_000;
+
+/**
+ * What a page says, as plain text: its <main> or <article> if it has one, without its <head>, scripts, styles, navigation, headers
+ * and footers; headings, paragraphs and list items each on their own line.
+ */
+export function readableText(html: string): string {
+  let body = html.replace(/<!--[\s\S]*?-->/g, '');
+  body = body.replace(/<(head|script|style|noscript|template|svg|iframe|nav|header|footer|aside|form)\b[\s\S]*?<\/\1\s*>/gi, ' ');
+  const main = /<(main|article)\b[^>]*>([\s\S]*?)<\/\1\s*>/i.exec(body)?.[2];
+  if (main && main.replace(/<[^>]+>/g, '').trim().length > 200) body = main;
+  return body
+    .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr|\/section|\/blockquote|\/pre)\b[^>]*>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '\n- ')
+    .replace(/<[^>]+>/g, ' ')
+    .split('\n')
+    .map((line) => decode(line))
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, MAX_PAGE_TEXT);
+}
+
+/** A public web page's title and readable text, for the assistant: fetched as unfurl fetches, never from a private address. */
+export async function readPage(raw: string): Promise<{ url: string; title: string; text: string }> {
+  const { url, body } = await fetchPublic(raw, 'CorkboardAssistant/1.0');
+  if (!body) throw new Error("That page isn't a web page the assistant can read.");
+  return { url: url.href, title: readPreview(body, url).title, text: readableText(body) };
 }
