@@ -16,9 +16,13 @@ import { isLive, LinksService } from '../links/links.service';
 import { serverOwnedIn } from './server-owned';
 import { nodeProblem } from './node-schema';
 import { canChangeLocked, lockProblem } from './locks';
+import { project } from './projection';
+import { ParticipantsStore } from '../feedback/participants.store';
 
 /** Who someone viewing through a share link is: nobody in particular. */
 const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', createdAt: new Date(0) };
+/** The server itself, keeping a board loaded while its projections are open. */
+const SERVER: User = { id: '00000000-0000-0000-0000-000000000001', name: 'Corkboard', email: 'server@corkboard.invalid', createdAt: new Date(0) };
 /** Share-link viewers connect with this before the link's token. */
 const LINK = 'link:';
 
@@ -29,6 +33,11 @@ export const COLLAB_PATH = '/collab';
 const PING_MS = 10_000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A participant's projection of a board (see projection.ts): "<boardId>~p~<userId>". Read-only, built here, never saved. */
+const PROJECTION = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})~p~([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+export const projectionName = (boardId: string, userId: string) => `${boardId}~p~${userId}`;
+/** How long after a change to a board its projections catch up. */
+const PROJECT_MS = 200;
 
 interface CollabContext {
   user: User;
@@ -38,6 +47,8 @@ interface CollabContext {
   linkId?: string;
   /** The sign-in session they came with (its token's hash), and when it runs out. */
   session?: { hash: string; expiresAt: number };
+  /** A participant on their projection of this board. */
+  projectionOf?: string;
 }
 
 /** How often live connections' sessions are checked against the database, and how stale a writer's check may be. */
@@ -73,6 +84,8 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
   readonly #checked = new WeakMap<object, number>();
   #sweep: NodeJS.Timeout | undefined;
   #signedOut: { unsubscribe(): void } | undefined;
+  /** For each board with projections open: a connection keeping the board loaded, and a pending catch-up. */
+  readonly #projected = new Map<string, { hold: Promise<{ disconnect(): Promise<void> }>; timer?: NodeJS.Timeout }>();
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
@@ -80,6 +93,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     private readonly boards: BoardsService,
     private readonly search: SearchIndex,
     private readonly links: LinksService,
+    private readonly participants: ParticipantsStore,
   ) {
     this.hocuspocus = new Hocuspocus<CollabContext>({
       name: 'corkboard',
@@ -88,6 +102,21 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
       debounce: 2000,
       maxDebounce: 10_000,
       onAuthenticate: async ({ token, documentName, connectionConfig }): Promise<CollabContext> => {
+        // A participant from outside the team, on their projection of the board: signed in, and only their own.
+        const projection = PROJECTION.exec(documentName);
+        if (projection) {
+          const [, boardId, userId] = projection;
+          if (token.startsWith(LINK)) throw new Error('Board not found');
+          let signin: Signin;
+          try {
+            signin = await this.users.signin(token);
+          } catch {
+            throw new Error('Sign in first');
+          }
+          if (signin.user.id !== userId || !(await this.participants.active(boardId, userId))) throw new Error('Board not found');
+          connectionConfig.readOnly = true;
+          return { user: signin.user, role: 'reader', session: signin.session, projectionOf: boardId };
+        }
         if (!UUID.test(documentName)) throw new Error('Board not found');
         // Someone with a share link: as a guest, on that link's board only, read-only unless the link lets them edit.
         if (token.startsWith(LINK)) {
@@ -143,13 +172,41 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         if (this.#refusing.delete(connection)) connection.readOnly = false;
         return Promise.resolve();
       },
+      afterLoadDocument: async ({ documentName, document }) => {
+        const projection = PROJECTION.exec(documentName);
+        if (!projection) return;
+        const boardId = projection[1];
+        // The board stays loaded while anyone has a projection of it open, so its changes reach them.
+        if (!this.#projected.has(boardId)) this.#projected.set(boardId, { hold: this.hocuspocus.openDirectConnection(boardId, { user: SERVER }) });
+        await this.#projected.get(boardId)!.hold;
+        // This one isn't among the open documents yet: fill it now.
+        await this.#project(boardId, [[documentName, document]]);
+      },
+      onChange: ({ documentName }) => {
+        if (this.#projected.has(documentName)) this.refreshProjections(documentName);
+        return Promise.resolve();
+      },
+      afterUnloadDocument: async ({ documentName }) => {
+        const projection = PROJECTION.exec(documentName);
+        if (!projection) return;
+        const boardId = projection[1];
+        const stillOpen = [...this.hocuspocus.documents.keys()].some((name) => PROJECTION.exec(name)?.[1] === boardId);
+        const projected = this.#projected.get(boardId);
+        if (stillOpen || !projected) return;
+        this.#projected.delete(boardId);
+        clearTimeout(projected.timer);
+        await (await projected.hold).disconnect();
+      },
       extensions: [
         new Database({
           fetch: async ({ documentName }) => {
+            // Projections are built from their board, never loaded or saved.
+            if (PROJECTION.test(documentName)) return null;
             const state = await this.boards.loadState(documentName);
             return state && state.length > 0 ? new Uint8Array(state) : null;
           },
           store: async ({ documentName, state, document }) => {
+            if (PROJECTION.test(documentName)) return;
             const board = await this.boards.storeState(documentName, state);
             // A board deleted while open has nothing left to save or index.
             if (board) await this.search.indexNotes(board, boardText(document));
@@ -209,7 +266,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     this.#signedOut?.unsubscribe();
     // Save every open board now, rather than trusting a debounced store to land before the database closes.
     await Promise.all(
-      [...this.hocuspocus.documents.values()].map((doc) =>
+      [...this.hocuspocus.documents.values()].filter((doc) => !PROJECTION.test(doc.name)).map((doc) =>
         this.boards.storeState(doc.name, Buffer.from(Y.encodeStateAsUpdate(doc))).catch((err: unknown) =>
           this.#log.error(`Couldn't save board ${doc.name} on shutdown: ${String(err)}`),
         ),
@@ -281,6 +338,42 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
       for (const connection of document.connections.keys()) {
         if ((connection.context as CollabContext | undefined)?.user?.id === userId) connection.close();
       }
+    }
+  }
+
+  /** Brings a board's open projections up to date shortly (its participants or what they may see changed). */
+  refreshProjections(boardId: string): void {
+    const projected = this.#projected.get(boardId);
+    if (!projected || projected.timer) return;
+    projected.timer = setTimeout(() => {
+      projected.timer = undefined;
+      void this.#project(boardId).catch((err: unknown) => this.#log.warn(`Couldn't update projections of ${boardId}: ${String(err)}`));
+    }, PROJECT_MS);
+    projected.timer.unref();
+  }
+
+  /** Lets go of participants on a board (one, or all of them), e.g. once they're blocked or it's closed to feedback. */
+  closeProjections(boardId: string, userId?: string): void {
+    for (const [name, document] of this.hocuspocus.documents) {
+      const projection = PROJECTION.exec(name);
+      if (projection?.[1] === boardId && (!userId || projection[2] === userId)) for (const connection of document.connections.keys()) connection.close();
+    }
+  }
+
+  /** Rebuilds each open projection of a board from it; anyone no longer allowed is let go. */
+  async #project(boardId: string, documents: Iterable<[string, Y.Doc & { connections: Map<{ close(): void }, unknown> }]> = this.hocuspocus.documents): Promise<void> {
+    const board = this.hocuspocus.documents.get(boardId);
+    if (!board) return;
+    const { visibility, participants } = await this.participants.forProjection(boardId);
+    for (const [name, document] of documents) {
+      const projection = PROJECTION.exec(name);
+      if (projection?.[1] !== boardId) continue;
+      const userId = projection[2];
+      if (!visibility || !participants.has(userId) || participants.get(userId)!.blocked) {
+        for (const connection of document.connections.keys()) connection.close();
+        continue;
+      }
+      project(board, document, { userId, visibility }, participants);
     }
   }
 

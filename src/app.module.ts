@@ -10,6 +10,7 @@ import { OrganiseService } from './organise/organise.service';
 import { LinksController } from './links/links.controller';
 import { FeedbackController } from './feedback/feedback.controller';
 import { FeedbackService } from './feedback/feedback.service';
+import { ParticipantsStore } from './feedback/participants.store';
 import { LinksService } from './links/links.service';
 import { ActivityController } from './activity/activity.controller';
 import { VersionsService } from './activity/activity';
@@ -105,6 +106,7 @@ import { SearchIndex } from './search/search-index';
     OrganiseService,
     LinksService,
     FeedbackService,
+    ParticipantsStore,
     ActivityService,
     VersionsService,
     NotificationsService,
