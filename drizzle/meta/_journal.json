@@ -162,6 +162,13 @@
       "when": 1794717760471,
       "tag": "0022_workspace_tools",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794720913824,
+      "tag": "0023_assistant_asks_first",
+      "breakpoints": true
     }
   ]
 }
