@@ -163,5 +163,28 @@ describe('Hidden writing', () => {
     await request(server).post(`${base}/reveal`).set(ada).expect(409);
     expect(notesOf(doc)).toHaveLength(1);
   });
-});
 
+  it('lets a reveal or a cancel win, never both: notes said to be discarded never appear', async () => {
+    const { server, ada, grace, board, doc } = await people();
+    const base = `/boards/${board.id}/writing`;
+    await request(server).post(base).set(ada).send({ anonymous: false }).expect(204);
+    await request(server).post(`${base}/drafts`).set(grace).send({ text: 'Hidden' }).expect(201);
+    // As if a reveal had taken the round and paused before putting its notes on the board.
+    const round = writingOf(doc).round!;
+    await t.app.get<Db>(DB).update(writingRounds).set({ status: 'revealing' }).where(eq(writingRounds.id, round));
+    await request(server).delete(base).set(ada).expect(409);
+    await request(server).post(`${base}/reveal`).set(ada).expect(200);
+    await settle(() => notesOf(doc).length === 1);
+
+    // Raced for real, a few times over: exactly one of them wins each time.
+    for (let i = 0; i < 4; i++) {
+      await request(server).post(base).set(ada).send({ anonymous: false }).expect(204);
+      await request(server).post(`${base}/drafts`).set(grace).send({ text: `Race ${i}` }).expect(201);
+      const [revealed, cancelled] = await Promise.all([request(server).post(`${base}/reveal`).set(ada), request(server).delete(base).set(ada)]);
+      expect([revealed.status, cancelled.status].sort()).toEqual(revealed.status === 200 ? [200, 409] : [204, 409]);
+      await settle(() => !writingOf(doc).open);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(notesOf(doc).some((n) => n.text === `Race ${i}`)).toBe(revealed.status === 200);
+    }
+  });
+});

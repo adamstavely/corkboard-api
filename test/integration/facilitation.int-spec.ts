@@ -313,6 +313,28 @@ describe('Dot voting and the shared timer', () => {
     await eventually(() => pokerOf(doc) === null);
   });
 
+  it('puts every estimate it accepted in the reveal: one racing the reveal is either in it or refused', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const people = await Promise.all(Array.from({ length: 6 }, () => joined(ada, 'commenter')));
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Sizing' });
+    const doc = await open(board.id, ada);
+    await request(server).post(`/boards/${board.id}/poker`).set(ada.auth).send({ deck: 'fibonacci', title: 'Search' }).expect(204);
+    await eventually(() => pokerOf(doc)?.title === 'Search');
+
+    const [revealed, ...answers] = await Promise.all([
+      request(server).put(`/boards/${board.id}/poker/reveal`).set(ada.auth),
+      ...people.map((p) => request(server).post(`/boards/${board.id}/poker/estimates`).set(p.auth).send({ value: '8' })),
+    ]);
+    expect(revealed.status).toBe(204);
+    expect(answers.every((a) => a.status === 204 || a.status === 409)).toBe(true);
+    const accepted = answers.filter((a) => a.status === 204).length;
+    await eventually(() => pokerOf(doc)?.revealed === true);
+    await new Promise((r) => setTimeout(r, 200));
+    expect([...pokerEstimatesMap(doc).values()]).toEqual(Array(accepted).fill('8'));
+    await request(server).put(`/boards/${board.id}/poker/reveal`).set(ada.auth).expect(409);
+  });
+
   it('turns private mode on and off, for the facilitator alone once there is one', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
