@@ -5301,6 +5301,56 @@
           "zoom"
         ]
       },
+      "StepActivityDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "Hidden writing, a dot vote, or a poll.",
+            "enum": [
+              "writing",
+              "vote",
+              "poll"
+            ]
+          },
+          "anonymous": {
+            "type": "boolean",
+            "description": "Hidden writing: revealed notes carry no author's name."
+          },
+          "votesEach": {
+            "type": "number",
+            "description": "A vote: votes each person gets.",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "question": {
+            "type": "string",
+            "description": "A poll: its question.",
+            "maxLength": 200
+          },
+          "pollKind": {
+            "type": "string",
+            "description": "A poll: a question with options, or fist-to-five.",
+            "enum": [
+              "choice",
+              "fist"
+            ]
+          },
+          "options": {
+            "description": "A choice poll: two to eight options.",
+            "minItems": 2,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
       "AgendaStepDto": {
         "type": "object",
         "properties": {
@@ -5324,6 +5374,16 @@
             "nullable": true,
             "description": "The frame everyone is brought to when the step starts.",
             "format": "uuid"
+          },
+          "activity": {
+            "nullable": true,
+            "description": "What the step runs when it starts, if anything.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StepActivityDto"
+              }
+            ]
           }
         },
         "required": [
@@ -7775,6 +7835,14 @@
           "frame": {
             "type": "string",
             "description": "The key of the frame the step is about."
+          },
+          "activity": {
+            "description": "What the step runs when it starts.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StepActivityDto"
+              }
+            ]
           }
         },
         "required": [

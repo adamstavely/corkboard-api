@@ -129,13 +129,23 @@ export function spotlight(doc: Y.Doc, by: string, view: { cx: number; cy: number
   });
 }
 
-/** One step of a session's agenda: what it's for, how long it gets, and the frame everyone looks at during it. */
+/**
+ * What a step does when it starts: a round of hidden writing (its notes revealed into the step's frame), a vote, or a
+ * poll. Moving on from the step wraps it up: the notes are revealed, the vote finished, the poll closed.
+ */
+export type StepActivity =
+  | { kind: 'writing'; anonymous: boolean }
+  | { kind: 'vote'; votesEach: number }
+  | { kind: 'poll'; question: string; pollKind: 'choice' | 'fist'; options: string[] };
+
+/** One step of a session's agenda: what it's for, how long it gets, the frame everyone looks at, and what it runs. */
 export interface AgendaStep {
   id: string;
   title: string;
   /** 0 for a step with no timer. */
   seconds: number;
   frameId: string | null;
+  activity?: StepActivity | null;
 }
 
 /** The session's plan, and which step it's on (null before it starts and after it ends). */
@@ -148,7 +158,8 @@ const agendaMap = (doc: Y.Doc) => doc.getMap<unknown>('agenda');
 
 export function agendaOf(doc: Y.Doc): AgendaState {
   const m = agendaMap(doc);
-  const steps = Array.isArray(m.get('steps')) ? (m.get('steps') as AgendaStep[]) : [];
+  // Steps saved before steps had activities have none.
+  const steps = Array.isArray(m.get('steps')) ? (m.get('steps') as AgendaStep[]).map((s) => ({ ...s, activity: s.activity ?? null })) : [];
   const current = m.get('current');
   return { steps, current: typeof current === 'number' && current >= 0 && current < steps.length ? current : null };
 }
@@ -161,9 +172,16 @@ export function setAgenda(doc: Y.Doc, steps: AgendaStep[]): void {
   const at = onId === null ? -1 : steps.findIndex((s) => s.id === onId);
   doc.transact(() => {
     // Plain objects: Yjs won't store class instances (the request's DTOs).
-    m.set('steps', steps.map((s) => ({ id: s.id, title: s.title, seconds: s.seconds, frameId: s.frameId })));
+    m.set('steps', steps.map((s) => ({ id: s.id, title: s.title, seconds: s.seconds, frameId: s.frameId, activity: s.activity ? activityOf(s.activity) : null })));
     m.set('current', at >= 0 ? at : null);
   });
+}
+
+/** A step's activity as a plain object, with only the fields its kind has. */
+function activityOf(a: StepActivity): StepActivity {
+  if (a.kind === 'writing') return { kind: 'writing', anonymous: a.anonymous };
+  if (a.kind === 'vote') return { kind: 'vote', votesEach: a.votesEach };
+  return { kind: 'poll', question: a.question, pollKind: a.pollKind, options: a.pollKind === 'choice' ? [...a.options] : [] };
 }
 
 export function setAgendaStep(doc: Y.Doc, current: number | null): void {

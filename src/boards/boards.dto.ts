@@ -1,4 +1,5 @@
 import type { NoteColor } from '../assist/board-edit';
+import type { StepActivityDto } from '../facilitation/facilitation.dto';
 import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeKind, TextSize } from './layout';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
@@ -140,6 +141,8 @@ export class TemplateAgendaStepDto {
   minutes!: number;
   /** The key of the frame the step is about. */
   frame?: string;
+  /** What the step runs when it starts. */
+  activity?: StepActivityDto;
 }
 
 /** A board to start from, for the new-board picker and the board's own template picker. */

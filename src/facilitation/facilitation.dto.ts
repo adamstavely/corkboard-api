@@ -82,6 +82,47 @@ export class BringEveryoneDto {
   zoom!: number;
 }
 
+/** What a step runs when it starts; moving on from the step wraps it up. */
+export class StepActivityDto {
+  /** Hidden writing, a dot vote, or a poll. */
+  @IsIn(['writing', 'vote', 'poll'])
+  kind!: 'writing' | 'vote' | 'poll';
+
+  /** Hidden writing: revealed notes carry no author's name. */
+  @ValidateIf((o: StepActivityDto) => o.kind === 'writing')
+  @IsBoolean()
+  anonymous?: boolean;
+
+  /** A vote: votes each person gets. */
+  @ValidateIf((o: StepActivityDto) => o.kind === 'vote')
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  votesEach?: number;
+
+  /** A poll: its question. */
+  @ValidateIf((o: StepActivityDto) => o.kind === 'poll')
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  question?: string;
+
+  /** A poll: a question with options, or fist-to-five. */
+  @ValidateIf((o: StepActivityDto) => o.kind === 'poll')
+  @IsIn(['choice', 'fist'])
+  pollKind?: 'choice' | 'fist';
+
+  /** A choice poll: two to eight options. */
+  @ValidateIf((o: StepActivityDto) => o.kind === 'poll' && o.pollKind === 'choice')
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(80, { each: true })
+  options?: string[];
+}
+
 /** One step of the agenda. */
 export class AgendaStepDto {
   /** Keeps a step's place when the agenda is edited while it runs; a new step can leave it out. */
@@ -104,6 +145,12 @@ export class AgendaStepDto {
   @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsUUID()
   frameId?: string | null;
+
+  /** What the step runs when it starts, if anything. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StepActivityDto)
+  activity?: StepActivityDto | null;
 }
 
 export class SetAgendaDto {
