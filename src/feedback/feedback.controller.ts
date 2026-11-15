@@ -1,15 +1,30 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
 import { BlockParticipantDto, FeedbackDto, FeedbackJoinDto, OpenFeedbackDto } from './feedback.dto';
 import { FeedbackService } from './feedback.service';
+import {
+  AddParticipantNoteDto,
+  EditParticipantNoteDto,
+  ParticipantAnswerDto,
+  ParticipantCommentDto,
+  ParticipantCommentThreadDto,
+  ParticipantNoteDto,
+  ParticipantReactDto,
+  ParticipantVoteDto,
+  ParticipantYouDto,
+} from './participation.dto';
+import { ParticipationService } from './participation.service';
 
 @ApiTags('feedback')
 @ApiBearerAuth()
 @Controller()
 export class FeedbackController {
-  constructor(private readonly feedback: FeedbackService) {}
+  constructor(
+    private readonly feedback: FeedbackService,
+    private readonly participation: ParticipationService,
+  ) {}
 
   /** The team: the board's feedback link and who has joined through it, by name. */
   @Get('boards/:id/feedback')
@@ -52,5 +67,63 @@ export class FeedbackController {
   @Post('feedback/:token/join')
   join(@CurrentUser() user: User, @Param('token') token: string): Promise<FeedbackJoinDto> {
     return this.feedback.join(user, token);
+  }
+
+  // ── What participants do: always as themselves, whatever other participants see ──
+
+  /** A participant: who they are on the board's projection. */
+  @Get('feedback/boards/:id/you')
+  you(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<ParticipantYouDto> {
+    return this.participation.you(user, id);
+  }
+
+  /** A participant: add a note. The team sees it by their name. */
+  @Post('feedback/boards/:id/notes')
+  addNote(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: AddParticipantNoteDto): Promise<ParticipantNoteDto> {
+    return this.participation.addNote(user, id, body);
+  }
+
+  /** A participant: change one of their own notes. */
+  @Patch('feedback/boards/:id/notes/:noteId')
+  @HttpCode(204)
+  editNote(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('noteId') noteId: string, @Body() body: EditParticipantNoteDto): Promise<void> {
+    return this.participation.editNote(user, id, noteId, body);
+  }
+
+  /** A participant: remove one of their own notes. */
+  @Delete('feedback/boards/:id/notes/:noteId')
+  @HttpCode(204)
+  removeNote(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('noteId') noteId: string): Promise<void> {
+    return this.participation.removeNote(user, id, noteId);
+  }
+
+  /** A participant: the comments they may see, attributed as the board allows. */
+  @Get('feedback/boards/:id/comments')
+  comments(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<ParticipantCommentThreadDto[]> {
+    return this.participation.comments(user, id);
+  }
+
+  /** A participant: comment on a note or frame they can see. */
+  @Post('feedback/boards/:id/comments')
+  comment(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: ParticipantCommentDto): Promise<ParticipantCommentThreadDto[]> {
+    return this.participation.comment(user, id, body.nodeId, body.body);
+  }
+
+  @Post('feedback/boards/:id/reactions')
+  @HttpCode(204)
+  react(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: ParticipantReactDto): Promise<void> {
+    return this.participation.react(user, id, body.nodeId, body.emoji, body.on);
+  }
+
+  @Post('feedback/boards/:id/votes')
+  @HttpCode(204)
+  vote(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: ParticipantVoteDto): Promise<void> {
+    return this.participation.vote(user, id, body.noteId, body.add);
+  }
+
+  @Post('feedback/boards/:id/poll/answers')
+  @HttpCode(204)
+  answerPoll(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: ParticipantAnswerDto): Promise<void> {
+    return this.participation.answerPoll(user, id, body.answer);
   }
 }

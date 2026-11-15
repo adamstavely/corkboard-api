@@ -160,4 +160,59 @@ describe('Feedback from outside the team', () => {
     await eventually(() => mine.closed());
     await expect(connect(`${board.id}~p~${ola.id}`, ola.token)).rejects.toThrow();
   });
+
+  it("records participants' notes, comments, votes and answers as themselves, and shows them to each other as the board allows", async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const ola = await person();
+    const kai = await person();
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Review' });
+    const { body: opened } = await request(server).post(`/boards/${board.id}/feedback`).set(ada.auth).send({ visibility: 'anonymous' }).expect(201);
+    for (const p of [ola, kai]) await request(server).post(`/feedback/${opened.link.token}/join`).set(p.auth).expect(201);
+    const at = (path: string) => `/feedback/boards/${board.id}${path}`;
+
+    const { body: olaNote } = await request(server).post(at('/notes')).set(ola.auth).send({ text: 'Too busy', color: 'pink', x: 10, y: 20 }).expect(201);
+    const { body: kaiNote } = await request(server).post(at('/notes')).set(kai.auth).send({ text: 'Love it', color: 'green', x: 300, y: 20 }).expect(201);
+    // Someone who hasn't joined can't.
+    await request(server).post(at('/notes')).set(ada.auth).send({ text: 'x', color: 'pink', x: 0, y: 0 }).expect(403);
+    // Only their own notes are theirs to change.
+    await request(server).patch(at(`/notes/${kaiNote.id}`)).set(ola.auth).send({ x: 5 }).expect(403);
+    await request(server).patch(at(`/notes/${olaNote.id}`)).set(ola.auth).send({ text: 'Too busy, cut the carousel' }).expect(204);
+
+    // The team sees who wrote what.
+    const team = await connect(board.id, ada.token);
+    const note = team.doc.getMap<Y.Map<unknown>>('nodes').get(olaNote.id)!;
+    expect([note.get('author'), note.get('participant')]).toEqual([ola.id, true]);
+    expect(JSON.stringify(note.toJSON())).toContain('cut the carousel');
+
+    await request(server).post(at('/comments')).set(ola.auth).send({ nodeId: kaiNote.id, body: 'Agree with this' }).expect(201);
+    await request(server).post(`/boards/${board.id}/comments`).set(ada.auth).send({ nodeId: kaiNote.id, body: 'Thanks both' }).expect(201);
+    const { body: kaiSees } = await request(server).get(at('/comments')).set(kai.auth).expect(200);
+    expect(kaiSees[0].comments.map((c: { by: string }) => c.by)).toEqual(['Participant 1', 'The team']);
+    expect(JSON.stringify(kaiSees)).not.toContain(ola.id);
+    // The team's own view names Ola.
+    const { body: teamSees } = await request(server).get(`/boards/${board.id}/comments`).set(ada.auth).expect(200);
+    expect(teamSees[0].comments[0].author.id).toBe(ola.id);
+
+    // Seeing only their own, Kai sees neither Ola's note nor her comment, and can't act on her note.
+    await request(server).put(`/boards/${board.id}/feedback`).set(ada.auth).send({ visibility: 'own' }).expect(200);
+    const { body: kaiOwn } = await request(server).get(at('/comments')).set(kai.auth).expect(200);
+    expect(kaiOwn[0].comments.map((c: { by: string }) => c.by)).toEqual(['The team']);
+    await request(server).post(at('/reactions')).set(kai.auth).send({ nodeId: olaNote.id, emoji: '👍', on: true }).expect(400);
+
+    await request(server).put(`/boards/${board.id}/voting`).set(ada.auth).send({ open: true, votesEach: 2 }).expect(204);
+    await request(server).post(at('/votes')).set(kai.auth).send({ noteId: kaiNote.id, add: true }).expect(204);
+    await request(server).post(`/boards/${board.id}/poll`).set(ada.auth).send({ question: 'Ship it?', kind: 'fist' }).expect(204);
+    await request(server).post(at('/poll/answers')).set(kai.auth).send({ answer: 4 }).expect(204);
+    await eventually(() => (team.doc.getMap('votes').get(kai.id) as string[] | undefined)?.length === 1 && team.doc.getMap('pollAnswers').get(kai.id) === 4);
+
+    const { body: you } = await request(server).get(at('/you')).set(kai.auth).expect(200);
+    expect(you).toEqual({ key: 'p2', visibility: 'own' });
+
+    // The history has every one of them under their real name.
+    const { body: events } = await request(server).get(`/boards/${board.id}/activity`).set(ada.auth).expect(200);
+    const history = JSON.stringify(events);
+    expect(history).toContain('added a note');
+    expect(history).toContain('Agree with this');
+  });
 });

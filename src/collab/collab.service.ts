@@ -341,6 +341,13 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     }
   }
 
+  /** Tells everyone on a board, and participants on its projections, something that isn't in the document. */
+  broadcastToBoard(boardId: string, message: string): void {
+    for (const [name, document] of this.hocuspocus.documents) {
+      if (name === boardId || PROJECTION.exec(name)?.[1] === boardId) document.broadcastStateless(message);
+    }
+  }
+
   /** Brings a board's open projections up to date shortly (its participants or what they may see changed). */
   refreshProjections(boardId: string): void {
     const projected = this.#projected.get(boardId);
