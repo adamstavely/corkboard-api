@@ -1,11 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import type * as Y from 'yjs';
 import { and, desc, eq, max } from 'drizzle-orm';
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
+import { canChangeLocked, changeUnlocked, LockedError } from '../collab/locks';
 import { InjectDb, type Db } from '../db/db.module';
 import { boardApps, boardAppVersions, type User } from '../db/schema';
-import { MAX_APP_HTML, showAppVersion } from './app-node';
+import { appNodes, MAX_APP_HTML, showAppVersion } from './app-node';
 import type { AppDto, AppVersionDto } from './apps.dto';
 
 /** What's wrong with a mini-app's code, or null if it can go on the board. */
@@ -90,13 +92,21 @@ export class AppsService {
 
   /** Updaters: brings back an earlier version as a new one, shown wherever the app is on the board. */
   async restore(user: User, boardId: string, appId: string, version: number): Promise<AppDto> {
-    await this.boards.get(user, boardId, 'updater');
+    const { role } = await this.boards.get(user, boardId, 'updater');
     const old = await this.version(user, boardId, appId, version);
-    const added = await this.addVersion(boardId, appId, { userId: user.id, model: null }, old.html, `Restored version ${version}`);
-    if (added === null) throw new NotFoundException('App not found');
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
-      await connection.transact((doc) => showAppVersion(doc, appId, added));
+      // A locked app on the board stays as it is for those who may not change locked things: refused before it's saved.
+      const doc = connection.document as unknown as Y.Doc;
+      if (!canChangeLocked(doc, role, user.id) && appNodes(doc, appId).some((n) => n.get('locked') === true)) {
+        throw new ForbiddenException('That app is locked on the board. Only the board\'s owners and the facilitator can change it.');
+      }
+      const added = await this.addVersion(boardId, appId, { userId: user.id, model: null }, old.html, `Restored version ${version}`);
+      if (added === null) throw new NotFoundException('App not found');
+      await connection.transact((d) => changeUnlocked(d, { role, userId: user.id }, (t) => showAppVersion(t, appId, added)));
+    } catch (e) {
+      if (e instanceof LockedError) throw new ForbiddenException(e.message);
+      throw e;
     } finally {
       await connection.disconnect();
     }

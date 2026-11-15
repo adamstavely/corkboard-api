@@ -47,7 +47,7 @@ export function wouldDo(done: string): string {
 /** The most suggestions a board keeps waiting; the oldest go first. */
 export const MAX_SUGGESTIONS = 20;
 
-const suggestionsOf = (doc: Y.Doc) => doc.getMap<Suggestion>('suggestions');
+export const suggestionsOf = (doc: Y.Doc) => doc.getMap<Suggestion>('suggestions');
 
 export const suggestionsIn = (doc: Y.Doc): Suggestion[] => [...suggestionsOf(doc).values()].sort((a, b) => a.at - b.at);
 

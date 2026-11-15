@@ -6,6 +6,7 @@ import { ChangeTracker, describe as describeChanges, record } from '../ledger/le
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
+import { changeUnlocked } from '../collab/locks';
 import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
@@ -521,7 +522,8 @@ export class AssistService {
         const now = await this.boards.access(user, boardId).catch(() => null);
         if (!now || !atLeast(now.role, 'updater')) throw new Error('The person who asked can no longer change this board, so stop editing it.');
         if (draft) draft.edit(change);
-        else await connection.transact((d) => tracker!.track(d, change));
+        // Held to the board's locks as the person's own edits are: the model changes only what they could.
+        else await connection.transact((d) => tracker!.track(d, (t) => changeUnlocked(t, { role: now.role, userId: user.id }, change)));
       };
 
       const execute = async (name: string, input: unknown): Promise<string> => {

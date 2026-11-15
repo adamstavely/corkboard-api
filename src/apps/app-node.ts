@@ -51,6 +51,11 @@ export function placeApp(doc: Y.Doc, app: { appId: string; title: string; versio
 }
 
 /** Shows a version of an app wherever it is on the board (and renames it, if given). Returns how many items changed. */
+/** The board's items showing an app. */
+export function appNodes(doc: Y.Doc, appId: string): Y.Map<unknown>[] {
+  return [...nodesOf(doc).values()].filter((n): n is Y.Map<unknown> => n instanceof Y.Map && n.get('kind') === 'app' && n.get('appId') === appId);
+}
+
 export function showAppVersion(doc: Y.Doc, appId: string, version: number, title?: string): number {
   let changed = 0;
   doc.transact(() => {

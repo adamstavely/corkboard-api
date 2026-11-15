@@ -74,3 +74,25 @@ export function lockProblem(doc: Y.Doc, update: Uint8Array): string | null {
   }
   return null;
 }
+
+/** A change refused because it would change something locked. */
+export class LockedError extends Error {}
+
+/**
+ * Makes a change on the server for someone, held to the same locks as their own edits over the socket: if they may not
+ * change locked things, it runs on a copy first and is refused, changing nothing, when it would. Call it inside the
+ * transaction that makes the change, so the locks and the facilitator's seat are read as they are when it's made.
+ */
+export function changeUnlocked<T>(doc: Y.Doc, who: { role: Role; userId: string }, change: (doc: Y.Doc) => T): T {
+  if (canChangeLocked(doc, who.role, who.userId)) return change(doc);
+  const copy = new Y.Doc({ gc: doc.gc });
+  // The same client continues from where the board's copy is, so the change applies to the board as it was made here.
+  copy.clientID = doc.clientID;
+  Y.applyUpdate(copy, Y.encodeStateAsUpdate(doc));
+  const result = change(copy);
+  const update = Y.encodeStateAsUpdate(copy, Y.encodeStateVector(doc));
+  const problem = lockProblem(doc, update);
+  if (problem) throw new LockedError(`That would change something locked (${problem}). Only the board's owners and the facilitator can.`);
+  Y.applyUpdate(doc, update);
+  return result;
+}
