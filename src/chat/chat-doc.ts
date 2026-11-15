@@ -21,6 +21,8 @@ export interface ChatMessage {
   /** On the model's messages: notes the answer is about, and the notes the question was about. */
   cited?: string[];
   asked?: string[];
+  /** On the model's messages: the board's files the answer drew on. */
+  files?: { fileId: string; name: string }[];
   /** On the model's messages: what it changed on the board. */
   changes?: { notesAdded: number; notesChanged: number; framesAdded: number; notesMoved: number };
   /** On the model's messages: it couldn't answer, and `text` says why. */

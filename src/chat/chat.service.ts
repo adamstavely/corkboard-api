@@ -63,8 +63,8 @@ export class ChatService {
         noteIds: request.noteIds,
         history,
       });
-      const { reply: text, citedNoteIds, ...changes } = result;
-      reply = { ...this.#fromModel(label, user), text, cited: citedNoteIds, asked: request.noteIds ?? [], changes };
+      const { reply: text, citedNoteIds, citedFiles, ...changes } = result;
+      reply = { ...this.#fromModel(label, user), text, cited: citedNoteIds, asked: request.noteIds ?? [], changes, ...(citedFiles.length ? { files: citedFiles } : {}) };
     } catch (err) {
       if (!(err instanceof HttpException)) this.#log.error(err);
       const why = err instanceof HttpException ? err.message : 'Something went wrong.';

@@ -5,6 +5,8 @@ import type { Board } from '../db/schema';
 import type { NoteText } from '../boards/board-text';
 
 export const BOARDS_INDEX = 'corkboard-boards';
+/** Pieces of the text in boards' files, for the assistant to search. */
+export const FILES_INDEX = 'corkboard-file-chunks';
 
 /** One board as search sees it: its title and the plain text of each note. */
 interface BoardSearchDoc {
@@ -49,6 +51,7 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
   }
 
   async ensureIndex(): Promise<void> {
+    await this.#ensureFilesIndex();
     if (await this.#es.indices.exists({ index: BOARDS_INDEX })) return;
     try {
       await this.#es.indices.create({
@@ -91,6 +94,7 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
   }
 
   async removeBoard(boardId: string): Promise<void> {
+    await this.removeFileChunks(boardId);
     await this.#quietly(`remove board ${boardId}`, () =>
       this.#es.delete({ index: BOARDS_INDEX, id: boardId }, { ignore: [404] }),
     );
@@ -123,9 +127,59 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
     }));
   }
 
+  async #ensureFilesIndex(): Promise<void> {
+    if (await this.#es.indices.exists({ index: FILES_INDEX })) return;
+    try {
+      await this.#es.indices.create({
+        index: FILES_INDEX,
+        mappings: {
+          dynamic: 'strict',
+          properties: {
+            orgId: { type: 'keyword' },
+            boardId: { type: 'keyword' },
+            fileId: { type: 'keyword' },
+            fileName: { type: 'text', fields: { raw: { type: 'keyword' } } },
+            ord: { type: 'integer' },
+            start: { type: 'integer' },
+            text: { type: 'text' },
+          },
+        },
+      });
+    } catch (err) {
+      const type = err instanceof errors.ResponseError ? (err.body as { error?: { type?: string } }).error?.type : undefined;
+      if (type !== 'resource_already_exists_exception') throw err;
+    }
+  }
+
+  /** Replaces a file's pieces in the index. */
+  async indexFileChunks(file: { orgId: string; boardId: string; fileId: string; fileName: string }, pieces: { text: string; start: number }[]): Promise<void> {
+    await this.#quietly(`index the file ${file.fileId}`, async () => {
+      await this.#es.deleteByQuery({ index: FILES_INDEX, query: { term: { fileId: file.fileId } }, refresh: true }, { ignore: [404] });
+      if (!pieces.length) return;
+      await this.#es.bulk({ operations: pieces.flatMap((text, ord) => [{ index: { _index: FILES_INDEX, _id: `${file.fileId}:${ord}` } }, { ...file, ord, start: text.start, text: text.text }]) });
+    });
+  }
+
+  /** Takes a board's file pieces out (the board is gone); one file's when given. */
+  async removeFileChunks(boardId: string, fileId?: string): Promise<void> {
+    await this.#quietly(`remove files' text from board ${boardId}`, () =>
+      this.#es.deleteByQuery({ index: FILES_INDEX, query: { term: fileId ? { fileId } : { boardId } } }, { ignore: [404] }),
+    );
+  }
+
+  /** The pieces of a board's files that best match, best first. */
+  async searchFiles(boardId: string, query: string, size = 8): Promise<{ fileId: string; fileName: string; ord: number; start: number; text: string }[]> {
+    const res = await this.#es.search<{ fileId: string; fileName: string; ord: number; start: number; text: string }>({
+      index: FILES_INDEX,
+      size,
+      query: { bool: { filter: [{ term: { boardId } }], must: [{ multi_match: { query, fields: ['text', 'fileName^2'], fuzziness: 'AUTO' } }] } },
+    });
+    return res.hits.hits.map((h) => h._source!);
+  }
+
   /** Makes writes visible to search straight away; for tests. */
   async refresh(): Promise<void> {
-    await this.#es.indices.refresh({ index: BOARDS_INDEX });
+    await this.#es.indices.refresh({ index: [BOARDS_INDEX, FILES_INDEX] });
   }
 
   #doc(board: Board, notes: NoteText[]): BoardSearchDoc {
