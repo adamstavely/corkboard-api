@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { boardText } from './board-text';
+import { boardText, fragmentText } from './board-text';
 
 function element(name: string, children: (Y.XmlElement | Y.XmlText)[]): Y.XmlElement {
   const el = new Y.XmlElement(name);
@@ -40,5 +40,18 @@ describe('boardText', () => {
     nodes.set('c', frame);
 
     expect(boardText(doc)).toEqual([{ id: 'a', text: 'Retro\nDeploys are slow\none\ntwo' }]);
+  });
+
+  it('reads maths as its LaTeX, inline and on its own line', () => {
+    const doc = new Y.Doc();
+    const fragment = doc.getXmlFragment('t');
+    const p = new Y.XmlElement('paragraph');
+    const math = new Y.XmlElement('math');
+    math.setAttribute('latex', '\\pi r^2');
+    p.insert(0, [new Y.XmlText('Area '), math]);
+    const block = new Y.XmlElement('mathBlock');
+    block.setAttribute('latex', 'e=mc^2');
+    fragment.insert(0, [p, block]);
+    expect(fragmentText(fragment)).toBe('Area $\\pi r^2$\n$$e=mc^2$$');
   });
 });
