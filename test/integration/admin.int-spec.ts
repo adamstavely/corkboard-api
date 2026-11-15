@@ -82,4 +82,29 @@ describe('Workspace admin', () => {
     expect((await request(server).get('/me').set(auth)).body.orgs.map((o: { id: string }) => o.id)).toEqual([otherOrg]);
     provider.destroy();
   });
+
+  it("gives owners the audit log: who really did what, participants from outside the workspace included", async () => {
+    const server = t.app.getHttpServer();
+    const adaSubject = randomUUID();
+    const ada = { Authorization: `Bearer ${await t.token(adaSubject, { name: 'Ada' })}` };
+    const orgId = (await request(server).get('/me').set(ada)).body.orgs[0].id as string;
+    const olaSubject = randomUUID();
+    const ola = { Authorization: `Bearer ${await t.token(olaSubject, { name: 'Ola' })}` };
+    await request(server).get('/me').set(ola).expect(200);
+
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(ada).send({ title: 'Homepage' });
+    const { body: opened } = await request(server).post(`/boards/${board.id}/feedback`).set(ada).send({ visibility: 'anonymous' }).expect(201);
+    await request(server).post(`/feedback/${opened.link.token}/join`).set(ola).expect(201);
+    await request(server).post(`/feedback/boards/${board.id}/notes`).set(ola).send({ text: 'Too busy', color: 'pink', x: 0, y: 0 }).expect(201);
+
+    // Not in the workspace: it might as well not be there.
+    await request(server).get(`/orgs/${orgId}/admin/audit`).set(ola).expect(404);
+    const { body: log } = await request(server).get(`/orgs/${orgId}/admin/audit`).set(ada).expect(200);
+    const note = log.find((e: { action: string }) => e.action === 'added a note');
+    expect(note).toMatchObject({ board: 'Homepage', actorName: 'Ola', actorEmail: `${olaSubject}@corkboard.test`, detail: 'Too busy', restricted: false });
+    expect(log.map((e: { action: string }) => e.action)).toContain('opened the board for feedback');
+    // Only what came after.
+    const { body: later } = await request(server).get(`/orgs/${orgId}/admin/audit?since=${note.at}`).set(ada).expect(200);
+    expect(later.find((e: { action: string }) => e.action === 'added a note')).toBeUndefined();
+  });
 });

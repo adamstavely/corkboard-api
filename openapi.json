@@ -3157,6 +3157,53 @@
         ]
       }
     },
+    "/orgs/{orgId}/admin/audit": {
+      "get": {
+        "operationId": "AdminController_audit",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEventDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: the audit log, every board's history oldest first (after `since`, epoch ms): who really did\nwhat, by id, name and email, including what was anonymous on a board and people from outside the workspace.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/orgs/{orgId}/admin": {
       "delete": {
         "operationId": "AdminController_remove",
@@ -6552,6 +6599,59 @@
           "boards",
           "models",
           "totals"
+        ]
+      },
+      "AuditEventDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "number"
+          },
+          "boardId": {
+            "type": "string"
+          },
+          "board": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Null once their account is gone, or for something the API did itself."
+          },
+          "actorName": {
+            "type": "string"
+          },
+          "actorEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "restricted": {
+            "type": "boolean",
+            "description": "It was anonymous on the board (who did it shows there only to its owners)."
+          }
+        },
+        "required": [
+          "at",
+          "boardId",
+          "board",
+          "actorId",
+          "actorName",
+          "actorEmail",
+          "action",
+          "target",
+          "detail",
+          "restricted"
         ]
       },
       "DeleteWorkspaceDto": {
