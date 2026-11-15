@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -20,6 +21,9 @@ import type * as Y from 'yjs';
 import { BoardsService, type BoardWithRole } from './boards.service';
 import { OrganiseService } from '../organise/organise.service';
 import { applyTemplate, previewOf, TEMPLATES } from './templates';
+import { SavedTemplatesService } from './saved-templates.service';
+
+const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 const toDto = ({ id, orgId, title, createdAt, updatedAt, role, folderId = null, starred = false, lastVisitedAt = null, continuesId = null }: BoardWithRole): BoardDto => ({
   id,
@@ -42,6 +46,7 @@ export class BoardsController {
     private readonly boards: BoardsService,
     private readonly collab: CollabService,
     private readonly organise: OrganiseService,
+    private readonly saved: SavedTemplatesService,
   ) {}
 
   /** The workspace's boards the person can open, most recently changed first. */
@@ -72,8 +77,12 @@ export class BoardsController {
     @Param('orgId', ParseUUIDPipe) orgId: string,
     @Body() body: CreateBoardDto,
   ): Promise<BoardDto> {
+    // A built-in template by id, or one the workspace saved.
+    const template = body.template
+      ? (TEMPLATES.find((t) => t.id === body.template) ?? (isUuid(body.template) ? await this.saved.find(user, orgId, body.template) : null))
+      : undefined;
+    if (template === null) throw new BadRequestException('There is no template with that id');
     const board = await this.boards.create(user, orgId, body.title);
-    const template = TEMPLATES.find((t) => t.id === body.template);
     if (template) {
       const connection = await this.collab.hocuspocus.openDirectConnection(board.id, { user });
       try {

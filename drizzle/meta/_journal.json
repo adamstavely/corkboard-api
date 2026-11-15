@@ -183,6 +183,13 @@
       "when": 1794775194595,
       "tag": "0025_poker_estimates",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794778274074,
+      "tag": "0026_workspace_templates",
+      "breakpoints": true
     }
   ]
 }

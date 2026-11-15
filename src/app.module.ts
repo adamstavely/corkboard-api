@@ -31,6 +31,8 @@ import { CatchUpService } from './summary/catchup.service';
 import { RecapController } from './summary/recap.controller';
 import { RecapService } from './summary/recap.service';
 import { PokerController } from './facilitation/poker.controller';
+import { SavedTemplatesController } from './boards/saved-templates.controller';
+import { SavedTemplatesService } from './boards/saved-templates.service';
 import { PokerService } from './facilitation/poker.service';
 import { WritingController } from './facilitation/writing.controller';
 import { WritingService } from './facilitation/writing.service';
@@ -90,6 +92,7 @@ import { SearchIndex } from './search/search-index';
     RecapController,
     WritingController,
     PokerController,
+    SavedTemplatesController,
     UnfurlController,
     IntegrationsController,
     AdminController,
@@ -139,6 +142,7 @@ import { SearchIndex } from './search/search-index';
     RecapService,
     WritingService,
     PokerService,
+    SavedTemplatesService,
     IntegrationsService,
     IssueHttp,
     AdminService,
