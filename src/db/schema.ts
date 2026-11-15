@@ -508,6 +508,24 @@ export const writingRounds = pgTable(
   (t) => [index('writing_rounds_board_idx').on(t.boardId)],
 );
 
+/** Planning poker estimates, kept here until the round is revealed so nobody sees anyone else's first. */
+export const pokerEstimates = pgTable(
+  'poker_estimates',
+  {
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    /** The round it belongs to; estimates from an earlier round are cleared when a new one starts. */
+    round: uuid('round').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    value: text('value').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.round, t.userId] })],
+);
+
 export const noteDrafts = pgTable(
   'note_drafts',
   {

@@ -206,6 +206,15 @@ describe('Feedback from outside the team', () => {
     await request(server).post(at('/poll/answers')).set(kai.auth).send({ answer: 4 }).expect(204);
     await eventually(() => (team.doc.getMap('votes').get(kai.id) as string[] | undefined)?.length === 1 && team.doc.getMap('pollAnswers').get(kai.id) === 4);
 
+    // Planning poker: Kai's estimate is kept hidden like the team's, and is theirs to read back.
+    await request(server).post(`/boards/${board.id}/poker`).set(ada.auth).send({ deck: 'tshirt', title: 'Checkout redesign' }).expect(204);
+    await request(server).post(at('/poker/estimates')).set(kai.auth).send({ value: 'L' }).expect(204);
+    await request(server).post(at('/poker/estimates')).set(kai.auth).send({ value: '8' }).expect(400);
+    expect((await request(server).get(at('/poker/estimates/mine')).set(kai.auth).expect(200)).body.value).toBe('L');
+    await eventually(() => team.doc.getMap('pokerEstimates').get(kai.id) === '');
+    await request(server).put(`/boards/${board.id}/poker/reveal`).set(ada.auth).expect(204);
+    await eventually(() => team.doc.getMap('pokerEstimates').get(kai.id) === 'L');
+
     const { body: you } = await request(server).get(at('/you')).set(kai.auth).expect(200);
     expect(you).toEqual({ key: 'p2', visibility: 'own' });
 

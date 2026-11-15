@@ -30,6 +30,8 @@ import { SummaryService } from './summary/summary.service';
 import { CatchUpService } from './summary/catchup.service';
 import { RecapController } from './summary/recap.controller';
 import { RecapService } from './summary/recap.service';
+import { PokerController } from './facilitation/poker.controller';
+import { PokerService } from './facilitation/poker.service';
 import { WritingController } from './facilitation/writing.controller';
 import { WritingService } from './facilitation/writing.service';
 import { UnfurlController } from './unfurl/unfurl.controller';
@@ -87,6 +89,7 @@ import { SearchIndex } from './search/search-index';
     SummaryController,
     RecapController,
     WritingController,
+    PokerController,
     UnfurlController,
     IntegrationsController,
     AdminController,
@@ -135,6 +138,7 @@ import { SearchIndex } from './search/search-index';
     CatchUpService,
     RecapService,
     WritingService,
+    PokerService,
     IntegrationsService,
     IssueHttp,
     AdminService,

@@ -5,7 +5,9 @@ import * as Y from 'yjs';
 import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
 import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
 import { agendaOf, facilitatorOf, pollCounts, pollOf, privacyOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
+import { pokerEstimatesMap, pokerOf } from '../../src/facilitation/poker-doc';
 import { writingOf } from '../../src/facilitation/writing-doc';
+import { addTasks } from '../../src/assist/tasks-doc';
 import { createTestApp, type TestApp } from './app';
 
 const eventually = async (check: () => boolean, ms = 5000) => {
@@ -264,6 +266,51 @@ describe('Dot voting and the shared timer', () => {
     await answer(linus, 5).expect(409);
     await request(server).put(`/boards/${board.id}/poll/end`).set(ada.auth).send({ clear: true }).expect(204);
     await eventually(() => pollOf(doc) === null);
+  });
+
+  it('runs planning poker: estimates stay hidden until revealed, from the board and everyone on it', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const linus = await joined(ada, 'commenter');
+    const reader = await joined(ada, 'reader');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Sprint planning' });
+    const doc = await open(board.id, ada);
+    const [task] = addTasks(doc, [{ title: 'Export to PDF', status: 'todo', priority: 2, labels: [] }]);
+    const start = (who: Person, body: object) => request(server).post(`/boards/${board.id}/poker`).set(who.auth).send(body);
+    const estimate = (who: Person, value: string) => request(server).post(`/boards/${board.id}/poker/estimates`).set(who.auth).send({ value });
+    const mine = async (who: Person) => (await request(server).get(`/boards/${board.id}/poker/estimates/mine`).set(who.auth).expect(200)).body.value;
+
+    await estimate(linus, '5').expect(409);
+    await start(linus, { deck: 'fibonacci', taskId: task.id }).expect(403);
+    await start(ada, { deck: 'fibonacci' }).expect(400);
+    await start(ada, { deck: 'fibonacci', taskId: randomUUID() }).expect(400);
+    await eventually(() => doc.getMap('tasks').size === 1);
+    await start(ada, { deck: 'fibonacci', taskId: task.id }).expect(204);
+    await eventually(() => pokerOf(doc)?.title === `${task.key} Export to PDF`);
+
+    await estimate(linus, '5').expect(204);
+    await estimate(linus, '8').expect(204);
+    await estimate(ada, '3').expect(204);
+    await estimate(ada, 'XL').expect(400);
+    await estimate(reader, '5').expect(403);
+    // The board says who has estimated, never what.
+    await eventually(() => pokerEstimatesMap(doc).size === 2);
+    expect([...pokerEstimatesMap(doc).values()]).toEqual(['', '']);
+    expect(await mine(linus)).toBe('8');
+
+    await request(server).put(`/boards/${board.id}/poker/reveal`).set(linus.auth).expect(403);
+    await request(server).put(`/boards/${board.id}/poker/reveal`).set(ada.auth).expect(204);
+    await eventually(() => pokerOf(doc)?.revealed === true);
+    expect([...pokerEstimatesMap(doc).values()].sort()).toEqual(['3', '8']);
+    await estimate(linus, '13').expect(409);
+
+    // A new round, in T-shirt sizes, starts with nobody's estimates.
+    await start(ada, { deck: 'tshirt', title: 'Search' }).expect(204);
+    await eventually(() => pokerOf(doc)?.deck === 'tshirt' && pokerEstimatesMap(doc).size === 0);
+    expect(await mine(linus)).toBeNull();
+    await estimate(linus, 'M').expect(204);
+    await request(server).delete(`/boards/${board.id}/poker`).set(ada.auth).expect(204);
+    await eventually(() => pokerOf(doc) === null);
   });
 
   it('turns private mode on and off, for the facilitator alone once there is one', async () => {
