@@ -1,7 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import type * as Y from 'yjs';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
+import { changeUnlocked, LockedError } from '../collab/locks';
 import type { User } from '../db/schema';
 import { ledgerEntries, redo, undo } from './ledger-doc';
 import { ActivityService } from '../activity/activity.service';
@@ -26,15 +27,19 @@ export class LedgerService {
   }
 
   async #apply(user: User, boardId: string, change: (doc: Y.Doc) => string | null, action: string, entryId: string): Promise<void> {
-    await this.boards.get(user, boardId, 'updater');
+    const { role } = await this.boards.get(user, boardId, 'updater');
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     let problem: string | null = null;
     let what: string | undefined;
     try {
       await connection.transact((doc) => {
         what = ledgerEntries(doc).find((e) => e.id === entryId)?.action;
-        problem = change(doc);
+        // Undoing and redoing are held to the board's locks too.
+        problem = changeUnlocked(doc, { role, userId: user.id }, change);
       });
+    } catch (e) {
+      if (e instanceof LockedError) throw new ForbiddenException(e.message);
+      throw e;
     } finally {
       await connection.disconnect();
     }

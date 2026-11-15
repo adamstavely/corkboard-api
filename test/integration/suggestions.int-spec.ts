@@ -124,4 +124,54 @@ describe("The model's suggestions", () => {
     await settle();
     expect(doc.getMap('suggestions').size).toBe(0);
   });
+
+  it("holds the model's changes, accepted suggestions and undo to the board's locks", async () => {
+    const { server, auth, board, model, doc } = await setup();
+    const { body: me } = await request(server).get('/me').set(auth);
+    const orgId = me.orgs[0].id as string;
+    const updater = randomUUID();
+    const updaterAuth = { Authorization: `Bearer ${await t.token(updater)}` };
+    const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${updater}@corkboard.test`, role: 'updater' });
+    await request(server).post(`/me/invites/${invite.id}/accept`).set(updaterAuth).expect(201);
+
+    const [fixed, free] = addNotes(doc, [{ text: 'Fixed', color: 'yellow' }, { text: 'Free', color: 'yellow' }]);
+    doc.getMap<Y.Map<unknown>>('nodes').get(fixed)!.set('locked', true);
+    await settle();
+
+    // The model, asked by an updater, can't recolour the locked note; the error goes back to it.
+    let refused = '';
+    script = async (req) => {
+      await req.execute('set_note_color', { note_ids: [fixed], color: 'pink' }).catch((e: Error) => (refused = e.message));
+      return 'Tried.';
+    };
+    await request(server).post(`/boards/${board.id}/assist`).set(updaterAuth).send({ modelId: model.id, instruction: 'Pink it' }).expect(200);
+    expect(refused).toContain('locked');
+    await settle();
+    expect(notesOf(doc).find((n) => n.id === fixed)!.color).toBe('yellow');
+
+    // A suggestion made while the note was free can't be accepted by an updater once an owner has locked it.
+    script = async (req) => {
+      await req.execute('set_note_color', { note_ids: [free], color: 'pink' });
+      return 'Suggested.';
+    };
+    const asked = await request(server).post(`/boards/${board.id}/assist`).set(updaterAuth).send({ modelId: model.id, instruction: 'Pink it', propose: true }).expect(200);
+    doc.getMap<Y.Map<unknown>>('nodes').get(free)!.set('locked', true);
+    await settle();
+    const res = await request(server).post(`/boards/${board.id}/suggestions/${asked.body.suggestionId}/accept`).set(updaterAuth).expect(403);
+    expect(res.body.message).toContain('locked');
+    await settle();
+    expect(notesOf(doc).find((n) => n.id === free)!.color).toBe('yellow');
+    // Still there for an owner to accept.
+    expect(doc.getMap('suggestions').has(asked.body.suggestionId)).toBe(true);
+    await request(server).post(`/boards/${board.id}/suggestions/${asked.body.suggestionId}/accept`).set(auth).expect(204);
+    await settle();
+    expect(notesOf(doc).find((n) => n.id === free)!.color).toBe('pink');
+
+    // Nor can an updater undo it while it's locked.
+    const [entry] = doc.getArray<LedgerEntry>('ledger').toArray();
+    await request(server).post(`/boards/${board.id}/ledger/${entry.id}/undo`).set(updaterAuth).expect(403);
+    await request(server).post(`/boards/${board.id}/ledger/${entry.id}/undo`).set(auth).expect(204);
+    await settle();
+    expect(notesOf(doc).find((n) => n.id === free)!.color).toBe('yellow');
+  });
 });
