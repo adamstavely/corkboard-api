@@ -103,7 +103,7 @@ export function notesOf(doc: Y.Doc): NoteView[] {
   return notes;
 }
 
-const topZ = (doc: Y.Doc) => {
+export const topZ = (doc: Y.Doc) => {
   let z = 0;
   nodesOf(doc).forEach((node) => (z = Math.max(z, Number(node.get('z') ?? 0))));
   return z;
