@@ -1,8 +1,12 @@
 import * as Y from 'yjs';
-import { FRAME_PADDING, FRAME_TITLE, NOTE_SIZE, type NoteColor } from '../assist/board-edit';
+import { type NoteColor } from '../assist/board-edit';
 import { setAgenda, type StepActivity } from '../facilitation/facilitation-doc';
 import { randomUUID } from 'node:crypto';
-import { applyLayout, layoutSize, type FrameBorder, type FrameFill, type Layout } from './layout';
+import { applyLayout, layoutSize, type Layout } from './layout';
+import { area, columns, grid, headed, merge, shift, type Box } from './template-kit';
+import { LIBRARY_TEMPLATES } from './templates-library';
+
+export { columns };
 
 /** Where a template sits in the picker. */
 export const TEMPLATE_CATEGORIES = ['retro', 'ideate', 'plan', 'discover', 'analyse', 'team'] as const;
@@ -18,39 +22,6 @@ export interface BoardTemplate {
   /** How a session on it runs, a step at a time; `frame` is a frame's key in the layout. */
   agenda?: { title: string; minutes: number; frame?: string; activity?: StepActivity }[];
 }
-
-const COLUMN = { w: 2 * NOTE_SIZE.w + 3 * FRAME_PADDING, h: 640 };
-const GAP = 64;
-
-/** Columns side by side, each a frame with a note at the top saying what goes in it. */
-export function columns(list: { title: string; hint: string; color?: NoteColor }[]): Layout {
-  return {
-    frames: list.map((c, i) => ({ key: `col${i}`, title: c.title, x: i * (COLUMN.w + GAP), y: 0, ...COLUMN })),
-    notes: list.map((c, i) => ({ text: c.hint, color: c.color ?? 'yellow', x: i * (COLUMN.w + GAP) + FRAME_PADDING, y: FRAME_TITLE })),
-  };
-}
-
-type Box = { x: number; y: number; w: number; h: number };
-
-/** A frame with a note at its top saying what goes in it. */
-function area(key: string, title: string, box: Box, hint: string, color: NoteColor = 'yellow', style: { fill?: FrameFill; border?: FrameBorder } = {}): Layout {
-  return { frames: [{ key, title, ...box, ...style }], notes: [{ text: hint, color, x: box.x + FRAME_PADDING, y: box.y + FRAME_TITLE }] };
-}
-
-/** A layout moved right and down. */
-function shift(layout: Layout, dx: number, dy: number): Layout {
-  const by = <T extends { x: number; y: number }>(list?: T[]) => list?.map((t) => ({ ...t, x: t.x + dx, y: t.y + dy }));
-  return { ...layout, frames: by(layout.frames), notes: by(layout.notes), texts: by(layout.texts), shapes: by(layout.shapes), tables: by(layout.tables), views: by(layout.views) };
-}
-
-/** Layouts put together. */
-function merge(...layouts: Layout[]): Layout {
-  const all = <K extends keyof Layout>(key: K) => layouts.flatMap((l) => (l[key] ?? []) as NonNullable<Layout[K]>[number][]) as NonNullable<Layout[K]>;
-  return { frames: all('frames'), notes: all('notes'), texts: all('texts'), shapes: all('shapes'), tables: all('tables'), views: all('views'), arrows: all('arrows') };
-}
-
-/** A heading above a layout. */
-const headed = (heading: string, layout: Layout): Layout => merge({ texts: [{ text: heading, size: 'lg', x: 0, y: 0, w: 960 }] }, shift(layout, 0, 96));
 
 /**
  * The canvas both the Lean and Business Model canvases use: five columns, the second and fourth split in two, over two
@@ -75,16 +46,6 @@ function businessCanvas(boxes: { title: string; hint: string; color?: NoteColor 
     { x: (5 * col + 4 * gap + gap) / 2, y: tall + gap, w: (5 * col + 4 * gap - gap) / 2, h: 360 },
   ];
   return merge(...boxes.map((b, i) => area(`c${i}`, b.title, spots[i], b.hint, b.color)));
-}
-
-/** Frames in a grid, each with its hint. */
-function grid(cols: number, size: { w: number; h: number }, boxes: { title: string; hint: string; color?: NoteColor; fill?: FrameFill }[], prefix = 'g'): Layout {
-  const gap = 64;
-  return merge(
-    ...boxes.map((b, i) =>
-      area(`${prefix}${i}`, b.title, { x: (i % cols) * (size.w + gap), y: Math.floor(i / cols) * (size.h + gap), ...size }, b.hint, b.color, b.fill ? { fill: b.fill } : {}),
-    ),
-  );
 }
 
 export const TEMPLATES: BoardTemplate[] = [
@@ -468,6 +429,8 @@ export const TEMPLATES: BoardTemplate[] = [
       { title: 'Action items', hint: 'One action per note, with an owner.', color: 'pink' },
     ]),
   },
+  // The wider library: more retros, workshops, canvases and team rituals.
+  ...LIBRARY_TEMPLATES,
 ];
 
 /** Lays a template out on a new board, from its top-left corner. */
