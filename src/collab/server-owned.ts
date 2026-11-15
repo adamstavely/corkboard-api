@@ -34,6 +34,9 @@ function topLevel(type: Y.AbstractType<unknown>): string | null {
   }
 }
 
+/** Whether the server already has all of a struct (Yjs skips it when the update is applied). */
+export const alreadyHas = (doc: Y.Doc, s: Y.Item | Y.GC | Y.Skip) => s.id.clock + s.length <= Y.getState(doc.store, s.id.client);
+
 /** What serverOwnedIn reports for an update that depends on something the server doesn't have. */
 export const UNRESOLVED = '(unresolved)';
 
@@ -86,6 +89,8 @@ export function serverOwnedIn(doc: Y.Doc, update: Uint8Array): string | null {
   };
 
   for (const s of items) {
+    // What the server already has changes nothing: a browser's saved copy of the board sends it all again.
+    if (alreadyHas(doc, s)) continue;
     const root = rootOf(s);
     if (root && (root === UNRESOLVED || SERVER_OWNED.has(root))) return root;
   }
@@ -95,7 +100,9 @@ export function serverOwnedIn(doc: Y.Doc, update: Uint8Array): string | null {
         const item = find({ client, clock: at });
         // Deleting something not here would wait for it to arrive, then delete it unchecked.
         if (!item) return UNRESOLVED;
-        if (item instanceof Y.GC) {
+        // Deleting what's already deleted changes nothing: every sync carries everything the browser knows was deleted,
+        // the server's own replacements included.
+        if (item instanceof Y.GC || (item.deleted && existing(doc, item.id) === item)) {
           at = item.id.clock + item.length;
           continue;
         }

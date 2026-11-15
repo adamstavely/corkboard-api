@@ -84,4 +84,13 @@ describe('locked things', () => {
     expect(canChangeLocked(doc, 'updater', 'grace')).toBe(true);
     expect(canChangeLocked(doc, 'updater', 'linus')).toBe(false);
   });
+
+  it("takes a browser's whole saved copy of a board with locked things in it, unchanged", () => {
+    const copy = new Y.Doc();
+    Y.applyUpdate(copy, Y.encodeStateAsUpdate(board));
+    copy.getMap<Y.Map<unknown>>('nodes').get('n1')!.set('x', 77);
+    expect(lockProblem(board, Y.encodeStateAsUpdate(copy))).toBeNull();
+    copy.getMap<Y.Map<unknown>>('nodes').get('f1')!.set('x', 77);
+    expect(lockProblem(board, Y.encodeStateAsUpdate(copy))).toMatch(/f1: it is locked/);
+  });
 });

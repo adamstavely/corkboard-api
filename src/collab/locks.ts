@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { atLeast, type Role } from '../access/roles';
 import { placesIn } from './node-schema';
+import { alreadyHas, existing } from './server-owned';
 
 /**
  * Who may lock, unlock and change locked things: the board's owners, and whoever holds the facilitator's seat. Everyone
@@ -44,7 +45,8 @@ export function lockProblem(doc: Y.Doc, update: Uint8Array): string | null {
   };
 
   for (const s of structs) {
-    if (!(s instanceof Y.Item) || s.content instanceof Y.ContentDeleted) continue;
+    // What the server already has changes nothing (a browser's saved copy sends it all again).
+    if (!(s instanceof Y.Item) || s.content instanceof Y.ContentDeleted || alreadyHas(doc, s)) continue;
     // A node set again under its id replaces the node there: that's changing it, if that one's locked.
     if (isNode(s)) {
       const key = placeOf(s).key!;
@@ -59,7 +61,8 @@ export function lockProblem(doc: Y.Doc, update: Uint8Array): string | null {
       for (let at = clock; at < clock + len; ) {
         const item = find({ client, clock: at });
         // serverOwnedIn refuses deletes of what isn't here; nothing to check in what's already gone.
-        if (!(item instanceof Y.Item)) {
+        // Nothing to check in what's already gone, or already deleted here.
+        if (!(item instanceof Y.Item) || (item.deleted && existing(doc, item.id) === item)) {
           at = item ? item.id.clock + item.length : at + 1;
           continue;
         }
