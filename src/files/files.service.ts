@@ -168,7 +168,12 @@ export class FilesService {
   }
 
   /** Commenters and up: asks a model about an image on the board, and the places marked on it. */
-  async ask(user: User, boardId: string, fileId: string, request: AskImageDto): Promise<ImageAnswerDto> {
+  ask(user: User, boardId: string, fileId: string, request: AskImageDto): Promise<ImageAnswerDto> {
+    // One piece of model work, which shutdown stops and waits for (see ModelJobs.work).
+    return this.providers.jobs.work(() => this.#ask(user, boardId, fileId, request));
+  }
+
+  async #ask(user: User, boardId: string, fileId: string, request: AskImageDto): Promise<ImageAnswerDto> {
     const board = await this.boards.get(user, boardId, 'commenter');
     const file = await this.get(user, boardId, fileId);
     if (!isImage(file.mime)) throw new BadRequestException('Only images can be asked about');

@@ -431,7 +431,12 @@ export class AssistService {
     private readonly apps: AppsService,
   ) {}
 
-  async assist(user: User, boardId: string, request: AssistRequestDto): Promise<AssistResultDto> {
+  assist(user: User, boardId: string, request: AssistRequestDto): Promise<AssistResultDto> {
+    // One piece of model work, which shutdown stops and waits for (see ModelJobs.work).
+    return this.providers.jobs.work(() => this.#assist(user, boardId, request));
+  }
+
+  async #assist(user: User, boardId: string, request: AssistRequestDto): Promise<AssistResultDto> {
     const board = await this.boards.get(user, boardId);
     const model = await this.providers.modelFor(board.orgId, request.modelId, { userId: user.id, boardId, feature: 'assist' });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });

@@ -72,7 +72,12 @@ export class RecapService {
     private readonly activity: ActivityService,
   ) {}
 
-  async recap(user: User, boardId: string, modelId: string): Promise<SessionRecapDto> {
+  recap(user: User, boardId: string, modelId: string): Promise<SessionRecapDto> {
+    // One piece of model work, which shutdown stops and waits for (see ModelJobs.work).
+    return this.providers.jobs.work(() => this.#recap(user, boardId, modelId));
+  }
+
+  async #recap(user: User, boardId: string, modelId: string): Promise<SessionRecapDto> {
     const board = await this.boards.get(user, boardId, 'commenter');
     const model = await this.providers.modelFor(board.orgId, modelId, { userId: user.id, boardId, feature: 'recap' });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });

@@ -50,7 +50,12 @@ export class CatchUpService {
     private readonly activity: ActivityService,
   ) {}
 
-  async catchUp(user: User, boardId: string, modelId: string, since: number): Promise<CatchUpDto> {
+  catchUp(user: User, boardId: string, modelId: string, since: number): Promise<CatchUpDto> {
+    // One piece of model work, which shutdown stops and waits for (see ModelJobs.work).
+    return this.providers.jobs.work(() => this.#catchUp(user, boardId, modelId, since));
+  }
+
+  async #catchUp(user: User, boardId: string, modelId: string, since: number): Promise<CatchUpDto> {
     const board = await this.boards.get(user, boardId, 'commenter');
     const events = await this.activity.list(boardId, since, MAX_EVENTS, { owner: board.role === 'owner', notBy: user.id });
     if (events.length === 0) return { summary: 'Nothing has changed since you were last here.', points: [], events: 0, since };

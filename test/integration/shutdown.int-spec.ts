@@ -43,4 +43,36 @@ describe('Shutting down', () => {
     expect((saved.getMap('tasks').get('last') as { title: string }).title).toBe('Made at the last moment');
     await next.app.close();
   });
+
+  it('stops a model request that is still running before the HTTP server waits on it, and saves what it did', async () => {
+    let asked!: () => void;
+    const askedYet = new Promise<void>((resolve) => (asked = resolve));
+    const t = await createTestApp({
+      models: () => ({
+        // A model that never answers on its own: only being stopped ends it.
+        chat: (req) => {
+          asked();
+          return new Promise((_, reject) => req.signal?.addEventListener('abort', () => reject(req.signal!.reason as Error), { once: true }));
+        },
+      }),
+    });
+    const server = t.app.getHttpServer();
+    const token = await t.token(randomUUID(), { name: 'Ada' });
+    const auth = { Authorization: `Bearer ${token}` };
+    const orgId = (await request(server).get('/me').set(auth)).body.orgs[0].id as string;
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Busy' }).expect(201);
+    const { body: model } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+
+    const answer = request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: model.id, instruction: 'Think hard' }).then((r) => r);
+    await askedYet;
+    const started = Date.now();
+    const closed = t.app.close().then(() => 'closed');
+    const timedOut = new Promise((r) => setTimeout(() => r('timed out'), 10_000));
+    expect(await Promise.race([closed, timedOut])).toBe('closed');
+    // Well inside a deployment's 30-second grace period.
+    expect(Date.now() - started).toBeLessThan(5_000);
+    const res = await answer;
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(JSON.stringify(res.body)).toContain('restarting');
+  });
 });
