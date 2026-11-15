@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { framesOf, notesOf } from '../assist/board-edit';
+import { agendaOf } from '../facilitation/facilitation-doc';
 import { nodeProblem } from '../collab/node-schema';
 import { applyLayout, layoutProblem, type Layout } from './layout';
 import { TEMPLATES, applyTemplate, previewOf } from './templates';
@@ -22,6 +23,9 @@ describe('board templates', () => {
         if (overlap) expect(inside(a, b) || inside(b, a)).toBe(true);
       }
     expect(previewOf(template).length).toBe(frames.length);
+    // An agenda's frames are in the layout.
+    const keys = new Set((template.layout.frames ?? []).map((f) => f.key));
+    for (const step of template.agenda ?? []) if (step.frame) expect(keys.has(step.frame)).toBe(true);
   });
 
   it('keeps the old column templates: a frame per column with its hint inside', () => {
@@ -29,6 +33,11 @@ describe('board templates', () => {
     applyTemplate(doc, TEMPLATES.find((t) => t.id === 'retro')!);
     expect(framesOf(doc).map((f) => f.title)).toEqual(['What went well', 'What could be better', 'Action items']);
     expect(notesOf(doc).map((n) => n.frame)).toEqual(['What went well', 'What could be better', 'Action items']);
+    // Its agenda points at its frames.
+    const agenda = agendaOf(doc);
+    expect(agenda.current).toBeNull();
+    expect(agenda.steps.map((st) => st.title)).toEqual(['Check in', 'What went well', 'What could be better', 'Vote', 'Actions']);
+    expect(agenda.steps[1].frameId).toBe(framesOf(doc)[0].id);
   });
 
   it('places every kind of thing, with arrows between keys, at an origin', () => {

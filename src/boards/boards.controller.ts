@@ -61,6 +61,7 @@ export class BoardsController {
       columns: (t.layout.frames ?? []).map((f) => f.title),
       preview: previewOf(t),
       layout: t.layout,
+      ...(t.agenda ? { agenda: t.agenda } : {}),
     }));
   }
 

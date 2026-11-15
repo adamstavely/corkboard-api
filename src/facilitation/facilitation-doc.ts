@@ -128,3 +128,44 @@ export function spotlight(doc: Y.Doc, by: string, view: { cx: number; cy: number
     m.set('view', { cx: view.cx, cy: view.cy, zoom: view.zoom });
   });
 }
+
+/** One step of a session's agenda: what it's for, how long it gets, and the frame everyone looks at during it. */
+export interface AgendaStep {
+  id: string;
+  title: string;
+  /** 0 for a step with no timer. */
+  seconds: number;
+  frameId: string | null;
+}
+
+/** The session's plan, and which step it's on (null before it starts and after it ends). */
+export interface AgendaState {
+  steps: AgendaStep[];
+  current: number | null;
+}
+
+const agendaMap = (doc: Y.Doc) => doc.getMap<unknown>('agenda');
+
+export function agendaOf(doc: Y.Doc): AgendaState {
+  const m = agendaMap(doc);
+  const steps = Array.isArray(m.get('steps')) ? (m.get('steps') as AgendaStep[]) : [];
+  const current = m.get('current');
+  return { steps, current: typeof current === 'number' && current >= 0 && current < steps.length ? current : null };
+}
+
+/** Replaces the steps; the step it was on carries on if it's still there, by id. */
+export function setAgenda(doc: Y.Doc, steps: AgendaStep[]): void {
+  const m = agendaMap(doc);
+  const was = agendaOf(doc);
+  const onId = was.current === null ? null : was.steps[was.current].id;
+  const at = onId === null ? -1 : steps.findIndex((s) => s.id === onId);
+  doc.transact(() => {
+    // Plain objects: Yjs won't store class instances (the request's DTOs).
+    m.set('steps', steps.map((s) => ({ id: s.id, title: s.title, seconds: s.seconds, frameId: s.frameId })));
+    m.set('current', at >= 0 ? at : null);
+  });
+}
+
+export function setAgendaStep(doc: Y.Doc, current: number | null): void {
+  agendaMap(doc).set('current', current);
+}

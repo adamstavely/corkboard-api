@@ -1,4 +1,5 @@
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 
 export class SetVotingDto {
   /** Opens a new round (clearing the last one's votes), or closes the current one. */
@@ -79,4 +80,44 @@ export class BringEveryoneDto {
   @Min(0.05)
   @Max(8)
   zoom!: number;
+}
+
+/** One step of the agenda. */
+export class AgendaStepDto {
+  /** Keeps a step's place when the agenda is edited while it runs; a new step can leave it out. */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  title!: string;
+
+  /** How long it gets; 0 for no timer. */
+  @IsInt()
+  @Min(0)
+  @Max(3600)
+  seconds!: number;
+
+  /** The frame everyone is brought to when the step starts. */
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsUUID()
+  frameId?: string | null;
+}
+
+export class SetAgendaDto {
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => AgendaStepDto)
+  steps!: AgendaStepDto[];
+}
+
+export class AgendaGoDto {
+  /** The step to go to, counting from 0; null ends the session's agenda. */
+  @ValidateIf((_, v) => v !== null)
+  @IsInt()
+  @Min(0)
+  step!: number | null;
 }

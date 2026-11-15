@@ -4,7 +4,7 @@ import request from 'supertest';
 import * as Y from 'yjs';
 import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
 import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
-import { facilitatorOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
+import { agendaOf, facilitatorOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
 import { createTestApp, type TestApp } from './app';
 
 const eventually = async (check: () => boolean, ms = 5000) => {
@@ -160,5 +160,43 @@ describe('Dot voting and the shared timer', () => {
     await request(server).delete(`/boards/${board.id}/facilitator`).set(ada.auth).expect(204);
     await eventually(() => facilitatorOf(doc).userId === null);
     await request(server).post(`/boards/${board.id}/facilitator`).set(grace.auth).expect(204);
+  });
+
+  it('runs an agenda a step at a time: each starts its timer and brings everyone to its frame', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const grace = await joined(ada, 'updater');
+    const linus = await joined(ada, 'commenter');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Workshop' });
+    const doc = await open(board.id, linus);
+    const frameId = newFrame(await open(board.id, ada), 'Ideas', { x: 0, y: 0, w: 1000, h: 600 }, 1);
+    await eventually(() => doc.getMap('nodes').has(frameId));
+    const go = (who: Person, step: number | null) => request(server).post(`/boards/${board.id}/agenda/go`).set(who.auth).send({ step });
+
+    await request(server).put(`/boards/${board.id}/agenda`).set(linus.auth).send({ steps: [] }).expect(403);
+    await request(server)
+      .put(`/boards/${board.id}/agenda`)
+      .set(ada.auth)
+      .send({ steps: [{ title: 'Check in', seconds: 0 }, { title: 'Ideas', seconds: 300, frameId }] })
+      .expect(204);
+    await eventually(() => agendaOf(doc).steps.length === 2);
+
+    await go(ada, 5).expect(400);
+    await go(ada, 1).expect(204);
+    await eventually(() => agendaOf(doc).current === 1);
+    expect(timerOf(doc)).toMatchObject({ seconds: 300, label: 'Ideas' });
+    expect(doc.getMap('spotlight').get('view')).toMatchObject({ cx: 500, cy: 300 });
+    // Ada took the seat, so only she moves the agenda on.
+    expect(facilitatorOf(doc).name).not.toBe('');
+    await go(grace, 0).expect(409);
+    await go(linus, 0).expect(403);
+
+    // A step without a timer stops the last one; ending the agenda stops the clock too.
+    await go(ada, 0).expect(204);
+    await eventually(() => agendaOf(doc).current === 0 && timerOf(doc).endsAt === null);
+    await go(ada, 1).expect(204);
+    await eventually(() => timerOf(doc).endsAt !== null);
+    await go(ada, null).expect(204);
+    await eventually(() => agendaOf(doc).current === null && timerOf(doc).endsAt === null);
   });
 });
