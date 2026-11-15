@@ -3,7 +3,7 @@ import { framesOf, notesOf } from '../assist/board-edit';
 import { agendaOf } from '../facilitation/facilitation-doc';
 import { nodeProblem } from '../collab/node-schema';
 import { applyLayout, layoutProblem, type Layout } from './layout';
-import { TEMPLATES, applyTemplate, previewOf } from './templates';
+import { TEMPLATES, TEMPLATE_CATEGORIES, applyTemplate, previewOf } from './templates';
 
 describe('board templates', () => {
   it.each(TEMPLATES.map((t) => [t.id, t] as const))('%s lays out cleanly', (_, template) => {
@@ -26,6 +26,27 @@ describe('board templates', () => {
     // An agenda's frames are in the layout.
     const keys = new Set((template.layout.frames ?? []).map((f) => f.key));
     for (const step of template.agenda ?? []) if (step.frame) expect(keys.has(step.frame)).toBe(true);
+  });
+
+  it('has a unique id for each template and at least ten in every category', () => {
+    expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(TEMPLATES.length);
+    for (const category of TEMPLATE_CATEGORIES) expect(TEMPLATES.filter((t) => t.category === category).length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('gives each template a name, a one-sentence description and agenda steps that run', () => {
+    for (const t of TEMPLATES) {
+      expect(t.name.trim()).not.toBe('');
+      expect(t.description).toMatch(/^[^.]+\.$/);
+      for (const step of t.agenda ?? []) {
+        expect(step.minutes).toBeGreaterThan(0);
+        const a = step.activity;
+        if (a?.kind === 'vote') expect(a.votesEach).toBeGreaterThan(0);
+        if (a?.kind === 'poll') {
+          expect(a.question.trim()).not.toBe('');
+          expect(a.options.length).toBe(a.pollKind === 'choice' ? Math.max(2, a.options.length) : 0);
+        }
+      }
+    }
   });
 
   it('keeps the old column templates: a frame per column with its hint inside', () => {
