@@ -5932,7 +5932,27 @@
               "start-stop-continue",
               "four-ls",
               "plan",
-              "brainstorm"
+              "brainstorm",
+              "mad-sad-glad",
+              "sailboat",
+              "crazy-8s",
+              "how-might-we",
+              "brainstorm-decide",
+              "lean-canvas",
+              "business-model-canvas",
+              "okr-tree",
+              "now-next-later",
+              "empathy-map",
+              "journey-map",
+              "swot",
+              "pre-mortem",
+              "risk-register",
+              "five-whys",
+              "fishbone",
+              "icebreaker",
+              "team-charter",
+              "raci",
+              "meeting"
             ]
           }
         },
