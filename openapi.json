@@ -1153,6 +1153,240 @@
         ]
       }
     },
+    "/boards/{id}/feedback": {
+      "get": {
+        "operationId": "FeedbackController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The team: the board's feedback link and who has joined through it, by name.",
+        "tags": [
+          "feedback"
+        ]
+      },
+      "post": {
+        "operationId": "FeedbackController_open",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owners and the facilitator: open the board for feedback from anyone signed in with the link, replacing any link.",
+        "tags": [
+          "feedback"
+        ]
+      },
+      "put": {
+        "operationId": "FeedbackController_setVisibility",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owners and the facilitator: change what participants see of each other.",
+        "tags": [
+          "feedback"
+        ]
+      },
+      "delete": {
+        "operationId": "FeedbackController_close",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owners and the facilitator: close the board to feedback; the link stops working.",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/boards/{id}/feedback/participants/{userId}": {
+      "put": {
+        "operationId": "FeedbackController_block",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BlockParticipantDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owners and the facilitator: keep a participant out, or let them back.",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/feedback/{token}/join": {
+      "post": {
+        "operationId": "FeedbackController_join",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackJoinDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone signed in, with the link: join the board as a participant. 410 once the link is off; 403 if blocked.",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
     "/boards/{id}/activity": {
       "get": {
         "operationId": "ActivityController_list",
@@ -4541,6 +4775,168 @@
           "boardId",
           "title",
           "canEdit"
+        ]
+      },
+      "FeedbackLinkDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The secret in the link: /feedback/<token>."
+          },
+          "visibility": {
+            "type": "string",
+            "description": "What participants see of each other: everyone's feedback by name, everyone's without names, or only their own.",
+            "enum": [
+              "names",
+              "anonymous",
+              "own"
+            ]
+          },
+          "createdAt": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "token",
+          "visibility",
+          "createdAt"
+        ]
+      },
+      "ParticipantDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pseudonym": {
+            "type": "number",
+            "description": "Other participants see \"Participant <pseudonym>\" when names are hidden."
+          },
+          "joinedAt": {
+            "type": "number"
+          },
+          "blocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "userId",
+          "name",
+          "pseudonym",
+          "joinedAt",
+          "blocked"
+        ]
+      },
+      "FeedbackDto": {
+        "type": "object",
+        "properties": {
+          "link": {
+            "nullable": true,
+            "description": "The live feedback link; null when the board isn't open for feedback.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedbackLinkDto"
+              }
+            ]
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParticipantDto"
+            }
+          }
+        },
+        "required": [
+          "link",
+          "participants"
+        ]
+      },
+      "OpenFeedbackDto": {
+        "type": "object",
+        "properties": {
+          "visibility": {
+            "enum": [
+              "names",
+              "anonymous",
+              "own"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "visibility"
+        ]
+      },
+      "BlockParticipantDto": {
+        "type": "object",
+        "properties": {
+          "blocked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "blocked"
+        ]
+      },
+      "FeedbackYouDto": {
+        "type": "object",
+        "properties": {
+          "pseudonym": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string",
+            "description": "Your own name, which other participants see only when the board shows names."
+          }
+        },
+        "required": [
+          "pseudonym",
+          "name"
+        ]
+      },
+      "FeedbackJoinDto": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "names",
+              "anonymous",
+              "own"
+            ]
+          },
+          "member": {
+            "type": "boolean",
+            "description": "Already in the board's workspace: open the board itself instead."
+          },
+          "you": {
+            "nullable": true,
+            "description": "Null for a workspace member.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeedbackYouDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "boardId",
+          "title",
+          "visibility",
+          "member",
+          "you"
         ]
       },
       "BoardEventDto": {
