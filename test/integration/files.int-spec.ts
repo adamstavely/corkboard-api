@@ -79,6 +79,14 @@ describe('Images and files on boards', () => {
     const { body: notes } = await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', Buffer.from('hello'), { filename: 'notes.txt', contentType: 'text/plain' }).expect(201);
     const txt = await request(server).get(`/boards/${board.id}/files/${notes.id}`).set(auth).expect(200);
     expect(txt.headers['content-disposition']).toContain('attachment');
+
+    // Video and audio go on the board to play there, shown inline.
+    for (const [filename, contentType] of [['demo.mp4', 'video/mp4'], ['call.mp3', 'audio/mpeg'], ['memo.m4a', 'audio/mp4']]) {
+      const { body: media } = await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', Buffer.from('media'), { filename, contentType }).expect(201);
+      const got = await request(server).get(`/boards/${board.id}/files/${media.id}`).set(auth).expect(200);
+      expect([got.headers['content-type'], got.headers['content-disposition']]).toEqual([contentType, expect.stringContaining('inline')]);
+    }
+    await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', Buffer.from('x'), { filename: 'clip.mov', contentType: 'video/quicktime' }).expect(400);
   });
 
   it("asks a model about an image and the places marked on it, showing it the picture", async () => {
