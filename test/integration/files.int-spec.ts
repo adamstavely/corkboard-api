@@ -123,7 +123,7 @@ describe('Images and files on boards', () => {
       said.push(await req.execute('search_files', { query: 'budget' }));
       said.push(await req.execute('search_files', { query: 'onboarding interviewed' }));
       said.push(await req.execute('read_file', { file_id: md.id, from: long.length - 100 }));
-      said.push(await req.execute('read_file', { file_id: randomUUID(), from: null }));
+      said.push(await req.execute('read_file', { file_id: randomUUID(), from: null }).catch((err: Error) => err.message));
       return 'The pilot has £40k; most people found onboarding slow.';
     };
     const res = await request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: m.id, instruction: 'What do the files say?' }).expect(200);
