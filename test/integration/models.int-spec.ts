@@ -317,6 +317,24 @@ describe('Model connections and the assistant', () => {
     expect(prompt).not.toContain('started the timer');
   });
 
+  it('maps a topic out as a mind map the board can grow', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Map' });
+    script = async (req) => {
+      await req.execute('make_mind_map', { root: 'Launch', branches: [{ text: 'Marketing', children: [] }, { text: 'Engineering', children: [{ text: 'API', children: [] }] }] });
+      return 'Mapped it.';
+    };
+    const res = await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Map out the launch' }).expect(200);
+    expect(res.body.notesAdded).toBe(4);
+    const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+    const minds = [...doc.getMap<Y.Map<unknown>>('nodes').values()].map((n) => n.get('mind')).filter(Boolean);
+    expect(minds).toHaveLength(4);
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
