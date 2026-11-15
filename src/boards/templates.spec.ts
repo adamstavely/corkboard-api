@@ -42,7 +42,10 @@ describe('board templates', () => {
 
   it('places every kind of thing, with arrows between keys, at an origin', () => {
     const layout: Layout = {
-      frames: [{ key: 'f', title: 'Goal', x: 0, y: 0, w: 400, h: 300, fill: 'blue', border: 'dashed' }],
+      frames: [
+        { key: 'f', title: 'Goal', x: 0, y: 0, w: 400, h: 300, fill: 'blue', border: 'dashed' },
+        { key: 'p', title: 'Home page', x: 0, y: 1000, w: 640, h: 300, look: 'slide' },
+      ],
       notes: [{ key: 'n', text: '**Why:** because', color: 'green', x: 32, y: 48 }],
       texts: [{ key: 't', text: 'Heading', size: 'xl', x: 500, y: 0 }],
       shapes: [{ key: 's', shape: 'diamond', label: 'Decide', x: 500, y: 100, w: 200, h: 160 }],
@@ -56,6 +59,8 @@ describe('board templates', () => {
     const nodes = doc.getMap<Y.Map<unknown>>('nodes');
     const frame = nodes.get(ids.get('f')!)!;
     expect([frame.get('x'), frame.get('y'), frame.get('fill'), frame.get('border')]).toEqual([1000, 2000, 'blue', 'dashed']);
+    const slide = nodes.get(ids.get('p')!)!;
+    expect([frame.get('look'), slide.get('look'), slide.get('w'), slide.get('h')]).toEqual([undefined, 'slide', 640, 360]);
     expect(nodes.get(ids.get('t')!)!.get('size')).toBe('xl');
     const table = [...nodes.values()].find((n) => n.get('kind') === 'table')!;
     expect([table.get('rows'), table.get('cols'), (table.get('cells') as Y.Map<string>).get('1:1')]).toEqual([2, 3, 'Ada']);
@@ -70,6 +75,7 @@ describe('board templates', () => {
     expect(layoutProblem({})).toMatch(/empty/);
     expect(layoutProblem({ notes: [{ text: 'x', color: 'teal' as never, x: 0, y: 0 }] })).toMatch(/colour/);
     expect(layoutProblem({ notes: [{ text: 'x', x: -5, y: 0 }] })).toMatch(/position/);
+    expect(layoutProblem({ frames: [{ title: 'x', x: 0, y: 0, w: 400, h: 300, look: 'polaroid' as never }] })).toMatch(/frame style/);
     expect(layoutProblem({ notes: [{ key: 'a', text: 'x', x: 0, y: 0 }], arrows: [{ from: 'a', to: 'b' }] })).toMatch(/arrow/);
     expect(layoutProblem({ notes: [{ key: 'a', text: 'x', x: 0, y: 0 }, { key: 'a', text: 'y', x: 0, y: 0 }] })).toMatch(/twice/);
     expect(layoutProblem({ notes: Array.from({ length: 201 }, () => ({ text: 'x', x: 0, y: 0 })) })).toMatch(/more than/);

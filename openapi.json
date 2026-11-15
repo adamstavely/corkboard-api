@@ -7473,6 +7473,20 @@
               "solid",
               "dashed"
             ]
+          },
+          "look": {
+            "type": "string",
+            "enum": [
+              "outline",
+              "card",
+              "band",
+              "tab",
+              "zone",
+              "drop",
+              "lane",
+              "slide",
+              "browser"
+            ]
           }
         },
         "required": [
