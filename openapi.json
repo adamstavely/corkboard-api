@@ -488,6 +488,123 @@
         ]
       }
     },
+    "/boards/{id}/poll": {
+      "post": {
+        "operationId": "FacilitationController_startPoll",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartPollDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: start a poll (a question with options, or a fist-to-five), clearing the last one.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/poll/end": {
+      "put": {
+        "operationId": "FacilitationController_endPoll",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EndPollDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: close the poll to show its result, or clear it away.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/poll/answers": {
+      "post": {
+        "operationId": "FacilitationController_answerPoll",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerPollDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up, while a poll is open: answer it, or change an answer.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/orgs/{orgId}/folders": {
       "get": {
         "operationId": "OrganiseController_folders",
@@ -4173,6 +4290,60 @@
         },
         "required": [
           "step"
+        ]
+      },
+      "StartPollDto": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "description": "A question with options, or fist-to-five: 0 to 5 fingers.",
+            "enum": [
+              "choice",
+              "fist"
+            ]
+          },
+          "options": {
+            "description": "For a choice poll: two to eight options.",
+            "minItems": 2,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        },
+        "required": [
+          "question",
+          "kind"
+        ]
+      },
+      "EndPollDto": {
+        "type": "object",
+        "properties": {
+          "clear": {
+            "type": "boolean",
+            "description": "Clears the poll away, rather than closing it to show its result."
+          }
+        }
+      },
+      "AnswerPollDto": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "number",
+            "description": "An option's index, from 0; or for fist-to-five, fingers from 0 to 5.",
+            "minimum": 0,
+            "maximum": 7
+          }
+        },
+        "required": [
+          "answer"
         ]
       },
       "FolderDto": {

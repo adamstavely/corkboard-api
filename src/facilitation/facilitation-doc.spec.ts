@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { agendaOf, castVote, setAgenda, setAgendaStep, setTimer, setVoting, timerOf, voteCounts, votingOf } from './facilitation-doc';
+import { agendaOf, answerPoll, endPoll, pollCounts, pollOf, startPoll, castVote, setAgenda, setAgendaStep, setTimer, setVoting, timerOf, voteCounts, votingOf } from './facilitation-doc';
 
 describe('dot voting', () => {
   it('gives each person their votes, lets them take one back, and starts each round empty', () => {
@@ -48,5 +48,31 @@ describe('the agenda', () => {
     expect(agendaOf(doc).current).toBe(2);
     setAgenda(doc, [step('a', 'Ideas')]);
     expect(agendaOf(doc).current).toBeNull();
+  });
+});
+
+describe('polls', () => {
+  it('takes one answer each, in range, while open; keeps the result when closed; clears away', () => {
+    const doc = new Y.Doc();
+    expect(pollOf(doc)).toBeNull();
+    expect(answerPoll(doc, 'ada', 0)).toBe('No poll is open');
+    startPoll(doc, 'Lunch?', 'choice', ['Pizza', 'Salad']);
+    expect(answerPoll(doc, 'ada', 0)).toBeNull();
+    expect(answerPoll(doc, 'ada', 1)).toBeNull();
+    expect(answerPoll(doc, 'bob', 1)).toBeNull();
+    expect(answerPoll(doc, 'cy', 2)).toBe('That is not one of the answers');
+    expect([...pollCounts(doc)]).toEqual([[1, 2]]);
+    endPoll(doc, false);
+    expect(pollOf(doc)).toMatchObject({ open: false, question: 'Lunch?', round: 1 });
+    expect(pollCounts(doc).get(1)).toBe(2);
+
+    startPoll(doc, 'Ready to ship?', 'fist', ['ignored']);
+    expect(pollOf(doc)).toMatchObject({ open: true, kind: 'fist', options: [], round: 2 });
+    expect(pollCounts(doc).size).toBe(0);
+    expect(answerPoll(doc, 'ada', 5)).toBeNull();
+    expect(answerPoll(doc, 'ada', 6)).toBe('That is not one of the answers');
+    endPoll(doc, true);
+    expect(pollOf(doc)).toBeNull();
+    expect(pollCounts(doc).size).toBe(0);
   });
 });

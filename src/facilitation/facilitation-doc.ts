@@ -169,3 +169,77 @@ export function setAgenda(doc: Y.Doc, steps: AgendaStep[]): void {
 export function setAgendaStep(doc: Y.Doc, current: number | null): void {
   agendaMap(doc).set('current', current);
 }
+
+/**
+ * A quick poll: a question with a few options, or a fist-to-five (0 to 5 fingers: how much do you agree?). Answers are
+ * kept apart, a person's latest one each, so asking again replaces it.
+ */
+export interface PollState {
+  open: boolean;
+  /** Goes up with each new poll, which starts with no answers. */
+  round: number;
+  question: string;
+  kind: 'choice' | 'fist';
+  /** The choices for a choice poll; empty for fist-to-five. */
+  options: string[];
+}
+
+const pollMap = (doc: Y.Doc) => doc.getMap<unknown>('poll');
+/** Each person's answer: an option's index, or a number of fingers. */
+const pollAnswersMap = (doc: Y.Doc) => doc.getMap<number>('pollAnswers');
+
+export function pollOf(doc: Y.Doc): PollState | null {
+  const m = pollMap(doc);
+  if (!m.has('question')) return null;
+  return {
+    open: m.get('open') === true,
+    round: Number(m.get('round') ?? 0),
+    question: typeof m.get('question') === 'string' ? (m.get('question') as string) : '',
+    kind: m.get('kind') === 'fist' ? 'fist' : 'choice',
+    options: Array.isArray(m.get('options')) ? (m.get('options') as string[]) : [],
+  };
+}
+
+/** How many people gave each answer: an option's index, or a number of fingers. */
+export function pollCounts(doc: Y.Doc): Map<number, number> {
+  const counts = new Map<number, number>();
+  pollAnswersMap(doc).forEach((a) => counts.set(a, (counts.get(a) ?? 0) + 1));
+  return counts;
+}
+
+/** Starts a new poll, clearing the last one's answers. */
+export function startPoll(doc: Y.Doc, question: string, kind: PollState['kind'], options: string[]): void {
+  const m = pollMap(doc);
+  doc.transact(() => {
+    pollAnswersMap(doc).clear();
+    m.set('round', Number(m.get('round') ?? 0) + 1);
+    m.set('question', question);
+    m.set('kind', kind);
+    m.set('options', kind === 'fist' ? [] : [...options]);
+    m.set('open', true);
+  });
+}
+
+/** Closes the poll, keeping its answers as the result; or clears it away. */
+export function endPoll(doc: Y.Doc, clear: boolean): void {
+  const m = pollMap(doc);
+  doc.transact(() => {
+    if (clear) {
+      pollAnswersMap(doc).clear();
+      m.delete('question');
+      m.delete('kind');
+      m.delete('options');
+      m.delete('open');
+    } else m.set('open', false);
+  });
+}
+
+/** A person's answer; says why not when it can't be taken. */
+export function answerPoll(doc: Y.Doc, userId: string, answer: number): string | null {
+  const poll = pollOf(doc);
+  if (!poll?.open) return 'No poll is open';
+  const most = poll.kind === 'fist' ? 5 : poll.options.length - 1;
+  if (!Number.isInteger(answer) || answer < 0 || answer > most) return 'That is not one of the answers';
+  pollAnswersMap(doc).set(userId, answer);
+  return null;
+}

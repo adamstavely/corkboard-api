@@ -2,7 +2,7 @@ import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post, Put } f
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { AgendaGoDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
+import { AgendaGoDto, AnswerPollDto, EndPollDto, StartPollDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
 import { FacilitationService } from './facilitation.service';
 
 @ApiTags('facilitation')
@@ -97,5 +97,26 @@ export class FacilitationController {
   @HttpCode(204)
   goToStep(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: AgendaGoDto): Promise<void> {
     return this.facilitation.goToStep(user, id, body.step);
+  }
+
+  /** Updaters and owners: start a poll (a question with options, or a fist-to-five), clearing the last one. */
+  @Post('poll')
+  @HttpCode(204)
+  startPoll(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: StartPollDto): Promise<void> {
+    return this.facilitation.startPoll(user, id, body.question, body.kind, body.options);
+  }
+
+  /** Updaters and owners: close the poll to show its result, or clear it away. */
+  @Put('poll/end')
+  @HttpCode(204)
+  endPoll(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: EndPollDto): Promise<void> {
+    return this.facilitation.endPoll(user, id, body.clear ?? false);
+  }
+
+  /** Commenters and up, while a poll is open: answer it, or change an answer. */
+  @Post('poll/answers')
+  @HttpCode(204)
+  answerPoll(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: AnswerPollDto): Promise<void> {
+    return this.facilitation.answerPoll(user, id, body.answer);
   }
 }

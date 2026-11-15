@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 
 export class SetVotingDto {
   /** Opens a new round (clearing the last one's votes), or closes the current one. */
@@ -120,4 +120,40 @@ export class AgendaGoDto {
   @IsInt()
   @Min(0)
   step!: number | null;
+}
+
+export class StartPollDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  question!: string;
+
+  /** A question with options, or fist-to-five: 0 to 5 fingers. */
+  @IsIn(['choice', 'fist'])
+  kind!: 'choice' | 'fist';
+
+  /** For a choice poll: two to eight options. */
+  @ValidateIf((o: StartPollDto) => o.kind === 'choice')
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(8)
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(80, { each: true })
+  options?: string[];
+}
+
+export class EndPollDto {
+  /** Clears the poll away, rather than closing it to show its result. */
+  @IsOptional()
+  @IsBoolean()
+  clear?: boolean;
+}
+
+export class AnswerPollDto {
+  /** An option's index, from 0; or for fist-to-five, fingers from 0 to 5. */
+  @IsInt()
+  @Min(0)
+  @Max(7)
+  answer!: number;
 }

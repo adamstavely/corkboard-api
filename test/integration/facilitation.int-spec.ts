@@ -4,7 +4,7 @@ import request from 'supertest';
 import * as Y from 'yjs';
 import { addNotes, newFrame, notesOf, placeNotes } from '../../src/assist/board-edit';
 import { breakoutsOf } from '../../src/facilitation/breakouts-doc';
-import { agendaOf, facilitatorOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
+import { agendaOf, facilitatorOf, pollCounts, pollOf, timerOf, voteCounts, votingOf } from '../../src/facilitation/facilitation-doc';
 import { createTestApp, type TestApp } from './app';
 
 const eventually = async (check: () => boolean, ms = 5000) => {
@@ -198,5 +198,32 @@ describe('Dot voting and the shared timer', () => {
     await eventually(() => timerOf(doc).endsAt !== null);
     await go(ada, null).expect(204);
     await eventually(() => agendaOf(doc).current === null && timerOf(doc).endsAt === null);
+  });
+
+  it('lets updaters run a poll that commenters answer, but not readers', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const linus = await joined(ada, 'commenter');
+    const reader = await joined(ada, 'reader');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Check' });
+    const doc = await open(board.id, linus);
+    const poll = (who: Person) => request(server).post(`/boards/${board.id}/poll`).set(who.auth);
+    const answer = (who: Person, n: number) => request(server).post(`/boards/${board.id}/poll/answers`).set(who.auth).send({ answer: n });
+
+    await poll(linus).send({ question: 'Ready?', kind: 'fist' }).expect(403);
+    await poll(ada).send({ question: 'Lunch?', kind: 'choice', options: ['Pizza'] }).expect(400);
+    await answer(linus, 0).expect(409);
+    await poll(ada).send({ question: 'Ready to ship?', kind: 'fist' }).expect(204);
+    await eventually(() => pollOf(doc)?.open === true);
+    await answer(linus, 4).expect(204);
+    await answer(ada, 2).expect(204);
+    await answer(reader, 3).expect(403);
+    await answer(ada, 9).expect(400);
+    await eventually(() => pollCounts(doc).size === 2);
+    await request(server).put(`/boards/${board.id}/poll/end`).set(ada.auth).send({}).expect(204);
+    await eventually(() => pollOf(doc)?.open === false);
+    await answer(linus, 5).expect(409);
+    await request(server).put(`/boards/${board.id}/poll/end`).set(ada.auth).send({ clear: true }).expect(204);
+    await eventually(() => pollOf(doc) === null);
   });
 });
