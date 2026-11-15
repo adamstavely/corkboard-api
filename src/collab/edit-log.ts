@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { decoded } from './decoded';
 import { placesIn } from './node-schema';
 
 /** What one change did to the board's things, by their ids: added, changed (anything in them) or removed. */
@@ -15,8 +16,8 @@ export const touched = (): Touched => ({ added: new Set(), changed: new Set(), r
  * say "Ada changed 3 things" of edits made straight in the board, which no endpoint records.
  */
 export function touchedBy(doc: Y.Doc, update: Uint8Array, into: Touched = touched()): Touched {
-  const { structs, ds } = Y.decodeUpdate(update);
-  const { placeOf, isNode, find } = placesIn(doc, structs);
+  const { structs, ds } = decoded(update);
+  const { placeOf, isNode, find } = placesIn(doc, update);
   const nodeOf = (item: Y.Item): string | null => {
     let at = item;
     for (let depth = 0; depth < 1000; depth++) {
