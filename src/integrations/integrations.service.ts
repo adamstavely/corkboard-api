@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 import type * as Y from 'yjs';
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
@@ -11,6 +11,12 @@ import { OrgsService } from '../orgs/orgs.service';
 import { checkConfig, createIssue, type IntegrationConfig, type IntegrationKind } from './exporters';
 import type { CreateIntegrationDto, ExportResultDto, IntegrationDto } from './integrations.dto';
 import { IssueHttp } from './issue-http';
+
+/**
+ * How long a send may hold a task before its claim is taken as left behind by a crash or restart: well past the
+ * tracker request's own time limit, so a send still under way is never mistaken for one.
+ */
+export const CLAIM_LEASE_MS = 5 * 60_000;
 
 /** A task as the board keeps it, and the issue it went out as. */
 interface StoredTask {
@@ -42,6 +48,7 @@ const view = (row: typeof integrations.$inferSelect): IntegrationDto => ({
  */
 @Injectable()
 export class IntegrationsService {
+  readonly #log = new Logger(IntegrationsService.name);
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly orgs: OrgsService,
@@ -109,7 +116,7 @@ export class IntegrationsService {
           continue;
         }
         if (claim.kind === 'busy') {
-          result.failed.push({ taskId: task.id, taskKey: task.key, reason: claim.reason });
+          result.failed.push({ taskId: task.id, taskKey: task.key, reason: claim.reason, ...(claim.mayExist ? { mayExist: true } : {}) });
           continue;
         }
         const body = [
@@ -121,20 +128,15 @@ export class IntegrationsService {
           .filter(Boolean)
           .join('\n\n');
         let answered = false;
+        let made: { key: string; url: string };
         try {
-          const made = await createIssue(
+          made = await createIssue(
             (url, init) => this.http.request(url, init).then((reply) => ((answered = true), reply)),
             row.kind,
             row.config,
             token,
             { title: task.title, body },
           );
-          await this.db
-            .update(issueExports)
-            .set({ status: 'done', issueKey: made.key, url: made.url })
-            .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
-          await link(task.id, made);
-          result.exported.push({ taskId: task.id, taskKey: task.key, issueKey: made.key, url: made.url });
         } catch (err) {
           const message = (err as Error).message;
           if (answered) {
@@ -144,10 +146,38 @@ export class IntegrationsService {
           } else {
             // No answer: it may have been made. Held until someone checks and sends it again by name.
             await this.db.update(issueExports).set({ status: 'unknown' }).where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
-            result.failed.push({ taskId: task.id, taskKey: task.key, reason: `${message} It may have been created: check ${row.label} before sending it again.` });
+            result.failed.push({ taskId: task.id, taskKey: task.key, reason: `${message} It may have been created: check ${row.label} before sending it again.`, mayExist: true });
           }
           // A refused token or a missing repository fails every task the same way: stop there.
           if (/token was refused|not found/.test(message)) break;
+          continue;
+        }
+        // The issue exists now. Whatever fails from here, the claim is never let go (that would send it twice): what's
+        // left is recording it here and linking the task, which sending the task again finishes without a new issue.
+        try {
+          await this.db
+            .update(issueExports)
+            .set({ status: 'done', issueKey: made.key, url: made.url })
+            .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
+        } catch (err) {
+          this.#log.error(`Created ${made.key} (${made.url}) for task ${task.id} on board ${boardId} but couldn't record it: ${String(err)}`);
+          // Linked on the board, the task is never sent again (only tasks without an issue are).
+          const linked = await link(task.id, made).then(
+            () => true,
+            () => false,
+          );
+          result.failed.push({
+            taskId: task.id,
+            taskKey: task.key,
+            reason: linked ? `Created as ${made.key}, but it couldn't be recorded here; the task is linked to it.` : `Created as ${made.key} (${made.url}), but it couldn't be recorded or linked here. Don't send it again; link it by hand.`,
+          });
+          continue;
+        }
+        try {
+          await link(task.id, made);
+          result.exported.push({ taskId: task.id, taskKey: task.key, issueKey: made.key, url: made.url });
+        } catch {
+          result.failed.push({ taskId: task.id, taskKey: task.key, reason: `Created as ${made.key}, but the task couldn't be linked to it. Send it again to link it; no new issue is made.` });
         }
       }
       if (result.exported.length) await this.activity.record(boardId, user, `sent tasks to ${row.label}`, `${result.exported.length} task${result.exported.length === 1 ? '' : 's'}`);
@@ -167,26 +197,36 @@ export class IntegrationsService {
     integrationId: string,
     kind: 'github' | 'linear' | 'jira',
     retryUnknown: boolean,
-  ): Promise<{ kind: 'claimed' } | { kind: 'done'; key: string; url: string } | { kind: 'busy'; reason: string }> {
+  ): Promise<{ kind: 'claimed' } | { kind: 'done'; key: string; url: string } | { kind: 'busy'; reason: string; mayExist?: boolean }> {
     const [claimed] = await this.db
       .insert(issueExports)
       .values({ boardId, taskId, integrationId, kind, status: 'pending' })
       .onConflictDoNothing()
       .returning({ taskId: issueExports.taskId });
     if (claimed) return { kind: 'claimed' };
-    const [held] = await this.db.select().from(issueExports).where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, taskId)));
+    let [held] = await this.db.select().from(issueExports).where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, taskId)));
     if (!held) return this.#claim(boardId, taskId, integrationId, kind, retryUnknown);
+    // A claim pending past its lease was left by a send that never finished (a crash or restart): it may have made the
+    // issue, so it's treated as a send that got no answer.
+    if (held.status === 'pending' && held.claimedAt.getTime() < Date.now() - CLAIM_LEASE_MS) {
+      const [abandoned] = await this.db
+        .update(issueExports)
+        .set({ status: 'unknown' })
+        .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, taskId), eq(issueExports.status, 'pending'), lt(issueExports.claimedAt, new Date(Date.now() - CLAIM_LEASE_MS))))
+        .returning();
+      if (abandoned) held = abandoned;
+    }
     if (held.status === 'done' && held.issueKey && held.url) return { kind: 'done', key: held.issueKey, url: held.url };
     if (held.status === 'unknown' && retryUnknown) {
       const [taken] = await this.db
         .update(issueExports)
-        .set({ status: 'pending', integrationId, kind })
+        .set({ status: 'pending', integrationId, kind, claimedAt: new Date() })
         .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, taskId), eq(issueExports.status, 'unknown')))
         .returning({ taskId: issueExports.taskId });
       if (taken) return { kind: 'claimed' };
     }
     return held.status === 'unknown'
-      ? { kind: 'busy', reason: 'An earlier send got no answer and may have created an issue. Check the tracker, then send this task again.' }
+      ? { kind: 'busy', reason: 'An earlier send got no answer and may have created an issue. Check the tracker, then send this task again.', mayExist: true }
       : { kind: 'busy', reason: 'This task is being sent right now.' };
   }
 }

@@ -599,6 +599,8 @@ export const issueExports = pgTable(
     issueKey: text('issue_key'),
     url: text('url'),
     createdAt: createdAt(),
+    /** When the current send claimed it: a claim still pending long after is one a crash or restart left behind. */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.boardId, t.taskId] })],
 );

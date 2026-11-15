@@ -7883,6 +7883,10 @@
           },
           "reason": {
             "type": "string"
+          },
+          "mayExist": {
+            "type": "boolean",
+            "description": "An earlier send got no answer (or was cut off), so the issue may already exist. Once someone has checked the\ntracker, sending this task again by id (taskIds) sends it; a plain export keeps holding it."
           }
         },
         "required": [

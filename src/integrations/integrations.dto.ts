@@ -88,6 +88,11 @@ export class ExportFailureDto {
   taskId!: string;
   taskKey!: string;
   reason!: string;
+  /**
+   * An earlier send got no answer (or was cut off), so the issue may already exist. Once someone has checked the
+   * tracker, sending this task again by id (taskIds) sends it; a plain export keeps holding it.
+   */
+  mayExist?: boolean;
 }
 
 export class ExportResultDto {
