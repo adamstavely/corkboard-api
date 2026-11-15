@@ -508,6 +508,26 @@ export const writingRounds = pgTable(
   (t) => [index('writing_rounds_board_idx').on(t.boardId)],
 );
 
+/** Templates a workspace's people saved from their boards, for anyone in the workspace to start from. */
+export const workspaceTemplates = pgTable(
+  'workspace_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    category: text('category').notNull(),
+    /** The board as a layout (boards/layout.ts), and its agenda if it had one. */
+    layout: jsonb('layout').notNull(),
+    agenda: jsonb('agenda'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('workspace_templates_org_idx').on(t.orgId)],
+);
+
 /** Planning poker estimates, kept here until the round is revealed so nobody sees anyone else's first. */
 export const pokerEstimates = pgTable(
   'poker_estimates',

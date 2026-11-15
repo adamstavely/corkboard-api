@@ -97,4 +97,47 @@ describe('Boards', () => {
     await request(server).get(`/orgs/${orgId}/boards`).set(await as(stranger)).expect(404);
     await request(server).post(`/orgs/${orgId}/boards`).set(await as(stranger)).send({ title: 'x' }).expect(404);
   });
+
+  it("saves a board as a template for its workspace, which anyone there can start from, and only its saver or an owner can delete", async () => {
+    const server = t.app.getHttpServer();
+    const ada = randomUUID();
+    const orgId = await workspaceOf(ada);
+    const grace = randomUUID();
+    await workspaceOf(grace);
+    const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(await as(ada)).send({ email: `${grace}@corkboard.test`, role: 'commenter' });
+    await request(server).post(`/me/invites/${invite.id}/accept`).set(await as(grace)).expect(201);
+
+    const { body: blank } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(ada)).send({ title: 'Empty' }).expect(201);
+    await request(server).post(`/boards/${blank.id}/as-template`).set(await as(ada)).send({ name: 'Nothing', category: 'retro' }).expect(400);
+
+    const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(ada)).send({ title: 'Sprint 12', template: 'retro' }).expect(201);
+    await request(server).post(`/boards/${board.id}/as-template`).set(await as(grace)).send({ name: 'Ours', category: 'retro' }).expect(403);
+    const { body: saved } = await request(server)
+      .post(`/boards/${board.id}/as-template`)
+      .set(await as(ada))
+      .send({ name: '  Our retro ', description: 'How we run retros', category: 'retro' })
+      .expect(201);
+    expect(saved).toMatchObject({ name: 'Our retro', category: 'retro', columns: ['What went well', 'What could be better', 'Action items'], canDelete: true });
+    expect(saved.agenda.map((s: { title: string }) => s.title)).toEqual(['Check in', 'What went well', 'What could be better', 'Vote', 'Actions']);
+
+    const { body: seen } = await request(server).get(`/orgs/${orgId}/board-templates`).set(await as(grace)).expect(200);
+    expect(seen).toEqual([expect.objectContaining({ id: saved.id, name: 'Our retro', canDelete: false })]);
+    await request(server).delete(`/orgs/${orgId}/board-templates/${saved.id}`).set(await as(grace)).expect(403);
+
+    // A new board from it has its frames, notes and agenda.
+    const { body: next } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(ada)).send({ title: 'Sprint 13', template: saved.id }).expect(201);
+    const { body: stored } = await request(server).get(`/boards/${next.id}/document`).set(await as(ada)).expect(200);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Buffer.from(stored.state, 'base64'));
+    expect(framesOf(doc).map((f) => f.title)).toEqual(expect.arrayContaining(['What went well', 'What could be better', 'Action items']));
+    expect(notesOf(doc).length).toBe(3);
+    expect((doc.getMap('agenda').get('steps') as unknown[]).length).toBe(5);
+    await request(server).post(`/orgs/${orgId}/boards`).set(await as(ada)).send({ title: 'x', template: randomUUID() }).expect(400);
+
+    // Someone outside the workspace sees none of it.
+    await request(server).get(`/orgs/${orgId}/board-templates`).set(await as(randomUUID())).expect(404);
+
+    await request(server).delete(`/orgs/${orgId}/board-templates/${saved.id}`).set(await as(ada)).expect(204);
+    expect((await request(server).get(`/orgs/${orgId}/board-templates`).set(await as(ada)).expect(200)).body).toEqual([]);
+  });
 });

@@ -3,7 +3,7 @@ import type { StepActivityDto } from '../facilitation/facilitation.dto';
 import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeKind, TextSize } from './layout';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
-import { TEMPLATES, type TemplateCategory } from './templates';
+import { type TemplateCategory } from './templates';
 import { ROLES, type Role } from '../access/roles';
 import type { BoardAccess, OrgRole } from '../db/schema';
 
@@ -42,9 +42,10 @@ export class CreateBoardDto {
   @MaxLength(200)
   title!: string;
 
-  /** A template to start from (see GET /board-templates); without one, a blank board. */
+  /** A template to start from (see GET /board-templates, or one the workspace saved); without one, a blank board. */
   @IsOptional()
-  @IsIn(TEMPLATES.map((t) => t.id))
+  @IsString()
+  @MaxLength(100)
   template?: string;
 }
 
