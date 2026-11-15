@@ -1,5 +1,5 @@
 import type { NoteColor } from '../assist/board-edit';
-import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, ShapeKind, TextSize } from './layout';
+import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeKind, TextSize } from './layout';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { TEMPLATES, type TemplateCategory } from './templates';
@@ -56,6 +56,7 @@ export class TemplateFrameDto {
   h!: number;
   fill?: FrameFill;
   border?: FrameBorder;
+  look?: FrameLook;
 }
 
 export class TemplateNoteDto {

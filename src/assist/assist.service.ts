@@ -10,7 +10,7 @@ import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
 import type { AssistRequestDto, AssistResultDto, AssistTurnDto } from './assist.dto';
-import { layoutProblem, placeBeside, type Layout } from '../boards/layout';
+import { FRAME_LOOKS, layoutProblem, placeBeside, type Layout } from '../boards/layout';
 import { addTasks, type StoredTask } from './tasks-doc';
 import { placeMindMap, type MindTree } from '../boards/mindmap';
 import { SearchIndex } from '../search/search-index';
@@ -90,6 +90,11 @@ const LAYOUT = obj({
       h: num,
       fill: opt({ type: 'string', enum: ['clear', 'solid', ...NOTE_COLORS] }),
       border: opt({ type: 'string', enum: ['solid', 'dashed', 'none'] }),
+      look: opt({
+        type: 'string',
+        enum: [...FRAME_LOOKS],
+        description: 'outline (default); card; band (coloured title bar); tab (folder tab); zone (soft, borderless); drop (dashed drop zone); lane (column with a stripe); slide (16:9, for presenting); browser (a browser window, for page mockups).',
+      }),
     }),
   ),
   notes: list(obj({ key: KEY, text: str, color: opt(COLOR), x: num, y: num })),

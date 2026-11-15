@@ -5,6 +5,8 @@ import { NOTE_COLORS, NOTE_SIZE, newFrame, newNote, topZ, type NoteColor } from 
 /** The UI's choices for frames, shapes, text, arrows and views (corkboard-ui's board-doc.ts); a layout uses only these. */
 export const FRAME_FILLS = ['clear', 'solid', ...NOTE_COLORS] as const;
 export const FRAME_BORDERS = ['solid', 'dashed', 'none'] as const;
+/** A frame's shape: outlined (as frames always were), a card, a header band, a folder tab, a soft zone, a drop zone, a lane, a 16:9 slide or a browser window. */
+export const FRAME_LOOKS = ['outline', 'card', 'band', 'tab', 'zone', 'drop', 'lane', 'slide', 'browser'] as const;
 export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle'] as const;
 export const TEXT_SIZES = { sm: 14, md: 20, lg: 32, xl: 48 } as const;
 export const ARROW_ROUTES = ['straight', 'elbow', 'curve'] as const;
@@ -15,6 +17,7 @@ export const VIEW_SIZE = { matrix: { w: 760, h: 620 }, kanban: { w: 1040, h: 620
 
 export type FrameFill = (typeof FRAME_FILLS)[number];
 export type FrameBorder = (typeof FRAME_BORDERS)[number];
+export type FrameLook = (typeof FRAME_LOOKS)[number];
 export type ShapeKind = (typeof SHAPES)[number];
 export type TextSize = keyof typeof TEXT_SIZES;
 export type ArrowRoute = (typeof ARROW_ROUTES)[number];
@@ -26,7 +29,7 @@ export type BoardView = (typeof BOARD_VIEWS)[number];
  * an arrow's end. Frames go under everything else, in the order given; the rest goes on top in the order of the lists.
  */
 export interface Layout {
-  frames?: { key?: string; title: string; x: number; y: number; w: number; h: number; fill?: FrameFill; border?: FrameBorder }[];
+  frames?: { key?: string; title: string; x: number; y: number; w: number; h: number; fill?: FrameFill; border?: FrameBorder; look?: FrameLook }[];
   /** Notes are a fixed size; a line of text a paragraph, and `**Bold:**` at a line's start is bold. */
   notes?: { key?: string; text: string; color?: NoteColor; x: number; y: number }[];
   texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number }[];
@@ -94,7 +97,7 @@ export function layoutProblem(layout: Layout): string | null {
   ];
   if (texts.some((t) => typeof t !== 'string' || t.length > LIMITS.text)) return 'some text is too long';
   const one = <T>(list: readonly T[], value: T | undefined) => value === undefined || list.includes(value);
-  if (!(layout.frames ?? []).every((f) => one(FRAME_FILLS, f.fill) && one(FRAME_BORDERS, f.border))) return 'a frame style the board does not have';
+  if (!(layout.frames ?? []).every((f) => one(FRAME_FILLS, f.fill) && one(FRAME_BORDERS, f.border) && one(FRAME_LOOKS, f.look))) return 'a frame style the board does not have';
   if (![...(layout.notes ?? []), ...(layout.shapes ?? [])].every((n) => one(NOTE_COLORS, n.color))) return 'a colour the board does not have';
   if (!(layout.texts ?? []).every((t) => one(Object.keys(TEXT_SIZES), t.size))) return 'a text size the board does not have';
   if (!(layout.shapes ?? []).every((s) => SHAPES.includes(s.shape))) return 'a shape the board does not have';
@@ -136,10 +139,12 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
   doc.transact(() => {
     let z = topZ(doc);
     for (const f of layout.frames ?? []) {
-      const id = newFrame(doc, f.title, { ...pos(f), w: f.w, h: f.h }, ++z, author);
+      // A slide is always 16:9.
+      const id = newFrame(doc, f.title, { ...pos(f), w: f.w, h: f.look === 'slide' ? (f.w * 9) / 16 : f.h }, ++z, author);
       const node = doc.getMap<Y.Map<unknown>>('nodes').get(id)!;
       if (f.fill) node.set('fill', f.fill);
       if (f.border) node.set('border', f.border);
+      if (f.look) node.set('look', f.look);
       keep(f.key, id);
     }
     for (const n of layout.notes ?? []) keep(n.key, newNote(doc, { text: n.text, color: n.color ?? 'yellow' }, pos(n), ++z, author));
