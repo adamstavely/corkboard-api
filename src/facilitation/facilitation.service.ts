@@ -6,7 +6,7 @@ import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
 import { randomUUID } from 'node:crypto';
-import { agendaOf, castVote, facilitatorOf, setAgenda, setAgendaStep, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
+import { agendaOf, answerPoll, castVote, endPoll, pollOf, startPoll, facilitatorOf, setAgenda, setAgendaStep, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
 import { ActivityService } from '../activity/activity.service';
 
 const DEFAULT_VOTES = 3;
@@ -176,6 +176,31 @@ export class FacilitationService {
       }
     });
     await this.activity.record(boardId, user, step === null ? 'ended the agenda' : 'moved the agenda on', title || undefined);
+  }
+
+  /** Updaters and owners: ask everyone a quick question, or for a fist-to-five. A new poll clears the last one's answers. */
+  async startPoll(user: User, boardId: string, question: string, kind: 'choice' | 'fist', options: string[] = []): Promise<void> {
+    await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => startPoll(doc, question.trim(), kind, options.map((o) => o.trim())));
+    await this.activity.record(boardId, user, 'started a poll', question.trim());
+  }
+
+  /** Updaters and owners: close the poll to show its result, or clear it away. */
+  async endPoll(user: User, boardId: string, clear: boolean): Promise<void> {
+    await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => {
+      if (!pollOf(doc)) throw new ConflictException('There is no poll');
+      endPoll(doc, clear);
+    });
+  }
+
+  /** Commenters and up, while a poll is open: their answer, replacing any they gave before. */
+  async answerPoll(user: User, boardId: string, answer: number): Promise<void> {
+    await this.boards.get(user, boardId, 'commenter');
+    await this.#edit(user, boardId, (doc) => {
+      const problem = answerPoll(doc, user.id, answer);
+      if (problem) throw new ConflictException(problem);
+    });
   }
 
   async #edit(user: User, boardId: string, change: (doc: Y.Doc) => void): Promise<void> {
