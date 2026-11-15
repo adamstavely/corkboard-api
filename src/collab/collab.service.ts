@@ -22,9 +22,9 @@ import { ActivityService } from '../activity/activity.service';
 import { ParticipantsStore } from '../feedback/participants.store';
 
 /** Who someone viewing through a share link is: nobody in particular. */
-const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', createdAt: new Date(0) };
+const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
 /** The server itself, keeping a board loaded while its projections are open. */
-const SERVER: User = { id: '00000000-0000-0000-0000-000000000001', name: 'Corkboard', email: 'server@corkboard.invalid', createdAt: new Date(0) };
+const SERVER: User = { id: '00000000-0000-0000-0000-000000000001', name: 'Corkboard', email: 'server@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
 /** Share-link viewers connect with this before the link's token. */
 const LINK = 'link:';
 

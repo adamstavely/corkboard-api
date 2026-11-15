@@ -10,6 +10,8 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
+  /** The assistant suggests changes for them to accept, instead of making them. */
+  assistantAsksFirst: boolean('assistant_asks_first').notNull().default(false),
   createdAt: createdAt(),
 });
 

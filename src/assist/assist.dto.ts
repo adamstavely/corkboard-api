@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from 'class-validator';
 
 /** One earlier turn of the conversation in the assistant panel. */
 export class AssistTurnDto {
@@ -28,6 +28,11 @@ export class AssistRequestDto {
   @ArrayMaxSize(500)
   @IsUUID('all', { each: true })
   noteIds?: string[];
+
+  /** Put the model's changes to the person as a suggestion instead of making them; by default, as their "ask first" setting says. */
+  @IsOptional()
+  @IsBoolean()
+  propose?: boolean;
 
   /** The conversation so far, oldest first, without this message; for follow-up questions. */
   @IsOptional()
@@ -65,4 +70,6 @@ export class AssistResultDto {
   citedFiles!: CitedFileDto[];
   /** The web pages the answer drew on. */
   citedPages!: CitedPageDto[];
+  /** When the model's changes were put as a suggestion (see the board's `suggestions`) instead of made: its id. */
+  suggestionId!: string | null;
 }

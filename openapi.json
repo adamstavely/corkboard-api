@@ -3637,6 +3637,41 @@
         "tags": [
           "me"
         ]
+      },
+      "patch": {
+        "operationId": "MeController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Changes your own settings.",
+        "tags": [
+          "me"
+        ]
       }
     },
     "/orgs/{orgId}/boards": {
@@ -4789,6 +4824,80 @@
         "summary": "Owners: switch web search on or off, and set its service and key.",
         "tags": [
           "models"
+        ]
+      }
+    },
+    "/boards/{id}/suggestions/{suggestionId}/accept": {
+      "post": {
+        "operationId": "SuggestionsController_accept",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suggestionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: make one of the model's suggestions (see the board's `suggestions`). 409 if it's gone.",
+        "tags": [
+          "suggestions"
+        ]
+      }
+    },
+    "/boards/{id}/suggestions/{suggestionId}/reject": {
+      "post": {
+        "operationId": "SuggestionsController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suggestionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: turn one down. 409 if it's gone.",
+        "tags": [
+          "suggestions"
         ]
       }
     },
@@ -7065,14 +7174,27 @@
             "items": {
               "$ref": "#/components/schemas/OrgDto"
             }
+          },
+          "assistantAsksFirst": {
+            "type": "boolean",
+            "description": "The assistant puts its changes to them as suggestions to accept, instead of making them."
           }
         },
         "required": [
           "id",
           "name",
           "email",
-          "orgs"
+          "orgs",
+          "assistantAsksFirst"
         ]
+      },
+      "UpdateMeDto": {
+        "type": "object",
+        "properties": {
+          "assistantAsksFirst": {
+            "type": "boolean"
+          }
+        }
       },
       "BoardDto": {
         "type": "object",
@@ -8202,6 +8324,10 @@
               "format": "uuid"
             }
           },
+          "propose": {
+            "type": "boolean",
+            "description": "Put the model's changes to the person as a suggestion instead of making them; by default, as their \"ask first\" setting says."
+          },
           "history": {
             "description": "The conversation so far, oldest first, without this message; for follow-up questions.",
             "maxItems": 100,
@@ -8287,6 +8413,11 @@
             "items": {
               "$ref": "#/components/schemas/CitedPageDto"
             }
+          },
+          "suggestionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "When the model's changes were put as a suggestion (see the board's `suggestions`) instead of made: its id."
           }
         },
         "required": [
@@ -8297,7 +8428,8 @@
           "notesMoved",
           "citedNoteIds",
           "citedFiles",
-          "citedPages"
+          "citedPages",
+          "suggestionId"
         ]
       }
     }

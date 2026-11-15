@@ -17,6 +17,7 @@ import { SearchIndex } from '../search/search-index';
 import { FilesService } from '../files/files.service';
 import { ToolsService } from '../web/tools.service';
 import { WEB, type Web } from '../web/web';
+import { Draft, propose, wouldDo } from '../suggestions/suggestions-doc';
 import {
   addNotes,
   frameGroups,
@@ -61,6 +62,8 @@ Only change the board when the person asks for a change; to answer a question, j
 
 /** Added for people who can't change the board, so the model doesn't offer to. */
 const READ_ONLY = `This person can view the board but not change it, so you can't change it for them either: answer questions, and if they ask for a change, say an updater or owner of the board can make it.`;
+
+const PROPOSING = `This person asks to see changes before they're made: what your tools do is put to them as one suggestion they can accept or turn down, so the board doesn't change yet. Say what you've suggested, not what you've done.`;
 
 const COLOR = { type: 'string', enum: [...NOTE_COLORS] };
 
@@ -393,10 +396,39 @@ export class AssistService {
     };
     let tracker: ChangeTracker | undefined;
 
-    /** Writes the run's ledger entry, if it changed anything. */
+    /** In "ask first" mode, the copy of the board the model changes instead; what it did becomes a suggestion. */
+    let draft: Draft | undefined;
+    let suggestionId: string | null = null;
+
+    /** Writes the run's ledger entry, if it changed anything, or its suggestion when it only proposed. */
     const recordRun = async (failed: boolean): Promise<boolean> => {
-      if (!tracker || tracker.empty) return false;
       const counts = { notesAdded, notesChanged, framesAdded, notesMoved, tasksAdded };
+      if (draft) {
+        const proposed = draft;
+        draft = undefined;
+        if (proposed.empty) return false;
+        const done = `${describeChanges(counts)}${failed ? ' (then stopped with an error)' : ''}`;
+        const changes = proposed.tracker.changes();
+        const suggestion = {
+          id: randomUUID(),
+          at: Date.now(),
+          model: model.label,
+          forId: user.id,
+          forName: user.name,
+          asked: request.instruction.trim().slice(0, 300),
+          action: wouldDo(done),
+          done,
+          added: changes.createdNodes.map(({ id, attrs, text }) => ({ id, attrs, ...(text !== undefined ? { text } : {}) })),
+          changed: changes.changed,
+          removed: changes.removed.map((r) => r.id),
+          update: Buffer.from(proposed.update()).toString('base64'),
+        };
+        await connection.transact((d) => propose(d, suggestion));
+        suggestionId = suggestion.id;
+        await this.activity.record(boardId, user, 'had the model suggest a change', model.label, suggestion.action);
+        return true;
+      }
+      if (!tracker || tracker.empty) return false;
       const action = `${describeChanges(counts)}${failed ? ' (then stopped with an error)' : ''}`;
       const entry = { id: randomUUID(), at: Date.now(), model: model.label, forName: user.name, action, ...tracker.changes(), undone: false };
       tracker = undefined;
@@ -421,10 +453,14 @@ export class AssistService {
       // Each edit is tracked on its own, so the run's ledger entry holds only what the model did. Access is checked
       // again first: the person may have lost it while the model was thinking.
       tracker = new ChangeTracker();
+      // Someone who asks first gets the model's changes as a suggestion: it changes a copy of the board.
+      const proposing = canEdit && (request.propose ?? user.assistantAsksFirst);
+      if (proposing) draft = new Draft(doc);
       const edit = async (change: (doc: Y.Doc) => void) => {
         const now = await this.boards.access(user, boardId).catch(() => null);
         if (!now || !atLeast(now.role, 'updater')) throw new Error('The person who asked can no longer change this board, so stop editing it.');
-        await connection.transact((d) => tracker!.track(d, change));
+        if (draft) draft.edit(change);
+        else await connection.transact((d) => tracker!.track(d, change));
       };
 
       const execute = async (name: string, input: unknown): Promise<string> => {
@@ -612,15 +648,15 @@ export class AssistService {
       };
 
       const { text } = await model.chat({
-        system: canEdit ? SYSTEM : `${SYSTEM}\n\n${READ_ONLY}`,
+        system: !canEdit ? `${SYSTEM}\n\n${READ_ONLY}` : proposing ? `${SYSTEM}\n\n${PROPOSING}` : SYSTEM,
         prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? []),
         tools,
         execute,
         maxSteps: 8,
       });
+      // Notes the model pointed to may have been deleted by someone else since (or, proposing, be among its suggestion).
+      const remaining = new Set(notesOf(draft?.doc ?? doc).map((n) => n.id));
       const changed = await recordRun(false);
-      // Notes the model pointed to may have been deleted by someone else since.
-      const remaining = new Set(notesOf(doc).map((n) => n.id));
       const citedNoteIds = cited.filter((id) => remaining.has(id));
       return {
         reply: text || (changed ? 'Done.' : `${model.label} had nothing to say.`),
@@ -631,6 +667,7 @@ export class AssistService {
         citedNoteIds,
         citedFiles: [...citedFiles].map(([fileId, name]) => ({ fileId, name })),
         citedPages: [...citedPages].map(([url, title]) => ({ url, title })),
+        suggestionId,
       };
     } catch (err) {
       // What the model did before it failed is already on the board: keep it in the history so it can be undone.

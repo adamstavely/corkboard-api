@@ -63,7 +63,7 @@ export class ChatService {
         noteIds: request.noteIds,
         history,
       });
-      const { reply: text, citedNoteIds, citedFiles, citedPages, ...changes } = result;
+      const { reply: text, citedNoteIds, citedFiles, citedPages, suggestionId, ...changes } = result;
       reply = {
         ...this.#fromModel(label, user),
         text,
@@ -72,6 +72,7 @@ export class ChatService {
         changes,
         ...(citedFiles.length ? { files: citedFiles } : {}),
         ...(citedPages.length ? { pages: citedPages } : {}),
+        ...(suggestionId ? { suggestionId } : {}),
       };
     } catch (err) {
       if (!(err instanceof HttpException)) this.#log.error(err);
