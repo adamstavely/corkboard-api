@@ -18,13 +18,16 @@ export class ActivityController {
     private readonly versions: VersionsService,
   ) {}
 
-  /** Anyone on the board: what happened on it, newest first; only after `since` (epoch ms) when given. */
+  /**
+   * Anyone on the board: what happened on it, newest first; only after `since` (epoch ms) when given. Who wrote an
+   * anonymous note shows only to owners.
+   */
   @Get('activity')
   @ApiQuery({ name: 'since', required: false, type: Number })
   async list(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Query('since') since?: string): Promise<BoardEventDto[]> {
-    await this.boards.get(user, id);
+    const board = await this.boards.get(user, id);
     const after = Number(since);
-    return this.activity.list(id, Number.isFinite(after) && after > 0 ? after : undefined);
+    return this.activity.list(id, Number.isFinite(after) && after > 0 ? after : undefined, 200, { owner: board.role === 'owner' });
   }
 
   /** Anyone on the board: its saved versions, newest first. */

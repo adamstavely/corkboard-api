@@ -1791,7 +1791,7 @@
             "bearer": []
           }
         ],
-        "summary": "Anyone on the board: what happened on it, newest first; only after `since` (epoch ms) when given.",
+        "summary": "Anyone on the board: what happened on it, newest first; only after `since` (epoch ms) when given. Who wrote an\nanonymous note shows only to owners.",
         "tags": [
           "activity"
         ]

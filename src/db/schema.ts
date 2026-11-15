@@ -313,6 +313,11 @@ export const boardEvents = pgTable(
     action: text('action').notNull(),
     target: text('target'),
     detail: text('detail'),
+    /**
+     * Who did it shows only to the board's owners (and in the workspace's audit export): it was meant to be anonymous on
+     * the board, like a note from an anonymous writing round. It's recorded all the same.
+     */
+    restricted: boolean('restricted').notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [index('board_events_board').on(t.boardId, t.createdAt)],
