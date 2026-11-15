@@ -58,6 +58,9 @@ import { CHAT_MODELS, chatModelFor } from './models/chat-models';
 import { ProvidersController } from './models/providers.controller';
 import { ProvidersService } from './models/providers.service';
 import { SecretBox } from './models/secret-box';
+import { ToolsController } from './web/tools.controller';
+import { ToolsService } from './web/tools.service';
+import { realWeb, WEB } from './web/web';
 import { MembersController } from './orgs/members.controller';
 import { MembersService } from './orgs/members.service';
 import { OrgsService } from './orgs/orgs.service';
@@ -92,6 +95,7 @@ import { SearchIndex } from './search/search-index';
     SearchController,
     MembersController,
     ProvidersController,
+    ToolsController,
     AssistController,
   ],
   providers: [
@@ -101,6 +105,8 @@ import { SearchIndex } from './search/search-index';
     SecretBox,
     { provide: CHAT_MODELS, useValue: chatModelFor },
     ProvidersService,
+    ToolsService,
+    { provide: WEB, useFactory: () => realWeb() },
     AssistService,
     CommentsService,
     ChatService,
