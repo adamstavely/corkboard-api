@@ -7952,7 +7952,13 @@
               "rect",
               "ellipse",
               "diamond",
-              "triangle"
+              "triangle",
+              "hexagon",
+              "star",
+              "arrow",
+              "cylinder",
+              "cloud",
+              "callout"
             ]
           },
           "color": {

@@ -24,6 +24,16 @@ const ALLOWED = new Set<string>([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  // Video and audio, which play on the board.
+  'video/mp4',
+  'video/webm',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/ogg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/webm',
 ]);
 
 export const isImage = (mime: string): mime is ImageType => (IMAGES as readonly string[]).includes(mime);
@@ -69,7 +79,7 @@ export interface StoredFile {
 
 /** Sends a stored file: images and PDFs open in place; other files download. */
 export function sendFile(res: Response, file: StoredFile): void {
-  const inline = isImage(file.mime) || file.mime === 'application/pdf';
+  const inline = isImage(file.mime) || file.mime === 'application/pdf' || /^(video|audio)\//.test(file.mime);
   res.set({
     'Content-Type': file.mime,
     'Content-Length': String(file.data.length),
@@ -97,7 +107,7 @@ export class FilesService {
     const board = await this.boards.get(user, boardId, 'updater');
     if (!file) throw new BadRequestException('Choose a file to add');
     if (file.size > MAX_FILE_BYTES) throw new PayloadTooLargeException('Files can be up to 10 MB');
-    if (!ALLOWED.has(file.mimetype)) throw new BadRequestException(`${file.originalname} isn't a kind of file boards take: images, PDFs, text and Office documents`);
+    if (!ALLOWED.has(file.mimetype)) throw new BadRequestException(`${file.originalname} isn't a kind of file boards take: images, PDFs, text, Office documents, video and audio`);
     const name = file.originalname.replace(/[\\/\0]/g, '_').slice(0, 200) || 'file';
     const [row] = await this.db
       .insert(boardFiles)
