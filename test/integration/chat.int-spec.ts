@@ -96,7 +96,7 @@ describe('Board chat', () => {
 
     const answer = chatOf(adas.doc)[2];
     expect(answer).toMatchObject({ authorId: MODEL_AUTHOR, name: 'Claude', replyTo: grace.id, text: 'Slow deploys are the main theme.', cited: [slow], asked: [slow] });
-    expect(seen.at(-1)!.tools.map((tool) => tool.name)).toEqual(['point_to_notes']);
+    expect(seen.at(-1)!.tools.map((tool) => tool.name)).toEqual(['search_files', 'read_file', 'point_to_notes']);
     // The model saw the chat so far, with names, and who's asking now.
     expect(seen.at(-1)!.prompt).toContain('Person: Ada: Morning!');
     expect(seen.at(-1)!.prompt).toContain('Grace: @Claude what stands out?');

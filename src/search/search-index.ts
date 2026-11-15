@@ -156,7 +156,10 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
     await this.#quietly(`index the file ${file.fileId}`, async () => {
       await this.#es.deleteByQuery({ index: FILES_INDEX, query: { term: { fileId: file.fileId } }, refresh: true }, { ignore: [404] });
       if (!pieces.length) return;
-      await this.#es.bulk({ operations: pieces.flatMap((text, ord) => [{ index: { _index: FILES_INDEX, _id: `${file.fileId}:${ord}` } }, { ...file, ord, start: text.start, text: text.text }]) });
+      const res = await this.#es.bulk({ operations: pieces.flatMap((text, ord) => [{ index: { _index: FILES_INDEX, _id: `${file.fileId}:${ord}` } }, { ...file, ord, start: text.start, text: text.text }]) });
+      // Bulk answers 200 when pieces fail (a mapping that refuses them, say), so say what went wrong.
+      const failed = res.errors ? res.items.find((item) => item.index?.error)?.index?.error : undefined;
+      if (failed) throw new Error(`${failed.type}: ${failed.reason ?? ''}`);
     });
   }
 
