@@ -85,6 +85,15 @@ describe('Hidden writing', () => {
     ]);
     expect(writingOf(doc).open).toBe(false);
     expect((await request(server).get(`${base}/drafts`).set(grace)).body).toEqual([]);
+
+    // The history keeps who wrote each note; only the board's owners see who.
+    const history = async (auth: { Authorization: string }) =>
+      ((await request(server).get(`/boards/${board.id}/activity`).set(auth).expect(200)).body as { actor: string; action: string; detail: string }[]).filter(
+        (e) => e.action === 'wrote a note in a writing round',
+      );
+    const owners = await history(ada);
+    expect(owners.map((e) => `${e.actor}: ${e.detail}`).sort()).toEqual(['Ada Lovelace: Standups run long', 'Grace Hopper: Deploys are slow', 'Grace Hopper: Tests are flaky']);
+    expect((await history(grace)).map((e) => e.actor)).toEqual(['Someone', 'Someone', 'Someone']);
   });
 
   it('signs revealed notes when not anonymous, puts them in the chosen frame, and a cancelled round shows nothing', async () => {

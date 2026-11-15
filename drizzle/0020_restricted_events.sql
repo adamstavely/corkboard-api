@@ -1,0 +1,1 @@
+ALTER TABLE "board_events" ADD COLUMN "restricted" boolean DEFAULT false NOT NULL;

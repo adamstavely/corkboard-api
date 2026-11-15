@@ -19,7 +19,11 @@ export class ActivityService {
 
   constructor(@InjectDb() private readonly db: Db) {}
 
-  async record(boardId: string, actor: Pick<User, 'id' | 'name'> | string, action: string, target?: string, detail?: string): Promise<void> {
+  /**
+   * `restricted`: who did it shows only to the board's owners and in the audit export, for what was anonymous on the
+   * board. The person is recorded either way.
+   */
+  async record(boardId: string, actor: Pick<User, 'id' | 'name'> | string, action: string, target?: string, detail?: string, { restricted = false } = {}): Promise<void> {
     try {
       await this.db.insert(boardEvents).values({
         boardId,
@@ -28,14 +32,15 @@ export class ActivityService {
         action,
         target: target?.slice(0, 200) ?? null,
         detail: detail?.slice(0, 1000) ?? null,
+        restricted,
       });
     } catch (err) {
       this.#log.warn(`Couldn't record "${action}" on board ${boardId}: ${String(err)}`);
     }
   }
 
-  /** Newest first; only after `since` (epoch ms) when given. */
-  async list(boardId: string, since?: number, limit = 200): Promise<BoardEvent[]> {
+  /** Newest first; only after `since` (epoch ms) when given. Restricted events say who only to owners. */
+  async list(boardId: string, since?: number, limit = 200, { owner = false } = {}): Promise<BoardEvent[]> {
     const rows = await this.db
       .select()
       .from(boardEvents)
@@ -43,6 +48,6 @@ export class ActivityService {
       .where(and(eq(boardEvents.boardId, boardId), since ? gte(boardEvents.createdAt, new Date(since + 1)) : undefined))
       .orderBy(desc(boardEvents.createdAt))
       .limit(limit);
-    return rows.map((r) => ({ id: r.id, at: r.createdAt.getTime(), actor: r.actorName, action: r.action, target: r.target, detail: r.detail }));
+    return rows.map((r) => ({ id: r.id, at: r.createdAt.getTime(), actor: r.restricted && !owner ? 'Someone' : r.actorName, action: r.action, target: r.target, detail: r.detail }));
   }
 }

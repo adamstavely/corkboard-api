@@ -162,6 +162,12 @@ export class WritingService {
       await tx.update(writingRounds).set({ status: 'closed' }).where(eq(writingRounds.id, round));
     });
     await this.activity.record(boardId, user, 'revealed the hidden notes', `${notes.length} note${notes.length === 1 ? '' : 's'}`);
+    // Who wrote each note goes in the history even when the round was anonymous: there, only owners see who.
+    await Promise.all(
+      rows.map(({ draft, name }) =>
+        this.activity.record(boardId, { id: draft.authorId, name }, 'wrote a note in a writing round', undefined, draft.text, { restricted: writing.anonymous }),
+      ),
+    );
     return { revealed: notes.length };
   }
 
