@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException, type OnApplicationShutdown } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException, type OnModuleDestroy } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
 import { modelProviders, modelUsage, type ModelProvider, type User } from '../db/schema';
@@ -26,14 +26,17 @@ const toDto = (p: ModelProvider): ProviderDto => ({
  * not their keys) and use them on the workspace's boards.
  */
 @Injectable()
-export class ProvidersService implements OnApplicationShutdown {
+export class ProvidersService implements OnModuleDestroy {
   readonly #log = new Logger(ProvidersService.name);
   /** The model requests running now (see ModelJobs). */
   readonly jobs = new ModelJobs();
 
-  /** Stops model requests still running, so none outlives the API or holds a board open while it shuts down. */
-  onApplicationShutdown(): void {
-    this.jobs.stopAll();
+  /**
+   * First thing at shutdown, before boards are saved (CollabService) and the HTTP server waits on open requests: refuse
+   * new model work, stop what's running, and wait for it to finish with what it has, so none outlives the API.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await this.jobs.drain();
   }
   constructor(
     @InjectDb() private readonly db: Db,
@@ -128,14 +131,14 @@ export class ProvidersService implements OnApplicationShutdown {
       }
     }
     const model = this.models(provider, apiKey);
-    if (!use) return Object.assign(model, { label: provider.label });
+    // Every call is one of the workspace's few at once, with a deadline, stopped at shutdown (see ModelJobs).
+    if (!use) return { label: provider.label, chat: (request) => this.jobs.run(orgId, request.signal, (signal) => model.chat({ ...request, signal })) };
     return {
       label: provider.label,
       chat: async (request) => {
         let input = 0;
         let output = 0;
         try {
-          // At most a few at once per workspace, each with a deadline, all stopped at shutdown (see ModelJobs).
           return await this.jobs.run(orgId, request.signal, (signal) =>
             model.chat({
               ...request,

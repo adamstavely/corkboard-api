@@ -33,6 +33,33 @@ describe('model requests', () => {
     await expect(running).rejects.toThrow('restarting');
   });
 
+  it('at shutdown stops requests, waits for the work around them to finish, and refuses new work', async () => {
+    const jobs = new ModelJobs(4, 60_000);
+    const saved: string[] = [];
+    // A piece of work: a request, then saving what it got (here, that it was stopped).
+    const work = jobs.work(async () => {
+      try {
+        await jobs.run('org', undefined, hang);
+      } catch (e) {
+        await new Promise((r) => setTimeout(r, 20));
+        saved.push((e as Error).message);
+      }
+    });
+    await jobs.drain(1_000);
+    expect(saved).toEqual([expect.stringContaining('restarting')]);
+    await work;
+    await expect(jobs.work(() => Promise.resolve('late'))).rejects.toThrow('restarting');
+    await expect(jobs.run('org', undefined, () => Promise.resolve('late'))).rejects.toThrow(ModelError);
+  });
+
+  it('stops waiting for work that will not finish once its time is up', async () => {
+    const jobs = new ModelJobs(4, 60_000);
+    void jobs.work(() => new Promise(() => undefined));
+    const started = Date.now();
+    await jobs.drain(50);
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
   it("cancels a model call that doesn't answer in time, or that the request stops", async () => {
     const fetch = ((_url: string, init: RequestInit) => hang(init.signal!)) as unknown as typeof globalThis.fetch;
     const model = openAICompatibleModel({ model: 'm', baseUrl: 'http://model.test/v1', label: 'Slow', fetch, stepMs: 50 });

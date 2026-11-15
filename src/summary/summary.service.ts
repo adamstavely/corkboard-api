@@ -57,7 +57,12 @@ export class SummaryService {
     private readonly activity: ActivityService,
   ) {}
 
-  async summarise(user: User, boardId: string, modelId: string, length: 'short' | 'detailed' = 'short'): Promise<BoardSummary> {
+  summarise(user: User, boardId: string, modelId: string, length: 'short' | 'detailed' = 'short'): Promise<BoardSummary> {
+    // One piece of model work, which shutdown stops and waits for (see ModelJobs.work).
+    return this.providers.jobs.work(() => this.#summarise(user, boardId, modelId, length));
+  }
+
+  async #summarise(user: User, boardId: string, modelId: string, length: 'short' | 'detailed'): Promise<BoardSummary> {
     const board = await this.boards.get(user, boardId, 'commenter');
     const model = await this.providers.modelFor(board.orgId, modelId, { userId: user.id, boardId, feature: 'summary' });
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });

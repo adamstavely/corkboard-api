@@ -48,7 +48,8 @@ export class ChatService {
       { kind: 'mention', actor: user.name, title: 'mentioned you in the board chat', body: message.text, context: board.title, link: `/boards/${boardId}`, boardId },
     );
     // The answer comes into the chat when it's ready; the sender doesn't wait for it.
-    if (model) void this.#answer(user, boardId, message, history, request, model.label, board.title);
+    // It's model work, which shutdown stops and waits for (see ModelJobs.work); refused once shutdown has begun.
+    if (model) void this.providers.jobs.work(() => this.#answer(user, boardId, message, history, request, model.label, board.title)).catch(() => undefined);
     return { id: message.id, authorId: message.authorId, name: message.name, at: message.at, text: message.text };
   }
 
