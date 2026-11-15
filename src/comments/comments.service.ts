@@ -89,7 +89,7 @@ export class CommentsService {
   }
 
   #changed(boardId: string): void {
-    this.collab.hocuspocus.documents.get(boardId)?.broadcastStateless(COMMENTS_CHANGED);
+    this.collab.broadcastToBoard(boardId, COMMENTS_CHANGED);
   }
 
   /** A board's threads (or just one), oldest first, each with its comments oldest first. */

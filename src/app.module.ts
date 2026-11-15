@@ -11,6 +11,7 @@ import { LinksController } from './links/links.controller';
 import { FeedbackController } from './feedback/feedback.controller';
 import { FeedbackService } from './feedback/feedback.service';
 import { ParticipantsStore } from './feedback/participants.store';
+import { ParticipationService } from './feedback/participation.service';
 import { LinksService } from './links/links.service';
 import { ActivityController } from './activity/activity.controller';
 import { VersionsService } from './activity/activity';
@@ -107,6 +108,7 @@ import { SearchIndex } from './search/search-index';
     LinksService,
     FeedbackService,
     ParticipantsStore,
+    ParticipationService,
     ActivityService,
     VersionsService,
     NotificationsService,
