@@ -1750,6 +1750,79 @@
         ]
       }
     },
+    "/feedback/boards/{id}/poker/estimates": {
+      "post": {
+        "operationId": "FeedbackController_estimate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PokerEstimateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/feedback/boards/{id}/poker/estimates/mine": {
+      "get": {
+        "operationId": "FeedbackController_myEstimate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyEstimateDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
     "/boards/{id}/activity": {
       "get": {
         "operationId": "ActivityController_list",
@@ -2931,6 +3004,176 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/poker": {
+      "post": {
+        "operationId": "PokerController_start",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartPokerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: start a round of planning poker on a task, a note or a title, clearing the last one.",
+        "tags": [
+          "facilitation"
+        ]
+      },
+      "delete": {
+        "operationId": "PokerController_clear",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: put planning poker away.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/poker/estimates": {
+      "post": {
+        "operationId": "PokerController_estimate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PokerEstimateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up, until the estimates are revealed: your estimate, replacing any you gave before.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/poker/estimates/mine": {
+      "get": {
+        "operationId": "PokerController_mine",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyEstimateDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up: your estimate in the running round. Nobody else's until they're revealed.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/poker/reveal": {
+      "put": {
+        "operationId": "PokerController_reveal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: show everyone's estimates at once.",
         "tags": [
           "facilitation"
         ]
@@ -5996,6 +6239,47 @@
           "answer"
         ]
       },
+      "PokerEstimateDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "A card from the round's deck.",
+            "enum": [
+              "0",
+              "1",
+              "2",
+              "3",
+              "5",
+              "8",
+              "13",
+              "21",
+              "?",
+              "XS",
+              "S",
+              "M",
+              "L",
+              "XL"
+            ]
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "MyEstimateDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "nullable": true,
+            "description": "Your estimate in the running round, or null if you haven't given one."
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
       "BoardEventDto": {
         "type": "object",
         "properties": {
@@ -6764,6 +7048,37 @@
         },
         "required": [
           "text"
+        ]
+      },
+      "StartPokerDto": {
+        "type": "object",
+        "properties": {
+          "deck": {
+            "type": "string",
+            "description": "Story points on a Fibonacci scale, or T-shirt sizes.",
+            "enum": [
+              "fibonacci",
+              "tshirt"
+            ]
+          },
+          "taskId": {
+            "type": "string",
+            "description": "A task on the board's kanban to estimate; \"Set estimate\" can then write the result to it.",
+            "format": "uuid"
+          },
+          "noteId": {
+            "type": "string",
+            "description": "Or a note on the board.",
+            "maxLength": 200
+          },
+          "title": {
+            "type": "string",
+            "description": "What's being estimated, in words; the task's or note's own text when left out.",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "deck"
         ]
       },
       "UnfurlRequestDto": {

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, P
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
+import { MyEstimateDto, PokerEstimateDto } from '../facilitation/poker.dto';
 import { BlockParticipantDto, FeedbackDto, FeedbackJoinDto, OpenFeedbackDto } from './feedback.dto';
 import { FeedbackService } from './feedback.service';
 import {
@@ -125,5 +126,16 @@ export class FeedbackController {
   @HttpCode(204)
   answerPoll(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: ParticipantAnswerDto): Promise<void> {
     return this.participation.answerPoll(user, id, body.answer);
+  }
+
+  @Post('feedback/boards/:id/poker/estimates')
+  @HttpCode(204)
+  estimate(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: PokerEstimateDto): Promise<void> {
+    return this.participation.estimate(user, id, body.value);
+  }
+
+  @Get('feedback/boards/:id/poker/estimates/mine')
+  async myEstimate(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<MyEstimateDto> {
+    return { value: await this.participation.myEstimate(user, id) };
   }
 }

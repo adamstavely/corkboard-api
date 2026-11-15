@@ -11,7 +11,7 @@ import * as Y from 'yjs';
  *   not at all, since the others' aren't there.
  * - Votes, reactions and poll answers are keyed by stand-ins ("p4" for a participant, "t…" for the team) so they still
  *   add up; seeing only their own, a participant gets just theirs, and the rest only once the vote or poll is over.
- * - The timer, agenda, poll, private mode and where the facilitator brings everyone; the facilitator's name, not id.
+ * - The timer, agenda, poll, planning poker, private mode and where the facilitator brings everyone; the facilitator's name, not id.
  * - Never chat, the change history, the summary, hidden writing or breakouts.
  */
 export type Visibility = 'names' | 'anonymous' | 'own';
@@ -34,7 +34,7 @@ const teamKey = (userId: string) => `t${createHash('sha256').update(userId).dige
 /** Fields that say who made something; none reach a projection. */
 const IDENTITY = new Set(['author', 'authorName', 'createdBy', 'participant']);
 /** The parts of the board copied as they are (none carry anyone's id). */
-const AS_THEY_ARE = ['timer', 'agenda', 'poll', 'privacy', 'spotlight'];
+const AS_THEY_ARE = ['timer', 'agenda', 'poll', 'poker', 'privacy', 'spotlight'];
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const plain = (v: unknown) => (v instanceof Y.AbstractType ? (v.toJSON() as unknown) : v);
@@ -127,6 +127,8 @@ export function project(board: Y.Doc, target: Y.Doc, audience: Audience, partici
     syncMap(target.getMap('votes'), keyed(board.getMap('votes'), board.getMap('voting').get('open') !== true));
     syncMap(target.getMap('voting'), new Map(board.getMap<unknown>('voting').entries()));
     syncMap(target.getMap('pollAnswers'), keyed(board.getMap('pollAnswers'), board.getMap('poll').get('open') !== true));
+    // Planning poker: who has estimated (an empty value) until the reveal, then what.
+    syncMap(target.getMap('pokerEstimates'), keyed(board.getMap('pokerEstimates'), board.getMap('poker').get('revealed') === true));
 
     // Reactions, on what's shown: everyone's under stand-ins, or only their own.
     const reactions = new Map<string, unknown>();

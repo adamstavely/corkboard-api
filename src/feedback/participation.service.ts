@@ -9,6 +9,7 @@ import { COMMENTS_CHANGED } from '../comments/comments.service';
 import { InjectDb, type Db } from '../db/db.module';
 import { comments, commentThreads, type User } from '../db/schema';
 import { answerPoll, castVote } from '../facilitation/facilitation-doc';
+import { PokerService } from '../facilitation/poker.service';
 import { react } from '../reactions/reactions';
 import type { ParticipantCommentThreadDto, ParticipantNoteDto } from './participation.dto';
 import { ParticipantsStore } from './participants.store';
@@ -25,6 +26,7 @@ export class ParticipationService {
     private readonly store: ParticipantsStore,
     private readonly collab: CollabService,
     private readonly activity: ActivityService,
+    private readonly poker: PokerService,
   ) {}
 
   /** A participant who may act now, or 403. */
@@ -128,6 +130,18 @@ export class ParticipationService {
       const problem = answerPoll(doc, user.id, answer);
       if (problem) throw new ConflictException(problem);
     });
+  }
+
+  /** A planning poker estimate, kept hidden like everyone's until the facilitator reveals them. */
+  async estimate(user: User, boardId: string, value: string): Promise<void> {
+    await this.#me(user, boardId);
+    await this.poker.estimateAs(user, boardId, value);
+  }
+
+  /** Their own estimate in the running round. */
+  async myEstimate(user: User, boardId: string): Promise<string | null> {
+    await this.#me(user, boardId);
+    return this.poker.mineAs(user, boardId);
   }
 
   async comment(user: User, boardId: string, nodeId: string, body: string): Promise<ParticipantCommentThreadDto[]> {
