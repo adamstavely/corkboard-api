@@ -143,7 +143,7 @@ describe('Images and files on boards', () => {
 
     // A reader can ask about the files, but the model gets no tools to change the board.
     script = async (req) => {
-      expect(req.tools.map((tool) => tool.name).sort()).toEqual(['point_to_notes', 'read_file', 'search_files']);
+      expect(req.tools.map((tool) => tool.name).sort()).toEqual(['point_to_notes', 'read_app', 'read_file', 'search_files']);
       return req.execute('search_files', { query: 'launch date' });
     };
     const asReader = await request(server).post(`/boards/${board.id}/assist`).set(readerAuth).send({ modelId: m.id, instruction: 'When is launch?' }).expect(200);
