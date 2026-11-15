@@ -23,6 +23,8 @@ export interface ChatMessage {
   asked?: string[];
   /** On the model's messages: the board's files the answer drew on. */
   files?: { fileId: string; name: string }[];
+  /** On the model's messages: the web pages the answer drew on. */
+  pages?: { url: string; title: string }[];
   /** On the model's messages: what it changed on the board. */
   changes?: { notesAdded: number; notesChanged: number; framesAdded: number; notesMoved: number };
   /** On the model's messages: it couldn't answer, and `text` says why. */

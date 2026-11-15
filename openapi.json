@@ -4712,6 +4712,86 @@
         ]
       }
     },
+    "/orgs/{orgId}/assistant-tools": {
+      "get": {
+        "operationId": "ToolsController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceToolsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What the workspace's assistant may use beyond the board.",
+        "tags": [
+          "models"
+        ]
+      },
+      "put": {
+        "operationId": "ToolsController_update",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceToolsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceToolsDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owners: switch web search on or off, and set its service and key.",
+        "tags": [
+          "models"
+        ]
+      }
+    },
     "/boards/{id}/assist": {
       "post": {
         "operationId": "AssistController_assist",
@@ -8034,6 +8114,52 @@
           "latencyMs"
         ]
       },
+      "WorkspaceToolsDto": {
+        "type": "object",
+        "properties": {
+          "searchProvider": {
+            "nullable": true,
+            "enum": [
+              "brave",
+              "tavily"
+            ],
+            "type": "string"
+          },
+          "webSearch": {
+            "type": "boolean",
+            "description": "The assistant may search the web and read public pages."
+          },
+          "hasSearchKey": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "searchProvider",
+          "webSearch",
+          "hasSearchKey"
+        ]
+      },
+      "UpdateWorkspaceToolsDto": {
+        "type": "object",
+        "properties": {
+          "searchProvider": {
+            "nullable": true,
+            "enum": [
+              "brave",
+              "tavily"
+            ],
+            "type": "string"
+          },
+          "webSearch": {
+            "type": "boolean"
+          },
+          "searchKey": {
+            "type": "string",
+            "description": "The search service's API key, stored encrypted; an empty string removes it.",
+            "maxLength": 500
+          }
+        }
+      },
       "AssistTurnDto": {
         "type": "object",
         "properties": {
@@ -8105,6 +8231,21 @@
           "name"
         ]
       },
+      "CitedPageDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "title"
+        ]
+      },
       "AssistResultDto": {
         "type": "object",
         "properties": {
@@ -8139,6 +8280,13 @@
             "items": {
               "$ref": "#/components/schemas/CitedFileDto"
             }
+          },
+          "citedPages": {
+            "description": "The web pages the answer drew on.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CitedPageDto"
+            }
           }
         },
         "required": [
@@ -8148,7 +8296,8 @@
           "framesAdded",
           "notesMoved",
           "citedNoteIds",
-          "citedFiles"
+          "citedFiles",
+          "citedPages"
         ]
       }
     }
