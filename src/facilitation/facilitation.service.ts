@@ -5,7 +5,8 @@ import { breakoutsOf, groupOf, moveTo, setBreakouts, spread } from './breakouts-
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import type { User } from '../db/schema';
-import { castVote, facilitatorOf, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
+import { randomUUID } from 'node:crypto';
+import { agendaOf, castVote, facilitatorOf, setAgenda, setAgendaStep, setFacilitator, setTimer, setVoting, spotlight, votingOf } from './facilitation-doc';
 import { ActivityService } from '../activity/activity.service';
 
 const DEFAULT_VOTES = 3;
@@ -133,6 +134,48 @@ export class FacilitationService {
       if (!now.userId) setFacilitator(doc, { id: user.id, name: user.name });
       spotlight(doc, user.name, view);
     });
+  }
+
+  /** Updaters and owners: the session's steps, each with its time and the frame it's about. */
+  async setAgenda(user: User, boardId: string, steps: { id?: string; title: string; seconds: number; frameId?: string | null }[]): Promise<void> {
+    await this.boards.get(user, boardId, 'updater');
+    await this.#edit(user, boardId, (doc) => {
+      const frames = new Set(framesOf(doc).map((f) => f.id));
+      if (steps.some((s) => s.frameId && !frames.has(s.frameId))) throw new BadRequestException('A step names a frame that is not on the board');
+      setAgenda(doc, steps.map((s) => ({ id: s.id ?? randomUUID(), title: s.title.trim(), seconds: s.seconds, frameId: s.frameId ?? null })));
+    });
+  }
+
+  /**
+   * Moves the session to a step (or ends it, null): its timer starts, and if it has a frame, everyone is brought to it.
+   * Like bringing everyone, it's the facilitator's to do, and takes the seat if it's free.
+   */
+  async goToStep(user: User, boardId: string, step: number | null): Promise<void> {
+    await this.boards.get(user, boardId, 'updater');
+    let title = '';
+    await this.#edit(user, boardId, (doc) => {
+      const now = facilitatorOf(doc);
+      if (now.userId && now.userId !== user.id) throw new ConflictException(`${now.name} is facilitating, so only they can move the agenda on`);
+      const agenda = agendaOf(doc);
+      if (step === null) {
+        setAgendaStep(doc, null);
+        setTimer(doc, null, '', user.name);
+        return;
+      }
+      const s = agenda.steps[step];
+      if (!s) throw new BadRequestException('There is no such step');
+      title = s.title;
+      if (!now.userId) setFacilitator(doc, { id: user.id, name: user.name });
+      setAgendaStep(doc, step);
+      setTimer(doc, s.seconds > 0 ? s.seconds : null, s.title, user.name);
+      const frame = s.frameId ? framesOf(doc).find((f) => f.id === s.frameId) : undefined;
+      if (frame) {
+        // Room for the frame on a laptop screen, never past 100%.
+        const zoom = Math.max(0.1, Math.min(1, 1100 / (frame.w + 64), 640 / (frame.h + 64)));
+        spotlight(doc, user.name, { cx: frame.x + frame.w / 2, cy: frame.y + frame.h / 2, zoom });
+      }
+    });
+    await this.activity.record(boardId, user, step === null ? 'ended the agenda' : 'moved the agenda on', title || undefined);
   }
 
   async #edit(user: User, boardId: string, change: (doc: Y.Doc) => void): Promise<void> {

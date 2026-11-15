@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { castVote, setTimer, setVoting, timerOf, voteCounts, votingOf } from './facilitation-doc';
+import { agendaOf, castVote, setAgenda, setAgendaStep, setTimer, setVoting, timerOf, voteCounts, votingOf } from './facilitation-doc';
 
 describe('dot voting', () => {
   it('gives each person their votes, lets them take one back, and starts each round empty', () => {
@@ -33,5 +33,20 @@ describe('the shared timer', () => {
     expect(timerOf(doc)).toEqual({ endsAt: 301_000, seconds: 300, label: 'Add notes', by: 'Ada' });
     setTimer(doc, null, '', 'Ada', 2000);
     expect(timerOf(doc).endsAt).toBeNull();
+  });
+});
+
+describe('the agenda', () => {
+  const step = (id: string, title: string) => ({ id, title, seconds: 300, frameId: null });
+
+  it('keeps its place by step when edited while it runs, and forgets a place that is gone', () => {
+    const doc = new Y.Doc();
+    expect(agendaOf(doc)).toEqual({ steps: [], current: null });
+    setAgenda(doc, [step('a', 'Ideas'), step('b', 'Vote')]);
+    setAgendaStep(doc, 1);
+    setAgenda(doc, [step('c', 'Check in'), step('a', 'Ideas'), step('b', 'Vote')]);
+    expect(agendaOf(doc).current).toBe(2);
+    setAgenda(doc, [step('a', 'Ideas')]);
+    expect(agendaOf(doc).current).toBeNull();
   });
 });

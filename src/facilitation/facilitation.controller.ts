@@ -2,7 +2,7 @@ import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post, Put } f
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { BreakoutTimerDto, BringEveryoneDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
+import { AgendaGoDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
 import { FacilitationService } from './facilitation.service';
 
 @ApiTags('facilitation')
@@ -83,5 +83,19 @@ export class FacilitationController {
   @HttpCode(204)
   bringEveryone(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: BringEveryoneDto): Promise<void> {
     return this.facilitation.bringEveryone(user, id, body);
+  }
+
+  /** Updaters and owners: the session's agenda, a step at a time, each with its time and frame. */
+  @Put('agenda')
+  @HttpCode(204)
+  setAgenda(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: SetAgendaDto): Promise<void> {
+    return this.facilitation.setAgenda(user, id, body.steps);
+  }
+
+  /** The facilitator: go to a step (its timer starts, everyone goes to its frame), or end the agenda. */
+  @Post('agenda/go')
+  @HttpCode(204)
+  goToStep(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: AgendaGoDto): Promise<void> {
+    return this.facilitation.goToStep(user, id, body.step);
   }
 }

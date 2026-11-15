@@ -133,6 +133,14 @@ export class TemplatePreviewBoxDto {
   h!: number;
 }
 
+/** A step of a template's agenda. */
+export class TemplateAgendaStepDto {
+  title!: string;
+  minutes!: number;
+  /** The key of the frame the step is about. */
+  frame?: string;
+}
+
 /** A board to start from, for the new-board picker and the board's own template picker. */
 export class BoardTemplateDto {
   id!: string;
@@ -143,6 +151,8 @@ export class BoardTemplateDto {
   columns!: string[];
   preview!: TemplatePreviewBoxDto[];
   layout!: TemplateLayoutDto;
+  /** How a session on it runs, if the template has a plan for one. */
+  agenda?: TemplateAgendaStepDto[];
 }
 
 export class UpdateBoardDto {

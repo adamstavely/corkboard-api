@@ -410,6 +410,84 @@
         ]
       }
     },
+    "/boards/{id}/agenda": {
+      "put": {
+        "operationId": "FacilitationController_setAgenda",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAgendaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: the session's agenda, a step at a time, each with its time and frame.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/agenda/go": {
+      "post": {
+        "operationId": "FacilitationController_goToStep",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgendaGoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The facilitator: go to a step (its timer starts, everyone goes to its frame), or end the agenda.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/orgs/{orgId}/folders": {
       "get": {
         "operationId": "OrganiseController_folders",
@@ -4038,6 +4116,65 @@
           "zoom"
         ]
       },
+      "AgendaStepDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Keeps a step's place when the agenda is edited while it runs; a new step can leave it out.",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "seconds": {
+            "type": "number",
+            "description": "How long it gets; 0 for no timer.",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "frameId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The frame everyone is brought to when the step starts.",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "title",
+          "seconds"
+        ]
+      },
+      "SetAgendaDto": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgendaStepDto"
+            }
+          }
+        },
+        "required": [
+          "steps"
+        ]
+      },
+      "AgendaGoDto": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "number",
+            "nullable": true,
+            "description": "The step to go to, counting from 0; null ends the session's agenda.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "step"
+        ]
+      },
       "FolderDto": {
         "type": "object",
         "properties": {
@@ -5867,6 +6004,25 @@
           }
         }
       },
+      "TemplateAgendaStepDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "minutes": {
+            "type": "number"
+          },
+          "frame": {
+            "type": "string",
+            "description": "The key of the frame the step is about."
+          }
+        },
+        "required": [
+          "title",
+          "minutes"
+        ]
+      },
       "BoardTemplateDto": {
         "type": "object",
         "properties": {
@@ -5905,6 +6061,13 @@
           },
           "layout": {
             "$ref": "#/components/schemas/TemplateLayoutDto"
+          },
+          "agenda": {
+            "description": "How a session on it runs, if the template has a plan for one.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateAgendaStepDto"
+            }
           }
         },
         "required": [

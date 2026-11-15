@@ -1,5 +1,7 @@
 import * as Y from 'yjs';
 import { FRAME_PADDING, FRAME_TITLE, NOTE_SIZE, type NoteColor } from '../assist/board-edit';
+import { setAgenda } from '../facilitation/facilitation-doc';
+import { randomUUID } from 'node:crypto';
 import { applyLayout, layoutSize, type FrameBorder, type FrameFill, type Layout } from './layout';
 
 /** Where a template sits in the picker. */
@@ -13,6 +15,8 @@ export interface BoardTemplate {
   description: string;
   category: TemplateCategory;
   layout: Layout;
+  /** How a session on it runs, a step at a time; `frame` is a frame's key in the layout. */
+  agenda?: { title: string; minutes: number; frame?: string }[];
 }
 
 const COLUMN = { w: 2 * NOTE_SIZE.w + 3 * FRAME_PADDING, h: 640 };
@@ -21,7 +25,7 @@ const GAP = 64;
 /** Columns side by side, each a frame with a note at the top saying what goes in it. */
 export function columns(list: { title: string; hint: string; color?: NoteColor }[]): Layout {
   return {
-    frames: list.map((c, i) => ({ title: c.title, x: i * (COLUMN.w + GAP), y: 0, ...COLUMN })),
+    frames: list.map((c, i) => ({ key: `col${i}`, title: c.title, x: i * (COLUMN.w + GAP), y: 0, ...COLUMN })),
     notes: list.map((c, i) => ({ text: c.hint, color: c.color ?? 'yellow', x: i * (COLUMN.w + GAP) + FRAME_PADDING, y: FRAME_TITLE })),
   };
 }
@@ -89,6 +93,13 @@ export const TEMPLATES: BoardTemplate[] = [
     name: 'Retrospective',
     description: 'What went well, what could be better, and what to do about it.',
     category: 'retro',
+    agenda: [
+      { title: 'Check in', minutes: 3 },
+      { title: 'What went well', minutes: 5, frame: 'col0' },
+      { title: 'What could be better', minutes: 5, frame: 'col1' },
+      { title: 'Vote', minutes: 3 },
+      { title: 'Actions', minutes: 10, frame: 'col2' },
+    ],
     layout: columns([
       { title: 'What went well', hint: 'One thing per note: what went well?', color: 'green' },
       { title: 'What could be better', hint: 'One thing per note: what got in the way?', color: 'pink' },
@@ -178,6 +189,11 @@ export const TEMPLATES: BoardTemplate[] = [
     name: 'Crazy 8s',
     description: 'Eight ideas in eight minutes: one sketch or note per frame, then vote on the best.',
     category: 'ideate',
+    agenda: [
+      { title: 'Sketch eight ideas', minutes: 8 },
+      { title: 'Share', minutes: 10 },
+      { title: 'Vote', minutes: 3 },
+    ],
     layout: merge(
       { texts: [{ text: 'Crazy 8s: one idea a minute. Set an 8-minute timer, then vote.', size: 'lg', x: 0, y: 0, w: 1200 }] },
       ...Array.from({ length: 8 }, (_, i) => ({ frames: [{ title: String(i + 1), x: (i % 4) * 344, y: 96 + Math.floor(i / 4) * 344, w: 320, h: 320 }] })),
@@ -199,6 +215,13 @@ export const TEMPLATES: BoardTemplate[] = [
     name: 'Brainstorm, then decide',
     description: 'Ideas, grouped into themes, scored for value and effort, and turned into actions.',
     category: 'ideate',
+    agenda: [
+      { title: 'Ideas', minutes: 8, frame: 'ideas' },
+      { title: 'Group into themes', minutes: 5, frame: 'themes' },
+      { title: 'Vote', minutes: 3, frame: 'themes' },
+      { title: 'Value and effort', minutes: 8 },
+      { title: 'Actions', minutes: 8, frame: 'actions' },
+    ],
     layout: merge(
       area('ideas', 'Ideas', { x: 0, y: 0, w: 920, h: 640 }, '**1. Ideas:** write on your own, one per note. Try hidden writing.'),
       area('themes', 'Themes', { x: 984, y: 0, w: 920, h: 640 }, '**2. Themes:** ask the assistant to group the ideas, then dot vote.', 'purple'),
@@ -329,6 +352,12 @@ export const TEMPLATES: BoardTemplate[] = [
     name: 'Pre-mortem',
     description: 'Imagine the project failed, then work out why, and what to do about it now.',
     category: 'analyse',
+    agenda: [
+      { title: 'Why it failed', minutes: 7, frame: 'col0' },
+      { title: 'Warning signs', minutes: 5, frame: 'col1' },
+      { title: 'Vote on the biggest risks', minutes: 3 },
+      { title: 'What we do now', minutes: 10, frame: 'col2' },
+    ],
     layout: headed(
       "It's six months from now and the project failed. What happened?",
       columns([
@@ -426,6 +455,12 @@ export const TEMPLATES: BoardTemplate[] = [
     name: 'Meeting',
     description: 'An agenda, notes, decisions and actions, ready for the recap.',
     category: 'team',
+    agenda: [
+      { title: 'Agenda', minutes: 2, frame: 'col0' },
+      { title: 'Discussion', minutes: 20, frame: 'col1' },
+      { title: 'Decisions', minutes: 5, frame: 'col2' },
+      { title: 'Actions', minutes: 5, frame: 'col3' },
+    ],
     layout: columns([
       { title: 'Agenda', hint: '**Agenda**\n1. \n2. \n3. ', color: 'blue' },
       { title: 'Notes', hint: 'Anyone can add notes as we go.', color: 'yellow' },
@@ -437,7 +472,9 @@ export const TEMPLATES: BoardTemplate[] = [
 
 /** Lays a template out on a new board, from its top-left corner. */
 export function applyTemplate(doc: Y.Doc, template: BoardTemplate): void {
-  applyLayout(doc, template.layout, { x: 0, y: 0 });
+  const ids = applyLayout(doc, template.layout, { x: 0, y: 0 });
+  if (template.agenda)
+    setAgenda(doc, template.agenda.map((s) => ({ id: randomUUID(), title: s.title, seconds: s.minutes * 60, frameId: (s.frame && ids.get(s.frame)) || null })));
 }
 
 /** The frames' outlines, scaled into a 100-wide box, to draw a template's preview. */
