@@ -6,7 +6,7 @@ export interface NoteText {
   text: string;
 }
 
-const BLOCKS = new Set(['paragraph', 'heading', 'listItem', 'codeBlock', 'blockquote']);
+const BLOCKS = new Set(['paragraph', 'heading', 'listItem', 'codeBlock', 'blockquote', 'mathBlock']);
 
 /** Plain text of a Tiptap fragment: formatting dropped, one line per block. */
 export function fragmentText(fragment: Y.XmlFragment | Y.XmlElement): string {
@@ -16,6 +16,11 @@ export function fragmentText(fragment: Y.XmlFragment | Y.XmlElement): string {
     if (node instanceof Y.XmlText) {
       for (const op of node.toDelta() as { insert: unknown }[]) if (typeof op.insert === 'string') line += op.insert;
       return;
+    }
+    // Maths keeps its LaTeX in an attribute: $…$ inline, $$…$$ on its own line.
+    if (node instanceof Y.XmlElement && (node.nodeName === 'math' || node.nodeName === 'mathBlock')) {
+      const latex = String(node.getAttribute('latex') ?? '');
+      line += node.nodeName === 'math' ? `$${latex}$` : `$$${latex}$$`;
     }
     const block = node instanceof Y.XmlElement && BLOCKS.has(node.nodeName);
     for (const child of node.toArray()) walk(child as Y.XmlElement | Y.XmlText);
