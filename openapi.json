@@ -605,6 +605,45 @@
         ]
       }
     },
+    "/boards/{id}/privacy": {
+      "put": {
+        "operationId": "FacilitationController_setPrivacy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPrivacyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The facilitator: private mode on or off (pointers, selections and names hidden).",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/orgs/{orgId}/folders": {
       "get": {
         "operationId": "OrganiseController_folders",
@@ -4344,6 +4383,18 @@
         },
         "required": [
           "answer"
+        ]
+      },
+      "SetPrivacyDto": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "description": "Hides everyone's pointers, selections and names (but the facilitator's), or shows them again."
+          }
+        },
+        "required": [
+          "on"
         ]
       },
       "FolderDto": {

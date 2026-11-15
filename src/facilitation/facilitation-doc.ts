@@ -243,3 +243,27 @@ export function answerPoll(doc: Y.Doc, userId: string, answer: number): string |
   pollAnswersMap(doc).set(userId, answer);
   return null;
 }
+
+/**
+ * Private mode: while it's on, people's boards stop sending where their pointer is and what they've selected, and
+ * hide names, so nobody follows the crowd while they write or vote. The facilitator stays visible.
+ */
+export interface PrivacyState {
+  on: boolean;
+  by: string;
+}
+
+const privacyMap = (doc: Y.Doc) => doc.getMap<unknown>('privacy');
+
+export function privacyOf(doc: Y.Doc): PrivacyState {
+  const m = privacyMap(doc);
+  return { on: m.get('on') === true, by: typeof m.get('by') === 'string' ? (m.get('by') as string) : '' };
+}
+
+export function setPrivacy(doc: Y.Doc, on: boolean, by: string): void {
+  const m = privacyMap(doc);
+  doc.transact(() => {
+    m.set('on', on);
+    m.set('by', by);
+  });
+}

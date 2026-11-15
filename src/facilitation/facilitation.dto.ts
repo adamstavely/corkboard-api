@@ -157,3 +157,9 @@ export class AnswerPollDto {
   @Max(7)
   answer!: number;
 }
+
+export class SetPrivacyDto {
+  /** Hides everyone's pointers, selections and names (but the facilitator's), or shows them again. */
+  @IsBoolean()
+  on!: boolean;
+}

@@ -2,7 +2,7 @@ import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post, Put } f
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { AgendaGoDto, AnswerPollDto, EndPollDto, StartPollDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
+import { AgendaGoDto, AnswerPollDto, SetPrivacyDto, EndPollDto, StartPollDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
 import { FacilitationService } from './facilitation.service';
 
 @ApiTags('facilitation')
@@ -118,5 +118,12 @@ export class FacilitationController {
   @HttpCode(204)
   answerPoll(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: AnswerPollDto): Promise<void> {
     return this.facilitation.answerPoll(user, id, body.answer);
+  }
+
+  /** The facilitator: private mode on or off (pointers, selections and names hidden). */
+  @Put('privacy')
+  @HttpCode(204)
+  setPrivacy(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: SetPrivacyDto): Promise<void> {
+    return this.facilitation.setPrivacy(user, id, body.on);
   }
 }
