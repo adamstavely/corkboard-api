@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableE
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type * as Y from 'yjs';
 import { ActivityService } from '../activity/activity.service';
+import { validTasks } from '../assist/tasks-doc';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import { InjectDb, type Db } from '../db/db.module';
@@ -86,7 +87,7 @@ export class IntegrationsService {
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
       const doc = connection.document as unknown as Y.Doc;
-      const all = [...doc.getMap<StoredTask>('tasks').values()].sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+      const all = (validTasks(doc) as unknown as StoredTask[]).sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
       const chosen = taskIds?.length ? all.filter((t) => taskIds.includes(t.id)) : all.filter((t) => t.status !== 'done');
       const fresh = chosen.filter((t) => !t.external);
       const assignees = new Map(

@@ -13,6 +13,7 @@ import { atLeast, type Role } from '../access/roles';
 import type { User } from '../db/schema';
 import { SearchIndex } from '../search/search-index';
 import { isLive, LinksService } from '../links/links.service';
+import { rootProblem } from './root-schema';
 import { serverOwnedIn } from './server-owned';
 import { nodeProblem } from './node-schema';
 import { canChangeLocked, lockProblem } from './locks';
@@ -158,7 +159,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         this.#checked.set(connection, now);
       },
       // A client's update that would change chat, votes or anything else only the API writes, that depends on something
-      // the server doesn't have, that writes a malformed node, or that changes something locked (unless they're an owner
+      // the server doesn't have, that writes a malformed node, task or counter (or a part of the document no board has), or that changes something locked (unless they're an owner
       // or the facilitator), is refused the way a read-only client's edits are:
       // that message isn't applied. Yjs applies each client's changes in order, so its later edits wait on the refused one
       // and it falls out of sync until it reloads; well-behaved clients never write these.
@@ -167,6 +168,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         const refused =
           serverOwnedIn(document, payload) ??
           nodeProblem(document, payload) ??
+          rootProblem(document, payload) ??
           // Guests (share links) are never the owner or the facilitator.
           (context.linkId || !canChangeLocked(document, context.role ?? 'reader', context.user.id) ? lockProblem(document, payload) : null);
         if (!refused) return Promise.resolve();
