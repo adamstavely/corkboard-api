@@ -646,7 +646,7 @@ const PLAN: BoardTemplate[] = [
     layout: merge(
       { frames: [{ key: 'timeline', title: 'Project timeline', x: 0, y: 0, w: 2400, h: 720 }] },
       ...Array.from({ length: 8 }, (_, i) => ({ frames: [{ key: `week${i}`, title: `Week ${i + 1}`, x: 32 + i * 296, y: 48, w: 264, h: 640 }] })),
-      { notes: [{ text: 'One note per task, in the week it starts. Put the owner's name on its first line.', color: 'blue', x: 64, y: 96 }] },
+      { notes: [{ text: 'One note per task, in the week it starts. Put who owns it on the first line.', color: 'blue', x: 64, y: 96 }] },
       { views: [{ view: 'timeline', x: 0, y: 784 }] },
       { texts: [{ text: "Set the timeline frame's start date and how long each column lasts, and the timeline shows it as a Gantt chart.", size: 'sm', x: 0, y: 1320, w: 1040 }] },
       area('milestones', 'Milestones', { x: 1104, y: 784, w: 1296, h: 520 }, 'Key dates, and what must be done by each.', 'yellow', { fill: 'yellow' }),
