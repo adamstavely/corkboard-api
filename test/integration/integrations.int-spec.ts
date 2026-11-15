@@ -59,9 +59,9 @@ describe('Sending tasks to issue trackers', () => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token, document: doc, onSynced: (): void => resolve(p) });
     });
     const tasks = doc.getMap('tasks');
-    tasks.set('a', { id: 'a', key: 'T-1', title: 'Second environment', status: 'todo', labels: ['action'], due: '2026-11-20' });
-    tasks.set('b', { id: 'b', key: 'T-2', title: 'Done already', status: 'done', labels: [] });
-    tasks.set('c', { id: 'c', key: 'T-3', title: 'Runbook', status: 'doing', labels: [] });
+    tasks.set('a', { id: 'a', key: 'T-1', title: 'Second environment', status: 'todo', priority: 0, labels: ['action'], due: '2026-11-20', created: new Date().toISOString() });
+    tasks.set('b', { id: 'b', key: 'T-2', title: 'Done already', status: 'done', priority: 0, labels: [], created: new Date().toISOString() });
+    tasks.set('c', { id: 'c', key: 'T-3', title: 'Runbook', status: 'doing', priority: 0, labels: [], created: new Date().toISOString() });
     await new Promise((r) => setTimeout(r, 300));
 
     await request(server).post(`/boards/${board.id}/tasks/export`).set(readerAuth).send({ integrationId: gh.id }).expect(403);
@@ -99,7 +99,7 @@ describe('Sending tasks to issue trackers', () => {
     const provider = await new Promise<HocuspocusProvider>((resolve) => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token, document: doc, onSynced: (): void => resolve(p) });
     });
-    doc.getMap('tasks').set('x', { id: 'x', key: 'T-1', title: 'Only once', status: 'todo', labels: [] });
+    doc.getMap('tasks').set('x', { id: 'x', key: 'T-1', title: 'Only once', status: 'todo', priority: 0, labels: [], created: new Date().toISOString() });
     await new Promise((r) => setTimeout(r, 300));
 
     behaviour = 'slow';
@@ -110,7 +110,7 @@ describe('Sending tasks to issue trackers', () => {
     expect(both.flatMap((r) => r.body.failed.map((f: { reason: string }) => f.reason))).toEqual(['This task is being sent right now.']);
 
     // A send that gets no answer may have made an issue: it's held, then retried only when asked for by name.
-    doc.getMap('tasks').set('y', { id: 'y', key: 'T-2', title: 'Unclear', status: 'todo', labels: [] });
+    doc.getMap('tasks').set('y', { id: 'y', key: 'T-2', title: 'Unclear', status: 'todo', priority: 0, labels: [], created: new Date().toISOString() });
     await new Promise((r) => setTimeout(r, 300));
     behaviour = 'silent';
     const { body: lost } = await request(server).post(`/boards/${board.id}/tasks/export`).set(auth).send({ integrationId: gh.id }).expect(200);

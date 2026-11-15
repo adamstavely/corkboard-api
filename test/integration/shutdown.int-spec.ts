@@ -26,7 +26,7 @@ describe('Shutting down', () => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token, document: doc, onSynced: (): void => resolve(p) });
     });
     // A change just before shutdown, inside the 2 seconds before its save would run on its own.
-    doc.getMap('tasks').set('last', { id: 'last', key: 'T-1', title: 'Made at the last moment', status: 'todo', labels: [] });
+    doc.getMap('tasks').set('last', { id: 'last', key: 'T-1', title: 'Made at the last moment', status: 'todo', priority: 0, labels: [], created: new Date().toISOString() });
     for (let i = 0; i < 40 && provider.hasUnsyncedChanges; i++) await new Promise((r) => setTimeout(r, 25));
 
     const closed = t.app.close().then(() => 'closed');

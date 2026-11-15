@@ -160,6 +160,27 @@ describe('Real-time collaboration', () => {
     expect(watcher.document.getArray('chat').length).toBe(0);
   });
 
+  it('refuses malformed tasks and parts of the document no board has, so a board still opens', async () => {
+    const subject = randomUUID();
+    const board = await newBoard(subject);
+    const token = board.auth.Authorization.slice(7);
+    const forger = await connect(board.id, token);
+    const honest = await connect(board.id, token);
+    const watcher = await connect(board.id, token);
+
+    forger.document.getMap('tasks').set('bad', {});
+    await new Promise((r) => setTimeout(r, 300));
+    const other = await connect(board.id, token);
+    other.document.getMap('junk').set('a', 1);
+    await new Promise((r) => setTimeout(r, 300));
+    const good = { id: 'ok', key: 'T-1', title: 'Real', status: 'todo', priority: 0, labels: [], created: new Date().toISOString() };
+    honest.document.getMap('tasks').set('ok', good);
+
+    await eventually(() => watcher.document.getMap('tasks').has('ok'));
+    expect([...watcher.document.getMap('tasks').keys()]).toEqual(['ok']);
+    expect(watcher.document.share.has('junk') && watcher.document.getMap('junk').size).toBeFalsy();
+  });
+
   it("refuses an updater's changes to locked things, until they're the facilitator", async () => {
     const server = t.app.getHttpServer();
     const ada = await newBoard(randomUUID());
