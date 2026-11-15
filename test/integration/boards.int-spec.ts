@@ -70,7 +70,7 @@ describe('Boards', () => {
     const orgId = await workspaceOf(subject);
     const server = t.app.getHttpServer();
     const { body: templates } = await request(server).get('/board-templates').set(await as(subject)).expect(200);
-    expect(templates.find((tp: { id: string }) => tp.id === 'retro')).toMatchObject({ name: 'Retrospective', columns: ['What went well', 'What could be better', 'Action items'] });
+    expect(templates.find((tp: { id: string }) => tp.id === 'retro')).toMatchObject({ name: 'Retrospective', category: 'retro', columns: ['What went well', 'What could be better', 'Action items'] });
 
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(await as(subject)).send({ title: 'Sprint 12', template: 'retro' }).expect(201);
     const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(await as(subject)).expect(200);

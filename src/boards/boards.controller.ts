@@ -19,7 +19,7 @@ import { carryOver, nextTitle } from './next-session';
 import type * as Y from 'yjs';
 import { BoardsService, type BoardWithRole } from './boards.service';
 import { OrganiseService } from '../organise/organise.service';
-import { applyTemplate, TEMPLATES } from './templates';
+import { applyTemplate, previewOf, TEMPLATES } from './templates';
 
 const toDto = ({ id, orgId, title, createdAt, updatedAt, role, folderId = null, starred = false, lastVisitedAt = null, continuesId = null }: BoardWithRole): BoardDto => ({
   id,
@@ -53,7 +53,15 @@ export class BoardsController {
   /** The boards a new one can start from. */
   @Get('board-templates')
   templates(): BoardTemplateDto[] {
-    return TEMPLATES.map(({ id, name, description, columns }) => ({ id, name, description, columns: columns.map((c) => c.title) }));
+    return TEMPLATES.map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      category: t.category,
+      columns: (t.layout.frames ?? []).map((f) => f.title),
+      preview: previewOf(t),
+      layout: t.layout,
+    }));
   }
 
   /** Updaters and owners of the workspace: a new board, blank or from a template, which they own. */

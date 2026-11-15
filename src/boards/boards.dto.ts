@@ -1,6 +1,8 @@
+import type { NoteColor } from '../assist/board-edit';
+import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, ShapeKind, TextSize } from './layout';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
-import { TEMPLATES } from './templates';
+import { TEMPLATES, type TemplateCategory } from './templates';
 import { ROLES, type Role } from '../access/roles';
 import type { BoardAccess, OrgRole } from '../db/schema';
 
@@ -45,13 +47,102 @@ export class CreateBoardDto {
   template?: string;
 }
 
-/** A board to start from, for the new-board picker. */
+export class TemplateFrameDto {
+  key?: string;
+  title!: string;
+  x!: number;
+  y!: number;
+  w!: number;
+  h!: number;
+  fill?: FrameFill;
+  border?: FrameBorder;
+}
+
+export class TemplateNoteDto {
+  key?: string;
+  /** A line a paragraph; `**Bold:**` at a line's start is bold. */
+  text!: string;
+  color?: NoteColor;
+  x!: number;
+  y!: number;
+}
+
+export class TemplateTextDto {
+  key?: string;
+  text!: string;
+  size?: TextSize;
+  x!: number;
+  y!: number;
+  w?: number;
+}
+
+export class TemplateShapeDto {
+  key?: string;
+  shape!: ShapeKind;
+  color?: NoteColor;
+  label?: string;
+  x!: number;
+  y!: number;
+  w!: number;
+  h!: number;
+}
+
+export class TemplateTableDto {
+  key?: string;
+  x!: number;
+  y!: number;
+  rows?: number;
+  cols?: number;
+  /** cells[row][col]. */
+  cells!: string[][];
+  colWidth?: number;
+}
+
+export class TemplateViewDto {
+  key?: string;
+  view!: BoardView;
+  x!: number;
+  y!: number;
+}
+
+export class TemplateArrowDto {
+  /** Keys of things in the layout. */
+  from!: string;
+  to!: string;
+  route?: ArrowRoute;
+  dash?: ArrowDash;
+  weight?: number;
+}
+
+/** Things to lay out, in board pixels from the layout's top-left corner (corkboard-api's boards/layout.ts). */
+export class TemplateLayoutDto {
+  frames?: TemplateFrameDto[];
+  notes?: TemplateNoteDto[];
+  texts?: TemplateTextDto[];
+  shapes?: TemplateShapeDto[];
+  tables?: TemplateTableDto[];
+  views?: TemplateViewDto[];
+  arrows?: TemplateArrowDto[];
+}
+
+/** A frame's outline in a template's preview, in a 100-wide box. */
+export class TemplatePreviewBoxDto {
+  x!: number;
+  y!: number;
+  w!: number;
+  h!: number;
+}
+
+/** A board to start from, for the new-board picker and the board's own template picker. */
 export class BoardTemplateDto {
   id!: string;
   name!: string;
   description!: string;
-  /** Its columns' titles, left to right. */
+  category!: TemplateCategory;
+  /** Its frames' titles, in order. */
   columns!: string[];
+  preview!: TemplatePreviewBoxDto[];
+  layout!: TemplateLayoutDto;
 }
 
 export class UpdateBoardDto {

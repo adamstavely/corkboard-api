@@ -5527,6 +5527,346 @@
           "continuesId"
         ]
       },
+      "TemplatePreviewBoxDto": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number"
+          },
+          "h": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ]
+      },
+      "TemplateFrameDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number"
+          },
+          "h": {
+            "type": "number"
+          },
+          "fill": {
+            "type": "string",
+            "enum": [
+              "yellow",
+              "pink",
+              "blue",
+              "green",
+              "purple",
+              "gray",
+              "clear",
+              "solid"
+            ]
+          },
+          "border": {
+            "type": "string",
+            "enum": [
+              "none",
+              "solid",
+              "dashed"
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "x",
+          "y",
+          "w",
+          "h"
+        ]
+      },
+      "TemplateNoteDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "description": "A line a paragraph; `**Bold:**` at a line's start is bold."
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "yellow",
+              "pink",
+              "blue",
+              "green",
+              "purple",
+              "gray"
+            ]
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "text",
+          "x",
+          "y"
+        ]
+      },
+      "TemplateTextDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "sm",
+              "md",
+              "lg",
+              "xl"
+            ]
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "text",
+          "x",
+          "y"
+        ]
+      },
+      "TemplateShapeDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "rect",
+              "ellipse",
+              "diamond",
+              "triangle"
+            ]
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "yellow",
+              "pink",
+              "blue",
+              "green",
+              "purple",
+              "gray"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number"
+          },
+          "h": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "shape",
+          "x",
+          "y",
+          "w",
+          "h"
+        ]
+      },
+      "TemplateTableDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "number"
+          },
+          "cols": {
+            "type": "number"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "required": true,
+              "description": "cells[row][col].",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "colWidth": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "cells"
+        ]
+      },
+      "TemplateViewDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "matrix",
+              "kanban",
+              "timeline"
+            ]
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "view",
+          "x",
+          "y"
+        ]
+      },
+      "TemplateArrowDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Keys of things in the layout."
+          },
+          "to": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string",
+            "enum": [
+              "straight",
+              "elbow",
+              "curve"
+            ]
+          },
+          "dash": {
+            "type": "string",
+            "enum": [
+              "solid",
+              "dashed",
+              "dotted"
+            ]
+          },
+          "weight": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      },
+      "TemplateLayoutDto": {
+        "type": "object",
+        "properties": {
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateFrameDto"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateNoteDto"
+            }
+          },
+          "texts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateTextDto"
+            }
+          },
+          "shapes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateShapeDto"
+            }
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateTableDto"
+            }
+          },
+          "views": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateViewDto"
+            }
+          },
+          "arrows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateArrowDto"
+            }
+          }
+        }
+      },
       "BoardTemplateDto": {
         "type": "object",
         "properties": {
@@ -5539,19 +5879,42 @@
           "description": {
             "type": "string"
           },
+          "category": {
+            "type": "string",
+            "enum": [
+              "retro",
+              "ideate",
+              "plan",
+              "discover",
+              "analyse",
+              "team"
+            ]
+          },
           "columns": {
-            "description": "Its columns' titles, left to right.",
+            "description": "Its frames' titles, in order.",
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "preview": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplatePreviewBoxDto"
+            }
+          },
+          "layout": {
+            "$ref": "#/components/schemas/TemplateLayoutDto"
           }
         },
         "required": [
           "id",
           "name",
           "description",
-          "columns"
+          "category",
+          "columns",
+          "preview",
+          "layout"
         ]
       },
       "CreateBoardDto": {
