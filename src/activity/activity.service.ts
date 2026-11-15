@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, ne, or } from 'drizzle-orm';
 import { InjectDb, type Db } from '../db/db.module';
 import { boardEvents, type User } from '../db/schema';
 
@@ -40,12 +40,19 @@ export class ActivityService {
   }
 
   /** Newest first; only after `since` (epoch ms) when given. Restricted events say who only to owners. */
-  async list(boardId: string, since?: number, limit = 200, { owner = false } = {}): Promise<BoardEvent[]> {
+  async list(boardId: string, since?: number, limit = 200, { owner = false, notBy }: { owner?: boolean; notBy?: string } = {}): Promise<BoardEvent[]> {
     const rows = await this.db
       .select()
       .from(boardEvents)
       // Times go out in whole milliseconds and are kept finer, so "after" starts at the next millisecond.
-      .where(and(eq(boardEvents.boardId, boardId), since ? gte(boardEvents.createdAt, new Date(since + 1)) : undefined))
+      .where(
+        and(
+          eq(boardEvents.boardId, boardId),
+          since ? gte(boardEvents.createdAt, new Date(since + 1)) : undefined,
+          // Someone's own doings, left out (a null actor is the API's own, and stays).
+          notBy ? or(isNull(boardEvents.actorId), ne(boardEvents.actorId, notBy)) : undefined,
+        ),
+      )
       .orderBy(desc(boardEvents.createdAt))
       .limit(limit);
     return rows.map((r) => ({ id: r.id, at: r.createdAt.getTime(), actor: r.restricted && !owner ? 'Someone' : r.actorName, action: r.action, target: r.target, detail: r.detail }));

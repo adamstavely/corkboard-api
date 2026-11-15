@@ -2,6 +2,7 @@ import { TOOLS as ASSIST_TOOLS } from '../assist/assist.service';
 import { TOOL as FILE_TOOL } from '../files/files.service';
 import { TOOL as RECAP_TOOL } from '../summary/recap.service';
 import { TOOL as SUMMARY_TOOL } from '../summary/summary.service';
+import { CATCH_UP_TOOL } from '../summary/catchup.service';
 import type { ToolDef } from './adapters/types';
 
 /**
@@ -28,7 +29,7 @@ function strictProblems(schema: unknown, path: string): string[] {
 }
 
 describe('the tools models are given', () => {
-  const tools: ToolDef[] = [...ASSIST_TOOLS, FILE_TOOL, RECAP_TOOL, SUMMARY_TOOL];
+  const tools: ToolDef[] = [...ASSIST_TOOLS, FILE_TOOL, RECAP_TOOL, SUMMARY_TOOL, CATCH_UP_TOOL];
 
   it.each(tools.map((t) => [t.name, t] as const))('%s fits strict tool calling', (name, tool) => {
     expect(strictProblems(tool.parameters, name)).toEqual([]);

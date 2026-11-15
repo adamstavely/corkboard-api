@@ -2572,6 +2572,52 @@
         ]
       }
     },
+    "/boards/{id}/summary/catch-up": {
+      "post": {
+        "operationId": "SummaryController_catchUp",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatchUpRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatchUpDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commenters and up: what others did on the board since `since`, summed up by a model. Not saved.",
+        "tags": [
+          "summary"
+        ]
+      }
+    },
     "/boards/{id}/recap": {
       "post": {
         "operationId": "RecapController_recap",
@@ -6077,6 +6123,70 @@
           "by",
           "at",
           "basis"
+        ]
+      },
+      "CatchUpRequestDto": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "since": {
+            "type": "number",
+            "description": "When they were last here (epoch ms): what others did after it.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "modelId",
+          "since"
+        ]
+      },
+      "CatchUpPointDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "noteIds": {
+            "description": "The notes it's about, to show them.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "text",
+          "noteIds"
+        ]
+      },
+      "CatchUpDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatchUpPointDto"
+            }
+          },
+          "events": {
+            "type": "number",
+            "description": "How many things others did, as the history has them."
+          },
+          "since": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "summary",
+          "points",
+          "events",
+          "since"
         ]
       },
       "RecapRequestDto": {
