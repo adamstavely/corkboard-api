@@ -46,16 +46,16 @@ describe('Web search for the assistant', () => {
   it('is off until an owner picks a service and gives its key, which nobody sees again', async () => {
     const { server, auth, readerAuth, orgId } = await setup();
     const tools = `/orgs/${orgId}/assistant-tools`;
-    expect((await request(server).get(tools).set(readerAuth).expect(200)).body).toEqual({ webSearch: false, searchProvider: null, hasSearchKey: false });
+    expect((await request(server).get(tools).set(readerAuth).expect(200)).body).toEqual({ webSearch: false, searchProvider: null, hasSearchKey: false, miniApps: true });
     await request(server).put(tools).set(auth).send({ webSearch: true }).expect(400);
     await request(server).put(tools).set(readerAuth).send({ webSearch: false }).expect(403);
     await request(server).put(tools).set(auth).send({ searchProvider: 'bing' }).expect(400);
     const on = await request(server).put(tools).set(auth).send({ webSearch: true, searchProvider: 'tavily', searchKey: 'test-search-key' }).expect(200);
-    expect(on.body).toEqual({ webSearch: true, searchProvider: 'tavily', hasSearchKey: true });
+    expect(on.body).toEqual({ webSearch: true, searchProvider: 'tavily', hasSearchKey: true, miniApps: true });
     expect(JSON.stringify((await request(server).get(tools).set(readerAuth)).body)).not.toContain('test-search-key');
     // Taking the key away while it's on isn't allowed; turning it off and then removing the key is.
     await request(server).put(tools).set(auth).send({ searchKey: '' }).expect(400);
-    expect((await request(server).put(tools).set(auth).send({ webSearch: false, searchKey: '' }).expect(200)).body).toEqual({ webSearch: false, searchProvider: 'tavily', hasSearchKey: false });
+    expect((await request(server).put(tools).set(auth).send({ webSearch: false, searchKey: '' }).expect(200)).body).toEqual({ webSearch: false, searchProvider: 'tavily', hasSearchKey: false, miniApps: true });
   });
 
   it("lets the assistant search and read the web once it's on, for readers too, citing the pages it read", async () => {

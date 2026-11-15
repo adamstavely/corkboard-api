@@ -4901,6 +4901,156 @@
         ]
       }
     },
+    "/boards/{id}/apps/{appId}": {
+      "get": {
+        "operationId": "AppsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "appId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A mini-app on the board (see its `app` items) and its versions.",
+        "tags": [
+          "apps"
+        ]
+      }
+    },
+    "/boards/{id}/apps/{appId}/versions/{version}": {
+      "get": {
+        "operationId": "AppsController_version",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "appId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVersionDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One version's code.",
+        "tags": [
+          "apps"
+        ]
+      }
+    },
+    "/boards/{id}/apps/{appId}/restore": {
+      "post": {
+        "operationId": "AppsController_restore",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "appId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreAppDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: bring an earlier version back, as a new version.",
+        "tags": [
+          "apps"
+        ]
+      }
+    },
     "/boards/{id}/assist": {
       "post": {
         "operationId": "AssistController_assist",
@@ -8253,12 +8403,17 @@
           },
           "hasSearchKey": {
             "type": "boolean"
+          },
+          "miniApps": {
+            "type": "boolean",
+            "description": "The assistant may make mini-apps on the workspace's boards."
           }
         },
         "required": [
           "searchProvider",
           "webSearch",
-          "hasSearchKey"
+          "hasSearchKey",
+          "miniApps"
         ]
       },
       "UpdateWorkspaceToolsDto": {
@@ -8275,12 +8430,111 @@
           "webSearch": {
             "type": "boolean"
           },
+          "miniApps": {
+            "type": "boolean"
+          },
           "searchKey": {
             "type": "string",
             "description": "The search service's API key, stored encrypted; an empty string removes it.",
             "maxLength": 500
           }
         }
+      },
+      "AppVersionSummaryDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string",
+            "description": "What changed, in a line."
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "description": "The model that wrote it, if one did."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "note",
+          "model",
+          "createdAt"
+        ]
+      },
+      "AppDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "latest": {
+            "type": "number"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppVersionSummaryDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "latest",
+          "versions"
+        ]
+      },
+      "AppVersionDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string",
+            "description": "What changed, in a line."
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "description": "The model that wrote it, if one did."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "note",
+          "model",
+          "createdAt",
+          "html"
+        ]
+      },
+      "RestoreAppDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "version"
+        ]
       },
       "AssistTurnDto": {
         "type": "object",

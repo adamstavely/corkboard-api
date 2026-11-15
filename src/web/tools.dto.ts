@@ -9,6 +9,8 @@ export class WorkspaceToolsDto {
   @ApiProperty({ enum: SEARCH_PROVIDERS, nullable: true })
   searchProvider!: SearchProvider | null;
   hasSearchKey!: boolean;
+  /** The assistant may make mini-apps on the workspace's boards. */
+  miniApps!: boolean;
 }
 
 export class UpdateWorkspaceToolsDto {
@@ -21,6 +23,10 @@ export class UpdateWorkspaceToolsDto {
   @ValidateIf((_, v) => v !== null)
   @IsIn(SEARCH_PROVIDERS)
   searchProvider?: SearchProvider | null;
+
+  @IsOptional()
+  @IsBoolean()
+  miniApps?: boolean;
 
   /** The search service's API key, stored encrypted; an empty string removes it. */
   @IsOptional()

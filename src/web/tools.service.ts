@@ -9,7 +9,7 @@ import type { SearchProvider } from './web';
 
 /**
  * What each workspace's assistant may use beyond the board. Owners switch web search on and give the search service's
- * key; everyone in the workspace can see what's on, never the key.
+ * key, and switch mini-apps off or on; everyone in the workspace can see what's on, never the key.
  */
 @Injectable()
 export class ToolsService {
@@ -31,6 +31,7 @@ export class ToolsService {
       webSearch: body.webSearch ?? was?.webSearch ?? false,
       searchProvider: body.searchProvider !== undefined ? body.searchProvider : (was?.searchProvider ?? null),
       searchKeyEncrypted: body.searchKey !== undefined ? this.#seal(body.searchKey) : (was?.searchKeyEncrypted ?? null),
+      miniApps: body.miniApps ?? was?.miniApps ?? true,
     };
     if (next.webSearch && (!next.searchProvider || !next.searchKeyEncrypted)) {
       throw new BadRequestException('Pick a search service and give its key before turning web search on.');
@@ -50,13 +51,18 @@ export class ToolsService {
     return { provider: row.searchProvider, key: this.secrets.open(row.searchKeyEncrypted) };
   }
 
+  /** Whether the workspace lets the assistant make mini-apps (it does until an owner says not). */
+  async miniAppsOn(orgId: string): Promise<boolean> {
+    return (await this.#row(orgId))?.miniApps ?? true;
+  }
+
   async #row(orgId: string) {
     const [row] = await this.db.select().from(workspaceTools).where(eq(workspaceTools.orgId, orgId));
     return row;
   }
 
   #dto(row: typeof workspaceTools.$inferSelect | undefined): WorkspaceToolsDto {
-    return { webSearch: row?.webSearch ?? false, searchProvider: row?.searchProvider ?? null, hasSearchKey: !!row?.searchKeyEncrypted };
+    return { webSearch: row?.webSearch ?? false, searchProvider: row?.searchProvider ?? null, hasSearchKey: !!row?.searchKeyEncrypted, miniApps: row?.miniApps ?? true };
   }
 
   #seal(key: string): string | null {

@@ -282,6 +282,43 @@ export const boardDocuments = pgTable('board_documents', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Mini-apps the assistant made on a board: small, self-contained web pages that show or work with the board's notes.
+ * The board's document places them (an `app` item names its app and version); the code lives here, every version kept.
+ */
+export const boardApps = pgTable(
+  'board_apps',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('board_apps_board').on(t.boardId)],
+);
+
+/** One version of a mini-app's code, numbered from 1. */
+export const boardAppVersions = pgTable(
+  'board_app_versions',
+  {
+    appId: uuid('app_id')
+      .notNull()
+      .references(() => boardApps.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    html: text('html').notNull(),
+    /** What changed, in a line: "Made it", "Added a chart", "Restored version 2". */
+    note: text('note').notNull(),
+    /** The model that wrote it, if one did. */
+    model: text('model'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.appId, t.version] })],
+);
+
 /** Images and files dropped on a board. The board's document places them; the bytes live here. */
 export const boardFiles = pgTable(
   'board_files',
@@ -539,6 +576,8 @@ export const workspaceTools = pgTable('workspace_tools', {
   webSearch: boolean('web_search').notNull().default(false),
   searchProvider: searchProvider('search_provider'),
   searchKeyEncrypted: text('search_key_encrypted'),
+  /** The assistant may make mini-apps on the workspace's boards. */
+  miniApps: boolean('mini_apps').notNull().default(true),
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

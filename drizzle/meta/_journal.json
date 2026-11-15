@@ -169,6 +169,13 @@
       "when": 1794720913824,
       "tag": "0023_assistant_asks_first",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794721840133,
+      "tag": "0024_mini_apps",
+      "breakpoints": true
     }
   ]
 }
