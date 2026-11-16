@@ -259,13 +259,30 @@ export function frameGroups(
   return { frameIds, moved: taken.size, replaced: emptied.size };
 }
 
+/** Where something new goes so it covers nothing: right of everything on the board, level with its top (or the origin). */
+export function besideBoard(doc: Y.Doc, gap = 160): { x: number; y: number } {
+  let right = -Infinity;
+  let top = Infinity;
+  nodesOf(doc).forEach((node) => {
+    if (!(node instanceof Y.Map) || node.get('kind') === 'connector') return;
+    const x = Number(node.get('x') ?? 0);
+    const y = Number(node.get('y') ?? 0);
+    const w = Number(node.get('w') ?? 0);
+    if (Number.isFinite(x + w)) right = Math.max(right, x + w);
+    if (Number.isFinite(y)) top = Math.min(top, y);
+  });
+  return Number.isFinite(right) ? { x: right + gap, y: Number.isFinite(top) ? top : 0 } : { x: 0, y: 0 };
+}
+
 /**
- * Adds notes in a grid beside `near` (or beside everything on the board), above all else, and returns their ids. Where
- * notes go is decided here, not by the model, so its additions always land tidily.
+ * Adds notes in a grid beside `near`, or beside everything on the board (frames, diagrams, apps, all of it) when no
+ * notes are given, above all else, and returns their ids. Where notes go is decided here, not by the model, so its
+ * additions always land tidily.
  */
-export function addNotes(doc: Y.Doc, notes: { text: string; color: NoteColor }[], near: NoteView[] = notesOf(doc)): string[] {
-  const right = near.length ? Math.max(...near.map((n) => n.x)) + NOTE_SIZE.w + GAP * 3 : 0;
-  const top = near.length ? Math.min(...near.map((n) => n.y)) : 0;
+export function addNotes(doc: Y.Doc, notes: { text: string; color: NoteColor }[], near?: NoteView[]): string[] {
+  const beside = near ? null : besideBoard(doc, GAP * 3);
+  const right = beside ? beside.x : near!.length ? Math.max(...near!.map((n) => n.x)) + NOTE_SIZE.w + GAP * 3 : 0;
+  const top = beside ? beside.y : near!.length ? Math.min(...near!.map((n) => n.y)) : 0;
   let z = topZ(doc);
   const ids: string[] = [];
   doc.transact(() => {
@@ -425,9 +442,8 @@ export function placeNotes(doc: Y.Doc, all: AuthoredNote[], frameId?: string): s
   doc.transact(() => {
     let z = topZ(doc);
     if (!frame) {
-      const near = notesOf(doc);
-      const right = near.length ? Math.max(...near.map((n) => n.x)) + NOTE_SIZE.w + GAP * 3 : 0;
-      const top = near.length ? Math.min(...near.map((n) => n.y)) : 0;
+      // Beside everything on the board, not just its notes, so nothing is covered.
+      const { x: right, y: top } = besideBoard(doc, GAP * 3);
       notes.forEach((note, i) => {
         const at = { x: Math.round(right + (i % COLUMNS) * (NOTE_SIZE.w + GAP)), y: Math.round(top + Math.floor(i / COLUMNS) * (NOTE_SIZE.h + GAP)) };
         ids.push(writeAuthored(doc, note, at, ++z));

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
-import { topZ } from '../assist/board-edit';
+import { besideBoard, topZ } from '../assist/board-edit';
 
 /** How big a new mini-app is on the board. */
 export const APP_SIZE = { w: 560, h: 420 } as const;
@@ -9,20 +9,7 @@ export const MAX_APP_HTML = 200_000;
 
 const nodesOf = (doc: Y.Doc) => doc.getMap<Y.Map<unknown>>('nodes');
 
-/** Where something new goes so it covers nothing: right of everything on the board, level with its top (or the origin). */
-export function besideBoard(doc: Y.Doc, gap = 160): { x: number; y: number } {
-  let right = -Infinity;
-  let top = Infinity;
-  nodesOf(doc).forEach((node) => {
-    if (!(node instanceof Y.Map) || node.get('kind') === 'connector') return;
-    const x = Number(node.get('x') ?? 0);
-    const y = Number(node.get('y') ?? 0);
-    const w = Number(node.get('w') ?? 0);
-    if (Number.isFinite(x + w)) right = Math.max(right, x + w);
-    if (Number.isFinite(y)) top = Math.min(top, y);
-  });
-  return Number.isFinite(right) ? { x: right + gap, y: Number.isFinite(top) ? top : 0 } : { x: 0, y: 0 };
-}
+export { besideBoard } from '../assist/board-edit';
 
 /**
  * Puts a mini-app on the board beside everything else: an `app` item naming the app, the version shown and the notes

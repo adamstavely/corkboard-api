@@ -6,7 +6,7 @@ import { ChangeTracker, describe as describeChanges, record } from '../ledger/le
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
-import { changeUnlocked } from '../collab/locks';
+import { canChangeLocked, changeUnlocked } from '../collab/locks';
 import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
@@ -19,7 +19,7 @@ import { FilesService } from '../files/files.service';
 import { ToolsService } from '../web/tools.service';
 import { WEB, type Web } from '../web/web';
 import { Draft, propose, wouldDo } from '../suggestions/suggestions-doc';
-import { appsOn, placeApp, showAppVersion } from '../apps/app-node';
+import { appNodes, appsOn, placeApp, showAppVersion } from '../apps/app-node';
 import { diagramProblem, diagramsOn, placeDiagram, setDiagramSource } from './diagram-node';
 import { AppsService, htmlProblem } from '../apps/apps.service';
 import {
@@ -509,6 +509,10 @@ export class AssistService {
       const all = notesOf(doc);
       const focusIds = new Set(request.noteIds ?? []);
       const focus = focusIds.size ? all.filter((n) => focusIds.has(n.id)) : all;
+      // New notes go beside the selection and what this run already added there (so a second batch lands beside the
+      // first, not on it), or beside everything on the board as it is now.
+      const added = new Set<string>();
+      const nearSelection = (d: Y.Doc) => (focusIds.size ? notesOf(d).filter((n) => focusIds.has(n.id) || added.has(n.id)) : undefined);
 
       // Readers and commenters can ask about the board, not change it.
       const canEdit = atLeast(board.role, 'updater');
@@ -543,7 +547,8 @@ export class AssistService {
             .map((n) => ({ text: (n['text'] as string).trim().slice(0, MAX_NOTE_CHARS), color: isColor(n['color']) ? n['color'] : 'yellow' }));
           if (notes.length === 0) throw new Error('No notes with text were given.');
           let ids: string[] = [];
-          await edit((d) => (ids = addNotes(d, notes, focus.length ? focus : notesOf(d))));
+          await edit((d) => (ids = addNotes(d, notes, nearSelection(d))));
+          for (const id of ids) added.add(id);
           notesAdded += ids.length;
           return `Added ${ids.length} notes: ${JSON.stringify(ids)}`;
         }
@@ -576,9 +581,10 @@ export class AssistService {
           if (items.length === 0) throw new Error('No action items with text were given.');
           let ids: string[] = [];
           await edit((d) => {
-            ids = addNotes(d, items, focus.length ? focus : notesOf(d));
+            ids = addNotes(d, items, nearSelection(d));
             frameGroups(d, [{ title: 'Action items', noteIds: ids }]);
           });
+          for (const id of ids) added.add(id);
           notesAdded += ids.length;
           framesAdded += 1;
           return `Added ${ids.length} action items in an "Action items" frame.`;
@@ -676,6 +682,11 @@ export class AssistService {
           const html = args['html'];
           const problem = htmlProblem(html);
           if (problem) throw new Error(problem);
+          // A locked app stays as it is, refused before a version is saved that the board would never show.
+          if (!draft && appNodes(doc, appId).some((n) => n.get('locked') === true)) {
+            const now = await this.boards.access(user, boardId).catch(() => null);
+            if (!now || !canChangeLocked(doc, now.role, user.id)) throw new Error('That app is locked on the board, so it stays as it is.');
+          }
           const version = /^[0-9a-f-]{36}$/i.test(appId) ? await this.apps.addVersion(boardId, appId, { userId: user.id, model: model.label }, html as string, typeof args['note'] === 'string' ? args['note'] : '') : null;
           if (version === null) throw new Error('There is no app with that id on this board.');
           let shown = 0;
@@ -713,7 +724,7 @@ export class AssistService {
         if (name === 'add_tasks') {
           const people = await this.boards.members(user, boardId).catch(() => []);
           const byName = new Map(people.filter((m) => m.role).map((m) => [m.name.trim().toLowerCase(), m.userId]));
-          const known = new Set(notesOf(connection.document as unknown as Y.Doc).map((n) => n.id));
+          const known = new Set(notesOf(draft?.doc ?? doc).map((n) => n.id));
           const tasks = (Array.isArray(args['tasks']) ? args['tasks'] : [])
             .map((t: unknown) => t as Record<string, unknown>)
             .filter((t) => typeof t['title'] === 'string' && t['title'].trim())
@@ -738,7 +749,7 @@ export class AssistService {
         }
         if (name === 'point_to_notes') {
           const ids = (Array.isArray(args['note_ids']) ? args['note_ids'] : []).filter((id): id is string => typeof id === 'string');
-          const known = new Set(notesOf(connection.document as unknown as Y.Doc).map((n) => n.id));
+          const known = new Set(notesOf(draft?.doc ?? doc).map((n) => n.id));
           const missing = ids.filter((id) => !known.has(id)).length;
           for (const id of ids) if (known.has(id) && !cited.includes(id)) cited.push(id);
           return missing ? `Pointed to the notes; ${missing} of those ids aren't on the board.` : 'Pointed to the notes.';

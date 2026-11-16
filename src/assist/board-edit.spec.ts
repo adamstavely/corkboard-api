@@ -128,3 +128,18 @@ describe('board edits', () => {
     expect(notesOf(doc).find((n) => n.id === b)).not.toHaveProperty('effort');
   });
 });
+
+describe('where the assistant puts new notes', () => {
+  it('beside everything on the board, not just its notes, so a second batch lands beside the first', () => {
+    const doc = new Y.Doc();
+    addNotes(doc, [{ text: 'Existing', color: 'yellow' }], []);
+    const diagram = new Y.Map<unknown>();
+    doc.getMap('nodes').set('d', diagram);
+    for (const [k, v] of Object.entries({ kind: 'diagram', x: 400, y: 0, w: 480, h: 360 })) diagram.set(k, v);
+    const first = addNotes(doc, [{ text: 'Risk', color: 'blue' }]);
+    const second = addNotes(doc, [{ text: 'Mitigation', color: 'blue' }]);
+    const x = (id: string) => (doc.getMap('nodes').get(id) as Y.Map<unknown>).get('x') as number;
+    expect(x(first[0])).toBeGreaterThanOrEqual(880);
+    expect(x(second[0])).toBeGreaterThanOrEqual(x(first[0]) + 200);
+  });
+});

@@ -32,9 +32,12 @@ export function votingOf(doc: Y.Doc): VotingState {
 }
 
 /** Votes per note, across everyone. */
+/** Whether a note is still on the board: votes on one that was deleted count for nothing. */
+const onBoard = (doc: Y.Doc, id: string) => doc.getMap<Y.Map<unknown>>('nodes').get(id)?.get('kind') === 'note';
+
 export function voteCounts(doc: Y.Doc): Map<string, number> {
   const counts = new Map<string, number>();
-  votesMap(doc).forEach((ids) => ids.forEach((id) => counts.set(id, (counts.get(id) ?? 0) + 1)));
+  votesMap(doc).forEach((ids) => ids.forEach((id) => onBoard(doc, id) && counts.set(id, (counts.get(id) ?? 0) + 1)));
   return counts;
 }
 
@@ -57,8 +60,10 @@ export function castVote(doc: Y.Doc, userId: string, noteId: string, add: boolea
   if (!voting.open) return 'Voting is closed';
   const mine = votesMap(doc).get(userId) ?? [];
   if (add) {
-    if (mine.length >= voting.votesEach) return `You've used all ${voting.votesEach} of your votes`;
-    votesMap(doc).set(userId, [...mine, noteId]);
+    // A vote on a note that's since been deleted is given back.
+    const live = mine.filter((id) => onBoard(doc, id));
+    if (live.length >= voting.votesEach) return `You've used all ${voting.votesEach} of your votes`;
+    votesMap(doc).set(userId, [...live, noteId]);
     return null;
   }
   const at = mine.lastIndexOf(noteId);
