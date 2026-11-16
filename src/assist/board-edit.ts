@@ -76,6 +76,16 @@ export function framesOf(doc: Y.Doc): FrameView[] {
   return frames;
 }
 
+/** The files placed on the board now: one taken off it is no longer the board's to search or read. */
+export function placedFiles(doc: Y.Doc): Set<string> {
+  const ids = new Set<string>();
+  nodesOf(doc).forEach((node) => {
+    const fileId = node instanceof Y.Map ? node.get('fileId') : undefined;
+    if (typeof fileId === 'string' && fileId) ids.add(fileId);
+  });
+  return ids;
+}
+
 export function notesOf(doc: Y.Doc): NoteView[] {
   const frames = framesOf(doc);
   const votes = voteCounts(doc);

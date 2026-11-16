@@ -29,6 +29,7 @@ import {
   makeTimeline,
   NOTE_COLORS,
   notesOf,
+  placedFiles,
   setColors,
   setScores,
   type FrameView,
@@ -637,7 +638,8 @@ export class AssistService {
         if (name === 'search_files') {
           const query = typeof args['query'] === 'string' ? args['query'].trim() : '';
           if (!query) throw new Error('Give some words to search for.');
-          const hits = await this.search.searchFiles(boardId, query);
+          // Only files still on the board: one taken off it isn't searched, read or quoted.
+          const hits = await this.search.searchFiles(boardId, query, 8, [...placedFiles(draft?.doc ?? doc)]);
           if (!hits.length) return 'Nothing in the files on this board matches that.';
           for (const h of hits) citeFile(h.fileId, h.fileName);
           return hits.map((h) => `<passage file_id="${h.fileId}" file="${attr(h.fileName)}" from="${h.start}">\n${inside(h.text)}\n</passage>`).join('\n');
@@ -645,7 +647,7 @@ export class AssistService {
         if (name === 'read_file') {
           const fileId = typeof args['file_id'] === 'string' ? args['file_id'] : '';
           const from = typeof args['from'] === 'number' && Number.isFinite(args['from']) ? Math.max(0, Math.floor(args['from'])) : 0;
-          const part = await this.files.textOf(boardId, fileId, from);
+          const part = placedFiles(draft?.doc ?? doc).has(fileId) ? await this.files.textOf(boardId, fileId, from) : null;
           if (!part) throw new Error('There is no readable file with that id on this board.');
           citeFile(fileId, part.name);
           const more = part.from + part.text.length < part.total ? ` Read on from ${part.from + part.text.length}.` : ' That is the end of it.';

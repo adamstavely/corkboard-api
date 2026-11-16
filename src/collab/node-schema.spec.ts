@@ -65,6 +65,15 @@ describe('what a board node may hold', () => {
     expect(nodeProblem(board, clientChange(board, (nodes) => nodes.set('e', node({ kind: 'note', text: 7 }))))).toMatch(/^e\.text: /);
   });
 
+  it('counts a diagram\'s text as written, not as escaped JSON, up to the length the panel allows', () => {
+    // Quotes and line breaks double once escaped: this is 19,000 characters but over 20,000 as JSON.
+    const long = 'flowchart TD\n' + 'A["x"]\n'.repeat(2_370);
+    expect(long.length).toBeLessThanOrEqual(20_000);
+    expect(JSON.stringify(long).length).toBeGreaterThan(20_000);
+    expect(nodeProblem(board, clientChange(board, (nodes) => nodes.set('g', node({ kind: 'diagram', source: long }))))).toBeNull();
+    expect(nodeProblem(board, clientChange(board, (nodes) => nodes.set('h', node({ kind: 'diagram', source: 'x'.repeat(20_001) }))))).toMatch(/^h\.source: /);
+  });
+
   it('accepts a field, or a node, set twice in one change: the first arrives already deleted, with nothing in it', () => {
     const change = clientChange(board, (nodes) => {
       const n1 = nodes.get('n1') as Y.Map<unknown>;
