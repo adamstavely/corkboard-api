@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { HocuspocusProvider } from '@hocuspocus/provider';
 import request from 'supertest';
+import * as Y from 'yjs';
 import type { ChatRequest } from '../../src/models/adapters/types';
 import { SearchIndex } from '../../src/search/search-index';
 import { createTestApp, type TestApp } from './app';
@@ -30,7 +32,8 @@ describe('Images and files on boards', () => {
 
   async function setup() {
     const server = t.app.getHttpServer();
-    const auth = { Authorization: `Bearer ${await t.token(randomUUID())}` };
+    const token = await t.token(randomUUID());
+    const auth = { Authorization: `Bearer ${token}` };
     const { body: me } = await request(server).get('/me').set(auth);
     const orgId = me.orgs[0].id as string;
     const reader = randomUUID();
@@ -38,7 +41,33 @@ describe('Images and files on boards', () => {
     const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${reader}@corkboard.test`, role: 'reader' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(readerAuth).expect(201);
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'B' });
-    return { server, auth, readerAuth, orgId, board };
+    return { server, auth, token, readerAuth, orgId, board };
+  }
+
+  /** The board open as its owner, to place files on it as the board does and take them off again. */
+  async function open(boardId: string, token: string) {
+    const doc = new Y.Doc();
+    const provider = await new Promise<HocuspocusProvider>((resolve) => {
+      const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: boardId, token, document: doc, onSynced: (): void => resolve(p) });
+    });
+    const settle = () => new Promise((r) => setTimeout(r, 300));
+    return {
+      place: async (...fileIds: string[]) => {
+        doc.transact(() => {
+          for (const fileId of fileIds) {
+            const node = new Y.Map<unknown>();
+            doc.getMap('nodes').set(`f-${fileId}`, node);
+            for (const [k, v] of Object.entries({ kind: 'file', fileId, x: 0, y: 0, w: 240, h: 80, z: 1 })) node.set(k, v);
+          }
+        });
+        await settle();
+      },
+      remove: async (fileId: string) => {
+        doc.getMap('nodes').delete(`f-${fileId}`);
+        await settle();
+      },
+      close: () => provider.destroy(),
+    };
   }
 
   it("gives a board's files to anyone with a live share link, and only that board's", async () => {
@@ -110,7 +139,7 @@ describe('Images and files on boards', () => {
   });
 
   it("lets the assistant search and read the board's PDFs, Word documents and text, for anyone on the board", async () => {
-    const { server, auth, readerAuth, orgId, board } = await setup();
+    const { server, auth, token, readerAuth, orgId, board } = await setup();
     const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name));
     const upload = async (data: Buffer, filename: string, contentType: string) =>
@@ -124,6 +153,8 @@ describe('Images and files on boards', () => {
     const { body: other } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Other' });
     await request(server).post(`/boards/${other.id}/files`).set(auth).attach('file', Buffer.from('The budget is secret.'), { filename: 'secret.txt', contentType: 'text/plain' }).expect(201);
     await t.app.get(SearchIndex).refresh();
+    const live = await open(board.id, token);
+    await live.place(pdf.id, docx.id, md.id);
 
     const said: string[] = [];
     script = async (req) => {
@@ -156,6 +187,20 @@ describe('Images and files on boards', () => {
     };
     const asReader = await request(server).post(`/boards/${board.id}/assist`).set(readerAuth).send({ modelId: m.id, instruction: 'When is launch?' }).expect(200);
     expect(asReader.body.citedFiles).toEqual([{ fileId: md.id, name: 'plan.md' }]);
+
+    // A file taken off the board is no longer searched, read or quoted, though its bytes stay for undo.
+    await live.remove(pdf.id);
+    const after: string[] = [];
+    script = async (req) => {
+      after.push(await req.execute('search_files', { query: 'budget' }));
+      after.push(await req.execute('read_file', { file_id: pdf.id, from: 0 }).catch((err: Error) => err.message));
+      return 'Nothing about a budget.';
+    };
+    const gone = await request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: m.id, instruction: 'What is the budget?' }).expect(200);
+    expect(after[0]).not.toContain('forty thousand pounds');
+    expect(after[1]).toContain('no readable file');
+    expect(gone.body.citedFiles).toEqual([]);
+    live.close();
 
     // Deleting the board takes its files out of search.
     await request(server).delete(`/boards/${board.id}`).set(auth).expect(204);

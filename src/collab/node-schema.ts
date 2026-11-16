@@ -9,6 +9,8 @@ export const MAX_TABLE = 100;
 const MAX_TEXT = 20_000;
 const MAX_POINTS = 40_000;
 const MAX_VALUE_JSON = 20_000;
+/** A diagram's Mermaid text, counted as written (corkboard-ui's MAX_DIAGRAM_CHARS), not as escaped JSON. */
+export const MAX_SOURCE = 20_000;
 
 /** What's wrong with a field's value, or null if it's fine. Unknown fields need only be small, plain values. */
 function fieldProblem(key: string, content: Y.Item['content']): string | null {
@@ -32,6 +34,8 @@ function fieldProblem(key: string, content: Y.Item['content']): string | null {
     case 'text':
       if (isType) return content.type instanceof Y.XmlFragment || content.type instanceof Y.XmlText ? null : 'text of the wrong kind';
       return typeof value === 'string' && value.length <= MAX_TEXT ? null : 'text that is too long or not text';
+    case 'source':
+      return typeof value === 'string' && value.length <= MAX_SOURCE ? null : 'diagram text that is too long or not text';
     case 'cells':
       return isType && content.type instanceof Y.Map ? null : 'table cells that are not a map';
     case 'points':

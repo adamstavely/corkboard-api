@@ -170,12 +170,15 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
     );
   }
 
-  /** The pieces of a board's files that best match, best first. */
-  async searchFiles(boardId: string, query: string, size = 8): Promise<{ fileId: string; fileName: string; ord: number; start: number; text: string }[]> {
+  /** The pieces of a board's files that best match, best first; only those of the given files, when given. */
+  async searchFiles(boardId: string, query: string, size = 8, fileIds?: readonly string[]): Promise<{ fileId: string; fileName: string; ord: number; start: number; text: string }[]> {
+    if (fileIds && !fileIds.length) return [];
+    const filter: object[] = [{ term: { boardId } }];
+    if (fileIds) filter.push({ terms: { fileId: [...fileIds] } });
     const res = await this.#es.search<{ fileId: string; fileName: string; ord: number; start: number; text: string }>({
       index: FILES_INDEX,
       size,
-      query: { bool: { filter: [{ term: { boardId } }], must: [{ multi_match: { query, fields: ['text', 'fileName^2'], fuzziness: 'AUTO' } }] } },
+      query: { bool: { filter, must: [{ multi_match: { query, fields: ['text', 'fileName^2'], fuzziness: 'AUTO' } }] } },
     });
     return res.hits.hits.map((h) => h._source!);
   }
