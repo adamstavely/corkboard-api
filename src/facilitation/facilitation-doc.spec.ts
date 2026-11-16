@@ -1,9 +1,32 @@
 import * as Y from 'yjs';
 import { agendaOf, answerPoll, endPoll, pollCounts, pollOf, startPoll, castVote, setAgenda, setAgendaStep, setTimer, setVoting, timerOf, voteCounts, votingOf } from './facilitation-doc';
 
+/** A board with these notes on it. */
+function withNotes(...ids: string[]): Y.Doc {
+  const doc = new Y.Doc();
+  for (const id of ids) {
+    const note = new Y.Map<unknown>();
+    doc.getMap('nodes').set(id, note);
+    note.set('kind', 'note');
+  }
+  return doc;
+}
+
 describe('dot voting', () => {
+  it('gives back votes on a note that was deleted, and leaves them out of the count', () => {
+    const doc = withNotes('n1', 'n2');
+    setVoting(doc, true, 2);
+    castVote(doc, 'ada', 'n1', true);
+    castVote(doc, 'ada', 'n1', true);
+    doc.getMap('nodes').delete('n1');
+    expect(voteCounts(doc).size).toBe(0);
+    expect(castVote(doc, 'ada', 'n2', true)).toBeNull();
+    expect(castVote(doc, 'ada', 'n2', true)).toBeNull();
+    expect(voteCounts(doc)).toEqual(new Map([['n2', 2]]));
+  });
+
   it('gives each person their votes, lets them take one back, and starts each round empty', () => {
-    const doc = new Y.Doc();
+    const doc = withNotes('n1', 'n2');
     expect(castVote(doc, 'ada', 'n1', true)).toBe('Voting is closed');
 
     setVoting(doc, true, 2);
