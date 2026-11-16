@@ -25,10 +25,12 @@ export class FacilitationService {
     private readonly writing: WritingService,
   ) {}
 
-  async setVoting(user: User, boardId: string, open: boolean, votesEach = DEFAULT_VOTES): Promise<void> {
+  /** `ifIdle`: start a vote only when none is running, rather than start a new round over the votes cast so far. */
+  async setVoting(user: User, boardId: string, open: boolean, votesEach = DEFAULT_VOTES, { ifIdle = false } = {}): Promise<void> {
     await this.boards.get(user, boardId, 'updater');
     await this.#edit(user, boardId, (doc) => {
       if (!open && !votingOf(doc).open) throw new ConflictException('No vote is running');
+      if (open && ifIdle && votingOf(doc).open) throw new ConflictException('A vote is already running');
       setVoting(doc, open, votesEach);
     });
     await this.activity.record(boardId, user, open ? 'started a vote' : 'finished the vote', undefined, open ? `${votesEach} votes each` : undefined);
@@ -205,15 +207,21 @@ export class FacilitationService {
   async #begin(user: User, boardId: string, activity: StepActivity, frameId: string | null): Promise<void> {
     await notRunning(async () => {
       if (activity.kind === 'writing') await this.writing.start(user, boardId, activity.anonymous, frameId ?? undefined);
-      else if (activity.kind === 'vote') await this.setVoting(user, boardId, true, activity.votesEach);
-      else await this.startPoll(user, boardId, activity.question, activity.pollKind, activity.options);
+      else if (activity.kind === 'vote') await this.setVoting(user, boardId, true, activity.votesEach, { ifIdle: true });
+      else await this.startPoll(user, boardId, activity.question, activity.pollKind, activity.options, { ifIdle: true });
     });
   }
 
   /** Updaters and owners: ask everyone a quick question, or for a fist-to-five. A new poll clears the last one's answers. */
-  async startPoll(user: User, boardId: string, question: string, kind: 'choice' | 'fist', options: string[] = []): Promise<void> {
+  async startPoll(user: User, boardId: string, question: string, kind: 'choice' | 'fist', options: string[] = [], { ifIdle = false } = {}): Promise<void> {
     await this.boards.get(user, boardId, 'updater');
-    await this.#edit(user, boardId, (doc) => startPoll(doc, question.trim(), kind, options.map((o) => o.trim())));
+    // Blank options ("  ") would be answerable choices with no name.
+    const choices = options.map((o) => o.trim()).filter(Boolean);
+    if (kind === 'choice' && choices.length < 2) throw new BadRequestException('A poll needs at least two options');
+    await this.#edit(user, boardId, (doc) => {
+      if (ifIdle && pollOf(doc)?.open) throw new ConflictException('A poll is already running');
+      startPoll(doc, question.trim(), kind, choices);
+    });
     await this.activity.record(boardId, user, 'started a poll', question.trim());
   }
 
