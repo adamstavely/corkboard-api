@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { framesOf, notesOf } from '../assist/board-edit';
@@ -69,6 +69,8 @@ export class SummaryService {
     try {
       const doc = connection.document as unknown as Y.Doc;
       const notes = notesOf(doc);
+      // Nothing to summarise: refused before asking the model, rather than saving an empty one for everyone.
+      if (!notes.length) throw new BadRequestException('There are no notes on this board to summarise yet.');
       const known = new Set(notes.map((n) => n.id));
       const fingerprint = contentFingerprint(doc);
       const shown = {

@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { ActivityService } from '../activity/activity.service';
@@ -84,6 +84,8 @@ export class RecapService {
     try {
       const doc = connection.document as unknown as Y.Doc;
       const notes = notesOf(doc);
+      // Nothing to recap: refused before asking the model, rather than saving an empty one for everyone.
+      if (!notes.length) throw new BadRequestException('There are no notes on this board to recap yet.');
       const known = new Set(notes.map((n) => n.id));
       const cite = (v: unknown) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === 'string' && known.has(id)) : []);
       const shown = {
