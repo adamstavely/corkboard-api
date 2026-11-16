@@ -42,6 +42,20 @@ describe('boardText', () => {
     expect(boardText(doc)).toEqual([{ id: 'a', text: 'Retro\nDeploys are slow\none\ntwo' }]);
   });
 
+  it("finds a diagram's text and a mini-app's title too", () => {
+    const doc = new Y.Doc();
+    const nodes = doc.getMap<Y.Map<unknown>>('nodes');
+    for (const [id, fields] of Object.entries({ d: { kind: 'diagram', source: 'flowchart TD\n  A[Launch] --> B' }, a: { kind: 'app', title: 'Vote tally' } })) {
+      const node = new Y.Map<unknown>();
+      nodes.set(id, node);
+      for (const [k, v] of Object.entries(fields)) node.set(k, v);
+    }
+    expect(boardText(doc)).toEqual([
+      { id: 'd', text: 'flowchart TD\n  A[Launch] --> B' },
+      { id: 'a', text: 'Vote tally' },
+    ]);
+  });
+
   it('reads maths as its LaTeX, inline and on its own line', () => {
     const doc = new Y.Doc();
     const fragment = doc.getXmlFragment('t');

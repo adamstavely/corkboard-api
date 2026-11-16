@@ -32,6 +32,10 @@ describe('Board summary', () => {
     const provider = await new Promise<HocuspocusProvider>((resolve) => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token, document: doc, onSynced: (): void => resolve(p) });
     });
+    // An empty board has nothing to summarise: refused without asking the model.
+    script = () => Promise.reject(new Error('The model should not be asked'));
+    await request(server).post(`/boards/${board.id}/summary`).set(auth).send({ modelId: m.id }).expect(400);
+
     const [slow] = addNotes(doc, [{ text: 'Deploys are slow', color: 'yellow' }]);
     await new Promise((r) => setTimeout(r, 300));
 
