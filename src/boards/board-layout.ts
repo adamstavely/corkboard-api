@@ -1,7 +1,8 @@
 import * as Y from 'yjs';
-import { NOTE_COLORS, type NoteColor } from '../assist/board-edit';
+import { NOTE_COLORS, NOTE_SIZE, type NoteColor } from '../assist/board-edit';
 import { agendaOf, type StepActivity } from '../facilitation/facilitation-doc';
 import { fragmentText } from './board-text';
+import { richOf, richProblem } from './rich-text';
 import {
   ARROW_DASHES,
   ARROW_ROUTES,
@@ -60,7 +61,17 @@ export function layoutFromBoard(doc: Y.Doc, keepNotes: boolean): { layout: Layou
         const text = node.get('text');
         if (!keepNotes || !(text instanceof Y.XmlFragment)) break;
         const color = pick<NoteColor>(NOTE_COLORS, node.get('color'));
-        layout.notes.push({ key: keyOf(id), text: fragmentText(text).slice(0, 2000), ...(color ? { color } : {}), ...box });
+        // The rich text as written, when it's small enough to keep; the plain text is kept either way.
+        const rich = richOf(text);
+        const isDefault = size.w === NOTE_SIZE.w && size.h === NOTE_SIZE.h;
+        layout.notes.push({
+          key: keyOf(id),
+          text: fragmentText(text).slice(0, 2000),
+          ...(richProblem(rich) ? {} : { rich }),
+          ...(color ? { color } : {}),
+          ...box,
+          ...(isDefault ? {} : size),
+        });
         break;
       }
       case 'text': {
@@ -115,7 +126,8 @@ export function layoutFromBoard(doc: Y.Doc, keepNotes: boolean): { layout: Layou
   const frameKeys = new Map(layout.frames.map((f) => [[...keys].find(([, k]) => k === f.key)![0], f.key!]));
   const agenda = agendaOf(doc).steps.map((s) => ({
     title: s.title,
-    minutes: Math.round(s.seconds / 60),
+    // As set, not rounded: a 20-second check-in stays 20 seconds.
+    minutes: s.seconds / 60,
     ...(s.frameId && frameKeys.has(s.frameId) ? { frame: frameKeys.get(s.frameId)! } : {}),
     ...(s.activity ? { activity: s.activity } : {}),
   }));

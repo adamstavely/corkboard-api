@@ -116,6 +116,12 @@ describe('Images and files on boards', () => {
       expect([got.headers['content-type'], got.headers['content-disposition']]).toEqual([contentType, expect.stringContaining('inline')]);
     }
     await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', Buffer.from('x'), { filename: 'clip.mov', contentType: 'video/quicktime' }).expect(400);
+
+    // Names keep their accents, and text files the browser gives no type (or Excel's) are taken by their extension.
+    const upload = (filename: string, contentType: string) => request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', Buffer.from('a,b'), { filename, contentType });
+    expect((await upload('Résumé.md', 'application/octet-stream').expect(201)).body).toMatchObject({ name: 'Résumé.md', mime: 'text/markdown' });
+    expect((await upload('报告.csv', 'application/vnd.ms-excel').expect(201)).body).toMatchObject({ name: '报告.csv', mime: 'text/csv' });
+    await upload('tool.exe', 'application/octet-stream').expect(400);
   });
 
   it("asks a model about an image and the places marked on it, showing it the picture", async () => {

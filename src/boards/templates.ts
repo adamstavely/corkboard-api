@@ -437,7 +437,7 @@ export const TEMPLATES: BoardTemplate[] = [
 export function applyTemplate(doc: Y.Doc, template: BoardTemplate): void {
   const ids = applyLayout(doc, template.layout, { x: 0, y: 0 });
   if (template.agenda)
-    setAgenda(doc, template.agenda.map((s) => ({ id: randomUUID(), title: s.title, seconds: s.minutes * 60, frameId: (s.frame && ids.get(s.frame)) || null, activity: s.activity ?? null })));
+    setAgenda(doc, template.agenda.map((s) => ({ id: randomUUID(), title: s.title, seconds: Math.round(s.minutes * 60), frameId: (s.frame && ids.get(s.frame)) || null, activity: s.activity ?? null })));
 }
 
 /** The frames' outlines, scaled into a 100-wide box, to draw a template's preview. */
