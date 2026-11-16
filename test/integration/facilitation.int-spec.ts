@@ -241,6 +241,40 @@ describe('Dot voting and the shared timer', () => {
     await eventually(() => pollOf(doc)?.open === false);
   });
 
+  it("leaves a vote or poll that's already running alone when a step starts one", async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const linus = await joined(ada, 'commenter');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Retro' });
+    const doc = await open(board.id, linus);
+    const [idea] = addNotes(await open(board.id, ada), [{ text: 'Ship it', color: 'yellow' }], []);
+    await eventually(() => notesOf(doc).some((n) => n.id === idea));
+    await request(server)
+      .put(`/boards/${board.id}/agenda`)
+      .set(ada.auth)
+      .send({ steps: [{ title: 'Vote', seconds: 60, frameId: null, activity: { kind: 'vote', votesEach: 3 } }, { title: 'Poll', seconds: 60, frameId: null, activity: { kind: 'poll', pollKind: 'fist', question: 'Ready?' } }] })
+      .expect(204);
+
+    // A vote started from the dock, with a vote cast, then the agenda reaches its vote step.
+    await request(server).put(`/boards/${board.id}/voting`).set(ada.auth).send({ open: true, votesEach: 2 }).expect(204);
+    await request(server).post(`/boards/${board.id}/votes`).set(linus.auth).send({ noteId: idea, add: true }).expect(204);
+    await eventually(() => voteCounts(doc).get(idea) === 1);
+    await request(server).post(`/boards/${board.id}/agenda/go`).set(ada.auth).send({ step: 0 }).expect(204);
+    await eventually(() => agendaOf(doc).current === 0);
+    expect(voteCounts(doc).get(idea)).toBe(1);
+    expect(votingOf(doc).votesEach).toBe(2);
+
+    // The same for a poll that's open, answered.
+    await request(server).put(`/boards/${board.id}/voting`).set(ada.auth).send({ open: false }).expect(204);
+    await request(server).post(`/boards/${board.id}/poll`).set(ada.auth).send({ question: 'Lunch?', kind: 'choice', options: ['Yes', 'No'] }).expect(204);
+    await request(server).post(`/boards/${board.id}/poll/answers`).set(linus.auth).send({ answer: 0 }).expect(204);
+    await eventually(() => pollCounts(doc).get(0) === 1);
+    await request(server).post(`/boards/${board.id}/agenda/go`).set(ada.auth).send({ step: 1 }).expect(204);
+    await eventually(() => agendaOf(doc).current === 1);
+    expect(pollOf(doc)).toMatchObject({ question: 'Lunch?', open: true });
+    expect(pollCounts(doc).get(0)).toBe(1);
+  });
+
   it('lets updaters run a poll that commenters answer, but not readers', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
