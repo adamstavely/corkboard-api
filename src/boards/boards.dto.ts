@@ -1,7 +1,7 @@
 import type { NoteColor } from '../assist/board-edit';
 import type { StepActivityDto } from '../facilitation/facilitation.dto';
 import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeKind, TextSize } from './layout';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { type TemplateCategory } from './templates';
 import { ROLES, type Role } from '../access/roles';
@@ -65,9 +65,18 @@ export class TemplateNoteDto {
   key?: string;
   /** A line a paragraph; `**Bold:**` at a line's start is bold. */
   text!: string;
+  /**
+   * The note's rich text as written, from a saved board, used instead of `text` when given: each element
+   * `{ n: name, a?: attributes, c?: children }`, each run of text `{ t: delta }` (Yjs XmlText delta, with its marks).
+   */
+  @ApiPropertyOptional({ type: 'array', items: { type: 'object', additionalProperties: true } })
+  rich?: Record<string, unknown>[];
   color?: NoteColor;
   x!: number;
   y!: number;
+  /** Its size, when not the usual one. */
+  w?: number;
+  h?: number;
 }
 
 export class TemplateTextDto {

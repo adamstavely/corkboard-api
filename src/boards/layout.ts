@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { NOTE_COLORS, NOTE_SIZE, newFrame, newNote, topZ, type NoteColor } from '../assist/board-edit';
+import { richNodes, richProblem, type RichNode } from './rich-text';
 
 /** The UI's choices for frames, shapes, text, arrows and views (corkboard-ui's board-doc.ts); a layout uses only these. */
 export const FRAME_FILLS = ['clear', 'solid', ...NOTE_COLORS] as const;
@@ -30,8 +31,11 @@ export type BoardView = (typeof BOARD_VIEWS)[number];
  */
 export interface Layout {
   frames?: { key?: string; title: string; x: number; y: number; w: number; h: number; fill?: FrameFill; border?: FrameBorder; look?: FrameLook }[];
-  /** Notes are a fixed size; a line of text a paragraph, and `**Bold:**` at a line's start is bold. */
-  notes?: { key?: string; text: string; color?: NoteColor; x: number; y: number }[];
+  /**
+   * A line of text is a paragraph, and `**Bold:**` at a line's start is bold. A saved board's notes also keep their rich
+   * text (lists, code, maths, marks), used instead of `text` when given, and their size, else the usual size.
+   */
+  notes?: { key?: string; text: string; rich?: RichNode[]; color?: NoteColor; x: number; y: number; w?: number; h?: number }[];
   texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number }[];
   shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; label?: string; x: number; y: number; w: number; h: number }[];
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
@@ -58,7 +62,7 @@ function tableSize(t: NonNullable<Layout['tables']>[number]): { rows: number; co
 function boxesOf(layout: Layout): [string | undefined, { x: number; y: number; w: number; h: number }][] {
   return [
     ...(layout.frames ?? []).map((f) => [f.key, f] as const),
-    ...(layout.notes ?? []).map((n) => [n.key, { x: n.x, y: n.y, ...NOTE_SIZE }] as const),
+    ...(layout.notes ?? []).map((n) => [n.key, { x: n.x, y: n.y, w: n.w ?? NOTE_SIZE.w, h: n.h ?? NOTE_SIZE.h }] as const),
     ...(layout.texts ?? []).map((t) => [t.key, { x: t.x, y: t.y, w: t.w ?? 240, h: TEXT_SIZES[t.size ?? 'md'] * 1.6 }] as const),
     ...(layout.shapes ?? []).map((s) => [s.key, s] as const),
     ...(layout.tables ?? []).map((t) => {
@@ -96,6 +100,10 @@ export function layoutProblem(layout: Layout): string | null {
     ...(layout.tables ?? []).flatMap((t) => t.cells.flat()),
   ];
   if (texts.some((t) => typeof t !== 'string' || t.length > LIMITS.text)) return 'some text is too long';
+  for (const n of layout.notes ?? []) {
+    const problem = n.rich === undefined ? null : richProblem(n.rich);
+    if (problem) return `a note with ${problem}`;
+  }
   const one = <T>(list: readonly T[], value: T | undefined) => value === undefined || list.includes(value);
   if (!(layout.frames ?? []).every((f) => one(FRAME_FILLS, f.fill) && one(FRAME_BORDERS, f.border) && one(FRAME_LOOKS, f.look))) return 'a frame style the board does not have';
   if (![...(layout.notes ?? []), ...(layout.shapes ?? [])].every((n) => one(NOTE_COLORS, n.color))) return 'a colour the board does not have';
@@ -147,7 +155,18 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
       if (f.look) node.set('look', f.look);
       keep(f.key, id);
     }
-    for (const n of layout.notes ?? []) keep(n.key, newNote(doc, { text: n.text, color: n.color ?? 'yellow' }, pos(n), ++z, author));
+    for (const n of layout.notes ?? []) {
+      const id = newNote(doc, { text: n.rich ? '' : n.text, color: n.color ?? 'yellow' }, pos(n), ++z, author);
+      const node = doc.getMap<Y.Map<unknown>>('nodes').get(id)!;
+      if (n.w) node.set('w', n.w);
+      if (n.h) node.set('h', n.h);
+      if (n.rich) {
+        const fragment = node.get('text') as Y.XmlFragment;
+        fragment.delete(0, fragment.length);
+        fragment.insert(0, richNodes(n.rich));
+      }
+      keep(n.key, id);
+    }
     for (const t of layout.texts ?? []) {
       const size = t.size ?? 'md';
       keep(t.key, newItem(doc, 'text', { ...pos(t), w: t.w ?? 240, h: TEXT_SIZES[size] * 1.6 }, ++z, author, (n) => {

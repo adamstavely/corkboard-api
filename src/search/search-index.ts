@@ -151,9 +151,9 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
     }
   }
 
-  /** Replaces a file's pieces in the index. */
-  async indexFileChunks(file: { orgId: string; boardId: string; fileId: string; fileName: string }, pieces: { text: string; start: number }[]): Promise<void> {
-    await this.#quietly(`index the file ${file.fileId}`, async () => {
+  /** Replaces a file's pieces in the index; whether it worked. */
+  async indexFileChunks(file: { orgId: string; boardId: string; fileId: string; fileName: string }, pieces: { text: string; start: number }[]): Promise<boolean> {
+    return this.#quietly(`index the file ${file.fileId}`, async () => {
       await this.#es.deleteByQuery({ index: FILES_INDEX, query: { term: { fileId: file.fileId } }, refresh: true }, { ignore: [404] });
       if (!pieces.length) return;
       const res = await this.#es.bulk({ operations: pieces.flatMap((text, ord) => [{ index: { _index: FILES_INDEX, _id: `${file.fileId}:${ord}` } }, { ...file, ord, start: text.start, text: text.text }]) });
@@ -198,11 +198,14 @@ export class SearchIndex implements OnApplicationBootstrap, OnApplicationShutdow
     };
   }
 
-  async #quietly(what: string, write: () => Promise<unknown>): Promise<void> {
+  /** Runs a write, logging rather than throwing when it fails; whether it worked. */
+  async #quietly(what: string, write: () => Promise<unknown>): Promise<boolean> {
     try {
       await write();
+      return true;
     } catch (err) {
       this.#log.warn(`Couldn't ${what}: ${String(err)}`);
+      return false;
     }
   }
 }

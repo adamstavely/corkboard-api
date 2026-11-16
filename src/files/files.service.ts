@@ -36,6 +36,17 @@ const ALLOWED = new Set<string>([
   'audio/webm',
 ]);
 
+/** Text files by their extension, for when the browser names no type of its own (or Excel's, for a CSV on Windows). */
+const BY_EXTENSION: Record<string, string> = { md: 'text/markdown', markdown: 'text/markdown', txt: 'text/plain', csv: 'text/csv' };
+const VAGUE = new Set(['', 'application/octet-stream', 'application/vnd.ms-excel', 'text/x-markdown']);
+
+/** What kind of file an upload is: the type the browser gave, or, when that's vague, what its extension says. */
+export function uploadType(file: { mimetype: string; originalname: string }): string {
+  if (ALLOWED.has(file.mimetype) || !VAGUE.has(file.mimetype)) return file.mimetype;
+  const ext = /\.([a-z0-9]+)$/i.exec(file.originalname)?.[1]?.toLowerCase() ?? '';
+  return BY_EXTENSION[ext] ?? file.mimetype;
+}
+
 export const isImage = (mime: string): mime is ImageType => (IMAGES as readonly string[]).includes(mime);
 
 /** An upload as multer hands it over. */
@@ -107,14 +118,15 @@ export class FilesService {
     const board = await this.boards.get(user, boardId, 'updater');
     if (!file) throw new BadRequestException('Choose a file to add');
     if (file.size > MAX_FILE_BYTES) throw new PayloadTooLargeException('Files can be up to 10 MB');
-    if (!ALLOWED.has(file.mimetype)) throw new BadRequestException(`${file.originalname} isn't a kind of file boards take: images, PDFs, text, Office documents, video and audio`);
+    const mime = uploadType(file);
+    if (!ALLOWED.has(mime)) throw new BadRequestException(`${file.originalname} isn't a kind of file boards take: images, PDFs, text, Office documents, video and audio`);
     const name = file.originalname.replace(/[\\/\0]/g, '_').slice(0, 200) || 'file';
     const [row] = await this.db
       .insert(boardFiles)
-      .values({ boardId, uploadedBy: user.id, name, mime: file.mimetype, size: file.size, data: file.buffer })
+      .values({ boardId, uploadedBy: user.id, name, mime, size: file.size, data: file.buffer })
       .returning({ id: boardFiles.id, name: boardFiles.name, mime: boardFiles.mime, size: boardFiles.size });
     await this.activity.record(boardId, user, 'added a file', name);
-    await this.readText({ boardId, orgId: board.orgId }, { id: row.id, name, mime: file.mimetype }, file.buffer);
+    await this.readText({ boardId, orgId: board.orgId }, { id: row.id, name, mime }, file.buffer);
     return row;
   }
 
@@ -132,8 +144,8 @@ export class FilesService {
         .insert(boardFileTexts)
         .values({ fileId: file.id, boardId: board.boardId, text, chunks: pieces.length })
         .onConflictDoUpdate({ target: boardFileTexts.fileId, set: { text, chunks: pieces.length, extractedAt: new Date() } });
-      await this.search.indexFileChunks({ orgId: board.orgId, boardId: board.boardId, fileId: file.id, fileName: file.name }, pieces);
-      return true;
+      // Kept in the database either way; only searchable once indexed (scripts/reindex.ts catches up the rest).
+      return await this.search.indexFileChunks({ orgId: board.orgId, boardId: board.boardId, fileId: file.id, fileName: file.name }, pieces);
     } catch (err) {
       this.#log.warn(`Couldn't read the text of ${file.name} (${file.id}): ${String(err)}`);
       return false;

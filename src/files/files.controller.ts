@@ -17,7 +17,8 @@ export class FilesController {
   @Post()
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } }, required: ['file'] } })
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES + 1 } }))
+  // Browsers send file names as UTF-8: read them so, or "Résumé.pdf" arrives as "RÃ©sumÃ©.pdf".
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_BYTES + 1 }, defParamCharset: 'utf8' }))
   upload(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @UploadedFile() file: Upload | undefined): Promise<BoardFileDto> {
     return this.files.upload(user, id, file);
   }

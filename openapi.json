@@ -7294,6 +7294,14 @@
       "TemplateNoteDto": {
         "type": "object",
         "properties": {
+          "rich": {
+            "type": "array",
+            "description": "The note's rich text as written, from a saved board, used instead of `text` when given: each element\n`{ n: name, a?: attributes, c?: children }`, each run of text `{ t: delta }` (Yjs XmlText delta, with its marks).",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
           "key": {
             "type": "string"
           },
@@ -7316,6 +7324,13 @@
             "type": "number"
           },
           "y": {
+            "type": "number"
+          },
+          "w": {
+            "type": "number",
+            "description": "Its size, when not the usual one."
+          },
+          "h": {
             "type": "number"
           }
         },
