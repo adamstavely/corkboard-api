@@ -103,12 +103,46 @@ describe('Activity, versions and notifications', () => {
       ['mention', 'Ada Lovelace', 'mentioned you in a comment'],
       ['invite', 'Ada Lovelace', "invited you to Ada Lovelace's workspace"],
     ]);
-    expect(graces[0]).toMatchObject({ context: 'Retro', link: `/boards/${board.id}`, read: false });
+    expect(graces[0]).toMatchObject({ context: 'Retro', link: `/boards/${board.id}?comment=n1`, read: false });
     const { body: adas } = await request(server).get('/me/notifications').set(ada).expect(200);
     expect(adas.map((n: { title: string }) => n.title)).toEqual(['mentioned you in the board chat']);
 
     await request(server).post('/me/notifications/read').set(grace).send({ all: true }).expect(204);
     expect((await request(server).get('/me/notifications').set(grace)).body[0].read).toBe(true);
+  });
+
+  it('tells the one person picked, once, and nobody who cannot open the board', async () => {
+    const { server, ada, grace, orgId, board } = await people();
+    const join = async (name: string) => {
+      const subject = randomUUID();
+      const auth = { Authorization: `Bearer ${await t.token(subject, { name })}` };
+      const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(ada).send({ email: `${subject}@corkboard.test`, role: 'commenter' });
+      await request(server).post(`/me/invites/${invite.id}/accept`).set(auth).expect(201);
+      const { body: me } = await request(server).get('/me').set(auth);
+      return { auth, id: me.id as string };
+    };
+    const { body: graceMe } = await request(server).get('/me').set(grace);
+    const namesake = await join('Grace Hopper');
+    const kept = await join('Linus Torvalds');
+    await request(server).put(`/boards/${board.id}/members/${kept.id}`).set(ada).send({ role: 'none' }).expect(200);
+    const mine = async (auth: { Authorization: string }) =>
+      ((await request(server).get('/me/notifications').set(auth)).body as { kind: string; body: string; link: string }[]).filter((n) => n.kind !== 'invite');
+
+    // Grace is in the thread and is mentioned too: she hears it once, as a mention.
+    await request(server).post(`/boards/${board.id}/comments`).set(grace).send({ nodeId: 'img@pin', body: 'First' }).expect(201);
+    const body = `@[Grace Hopper](${graceMe.id}) can you check? @[Linus Torvalds](${kept.id}) too`;
+    const { body: thread } = await request(server).post(`/boards/${board.id}/comments`).set(ada).send({ nodeId: 'img@pin', body }).expect(201);
+    expect(thread.comments.at(-1).body).toBe(body);
+
+    expect(await mine(grace)).toEqual([
+      expect.objectContaining({ kind: 'mention', body: '@Grace Hopper can you check? @Linus Torvalds too', link: `/boards/${board.id}?comment=img%40pin` }),
+    ]);
+    // Her namesake wasn't the one picked, and Linus can't open the board.
+    expect(await mine(namesake.auth)).toEqual([]);
+    expect(await mine(kept.auth)).toEqual([]);
+    // What the board's activity says reads as names, too.
+    const { body: activity } = await request(server).get(`/boards/${board.id}/activity`).set(ada).expect(200);
+    expect(JSON.stringify(activity)).not.toContain(graceMe.id);
   });
 
   it("stops telling someone about a board's comments once they can't open it", async () => {

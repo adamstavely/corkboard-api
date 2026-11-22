@@ -13,6 +13,7 @@ import { PokerService } from '../facilitation/poker.service';
 import { react } from '../reactions/reactions';
 import type { ParticipantCommentThreadDto, ParticipantNoteDto } from './participation.dto';
 import { ParticipantsStore } from './participants.store';
+import { plainMentions } from '../activity/notifications';
 
 /**
  * What a participant from outside the team does on a board: add and change their own notes, comment, react, vote and
@@ -156,7 +157,7 @@ export class ParticipationService {
       await tx.insert(comments).values({ threadId: thread.id, authorId: user.id, body: body.trim() });
     });
     this.collab.broadcastToBoard(boardId, COMMENTS_CHANGED);
-    await this.activity.record(boardId, user, 'commented', undefined, body.trim());
+    await this.activity.record(boardId, user, 'commented', undefined, plainMentions(body.trim()));
     return this.comments(user, boardId);
   }
 
@@ -183,6 +184,7 @@ export class ParticipationService {
         resolved: !!t.resolvedAt,
         comments: rows
           .filter((c) => c.threadId === t.id)
+          .map((c) => ({ ...c, body: plainMentions(c.body) }))
           .flatMap((c) => {
             const p = c.authorId ? people.get(c.authorId) : undefined;
             if (c.authorId === user.id) return [{ id: c.id, by: 'You', mine: true, body: c.body, createdAt: c.createdAt.getTime() }];

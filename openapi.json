@@ -8170,7 +8170,8 @@
             "$ref": "#/components/schemas/CommentAuthorDto"
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "description": "As written: someone picked from the mention list is \"@[Name](their user id)\"; show it as \"@Name\"."
           },
           "createdAt": {
             "format": "date-time",
@@ -8233,6 +8234,7 @@
           },
           "body": {
             "type": "string",
+            "description": "Mention someone as \"@[Name](their user id)\" to name that one person; a typed \"@Name\" works too.",
             "maxLength": 4000
           },
           "anchor": {

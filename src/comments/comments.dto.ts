@@ -10,6 +10,7 @@ export class CommentAuthorDto {
 export class CommentDto {
   id!: string;
   author!: CommentAuthorDto;
+  /** As written: someone picked from the mention list is "@[Name](their user id)"; show it as "@Name". */
   body!: string;
   createdAt!: Date;
 }
@@ -44,6 +45,7 @@ export class AddCommentDto {
   @MaxLength(200)
   nodeId!: string;
 
+  /** Mention someone as "@[Name](their user id)" to name that one person; a typed "@Name" works too. */
   @IsString()
   @IsNotEmpty()
   @MaxLength(4000)

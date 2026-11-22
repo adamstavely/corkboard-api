@@ -8,14 +8,32 @@ import type { NotificationDto, ReadNotificationsDto } from './notifications.dto'
 
 export type NotificationKind = 'mention' | 'reply' | 'answer' | 'invite';
 
-/** People named with an @ in a text: "@Ada" or "@Ada Lovelace", any case. */
+/**
+ * A mention picked from a list: "@[Ada Lovelace](<their user id>)". It names one person even when two share a name,
+ * and reads as "@Ada Lovelace" wherever the text is shown.
+ */
+const MENTION = /@\[([^[\]\n]{1,200})\]\(([0-9a-f-]{36})\)/gi;
+
+/** The text as people read it: each picked mention as "@Name". */
+export function plainMentions(text: string): string {
+  return text.replace(MENTION, '@$1');
+}
+
+/**
+ * The people a text mentions: those picked from a list (by id), and those typed by name, "@Ada" or "@Ada Lovelace",
+ * any case. Only people in `people` count, so someone who can't open the board is never among them.
+ */
 export function mentioned(text: string, people: readonly { id: string; name: string }[]): string[] {
-  const lower = text.toLowerCase();
+  const known = new Set(people.map((p) => p.id));
+  const picked = [...text.matchAll(MENTION)].map((m) => m[2].toLowerCase()).filter((id) => known.has(id));
+  // A picked mention names its person by id alone: its name isn't read again, so a namesake isn't told too.
+  const lower = text.replace(MENTION, ' ').toLowerCase();
   const at = (name: string) => {
     const i = lower.indexOf(`@${name.toLowerCase()}`);
     return i >= 0 && !/[\p{L}\p{N}]/u.test(lower[i + name.length + 1] ?? '');
   };
-  return people.filter((p) => at(p.name) || at(p.name.split(/\s+/)[0])).map((p) => p.id);
+  const typed = people.filter((p) => at(p.name) || at(p.name.split(/\s+/)[0])).map((p) => p.id);
+  return [...new Set([...picked, ...typed])];
 }
 
 /** What people should hear about. Sending never gets in the way of what caused it. */
