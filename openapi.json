@@ -992,6 +992,42 @@
         ]
       }
     },
+    "/boards/{id}/links/embed": {
+      "post": {
+        "operationId": "LinksController_embed",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLinkDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Whoever may make share links: a read-only link without a password to embed the board in Notion, Confluence and\nthe like (the one already made, while it's live). Its page is /embed/{token}; GET /oembed describes it.",
+        "tags": [
+          "links"
+        ]
+      }
+    },
     "/boards/{id}/links/{linkId}": {
       "patch": {
         "operationId": "LinksController_setExpiry",
@@ -1166,6 +1202,42 @@
           }
         ],
         "summary": "Anyone with a link: what it opens. 410 once it's turned off or expired; 403 with `passwordRequired` until the\nlink's password has been typed (send the pass from unlock).",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/embed/{token}": {
+      "get": {
+        "operationId": "LinksController_openEmbed",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedBoardDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "An embedded board's page: what the link shows. 410 once it's turned off or expired; 403 naming the policy when the\nworkspace turns embeds off or the link has a password.",
         "tags": [
           "links"
         ]
@@ -5710,6 +5782,69 @@
           "policies"
         ]
       }
+    },
+    "/oembed": {
+      "get": {
+        "operationId": "OembedController_oembed",
+        "parameters": [
+          {
+            "name": "url",
+            "required": true,
+            "in": "query",
+            "description": "The embed page: https://<corkboard>/embed/<token>.",
+            "schema": {
+              "maxLength": 2000,
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "required": false,
+            "in": "query",
+            "description": "Only json is offered; anything else is answered 501, as oEmbed asks.",
+            "schema": {
+              "maxLength": 10,
+              "type": "string"
+            }
+          },
+          {
+            "name": "maxwidth",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 100,
+              "maximum": 4000,
+              "type": "number"
+            }
+          },
+          {
+            "name": "maxheight",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 100,
+              "maximum": 4000,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OembedDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "oEmbed (https://oembed.com) for embed pages, so Notion's /embed block, Confluence's iframe macro and the like show\nthe board live: a \"rich\" answer with an iframe. The url must be an embed page on Corkboard's own address. 404 for\nany other; 403 naming the policy when the workspace turns embeds off or the link has a password; 410 once it's\nturned off or expired; 501 for formats other than json.",
+        "tags": [
+          "embed"
+        ]
+      }
     }
   },
   "info": {
@@ -6177,6 +6312,10 @@
             "type": "boolean",
             "description": "Guests type a password before it opens anything."
           },
+          "embed": {
+            "type": "boolean",
+            "description": "Made for embedding the board in another tool."
+          },
           "opens": {
             "type": "number"
           },
@@ -6195,6 +6334,7 @@
           "expiresAt",
           "revoked",
           "hasPassword",
+          "embed",
           "opens",
           "lastOpenedAt"
         ]
@@ -9673,6 +9813,10 @@
           "linkPassword": {
             "type": "boolean",
             "description": "Share links need a password, which guests type to open them. On: links without one stop opening."
+          },
+          "embeds": {
+            "type": "boolean",
+            "description": "Boards can be embedded in other tools (Notion, Confluence), live and read-only. Off: embeds stop showing."
           }
         },
         "required": [
@@ -9683,7 +9827,8 @@
           "feedback",
           "retentionDays",
           "editableLinks",
-          "linkPassword"
+          "linkPassword",
+          "embeds"
         ]
       },
       "AllowedDto": {
@@ -9731,6 +9876,14 @@
           "feedback": {
             "$ref": "#/components/schemas/AllowedDto"
           },
+          "embeds": {
+            "description": "Embed the board elsewhere, through a read-only link without a password.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AllowedDto"
+              }
+            ]
+          },
           "linkPassword": {
             "type": "boolean",
             "description": "New share links need a password."
@@ -9743,7 +9896,59 @@
           "editableLinks",
           "exports",
           "feedback",
+          "embeds",
           "linkPassword"
+        ]
+      },
+      "OembedDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "rich"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "provider_name": {
+            "type": "string"
+          },
+          "provider_url": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string",
+            "description": "The iframe to put in the page."
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "cache_age": {
+            "type": "number",
+            "description": "Seconds a consumer may keep this answer."
+          }
+        },
+        "required": [
+          "version",
+          "type",
+          "title",
+          "provider_name",
+          "provider_url",
+          "html",
+          "width",
+          "height",
+          "cache_age"
         ]
       }
     }

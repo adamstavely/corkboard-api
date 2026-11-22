@@ -1,4 +1,4 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import { type MiddlewareConsumer, Module, type NestModule, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { AssistController } from './assist/assist.controller';
@@ -77,6 +77,8 @@ import { OrgsService } from './orgs/orgs.service';
 import { SearchController } from './search/search.controller';
 import { SearchIndex } from './search/search-index';
 import { PoliciesController } from './policies/policies.controller';
+import { OembedController } from './embed/oembed.controller';
+import { noFraming } from './embed/no-framing';
 import { PoliciesService } from './policies/policies.service';
 import { RetentionService } from './policies/retention.service';
 
@@ -116,6 +118,7 @@ import { RetentionService } from './policies/retention.service';
     AppsController,
     AssistController,
     PoliciesController,
+    OembedController,
   ],
   providers: [
     UsersService,
@@ -164,4 +167,8 @@ import { RetentionService } from './policies/retention.service';
     { provide: APP_PIPE, useValue: new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }) },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(noFraming).forRoutes('{*splat}');
+  }
+}

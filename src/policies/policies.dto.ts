@@ -47,6 +47,10 @@ export class PoliciesDto {
   @Min(1)
   @Max(3650)
   retentionDays!: number | null;
+
+  /** Boards can be embedded in other tools (Notion, Confluence), live and read-only. Off: embeds stop showing. */
+  @IsBoolean()
+  embeds!: boolean;
 }
 
 /** Whether the person asking may do something, and if not, why. */
@@ -64,6 +68,8 @@ export class BoardPolicyDto {
   editableLinks!: AllowedDto;
   exports!: AllowedDto;
   feedback!: AllowedDto;
+  /** Embed the board elsewhere, through a read-only link without a password. */
+  embeds!: AllowedDto;
   /** New share links need a password. */
   linkPassword!: boolean;
   /** New share links must expire within this many days; null for no limit. */

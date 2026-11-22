@@ -1,11 +1,11 @@
 import { BadRequestException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { InjectDb, type Db } from '../db/db.module';
 import { boards, boardShareLinks, users, type User } from '../db/schema';
-import { PoliciesService, EDITABLE_OFF, PASSWORD_NEEDED, tooLong } from '../policies/policies.service';
+import { PoliciesService, EDITABLE_OFF, EMBEDS_OFF, embedRefusal, PASSWORD_NEEDED, tooLong } from '../policies/policies.service';
 import { latestExpiry, policyRefusal, type Policies } from '../policies/rules';
 import type { ShareLinkDto, SharedBoardDto } from './links.dto';
 import { Attempts, checkPass, checkPassword, hashPassword, issuePass } from './link-password';
@@ -99,6 +99,58 @@ export class LinksService {
     return link;
   }
 
+  /**
+   * A read-only link without a password for embedding the board elsewhere: the live one made for that, or a new one
+   * (expiring within the workspace's longest). Refused when the workspace turns embeds off or needs passwords.
+   */
+  async embed(user: User, boardId: string): Promise<ShareLinkDto> {
+    const policies = await this.policies.check(user, await this.boards.get(user, boardId), 'shareLinks');
+    const why = embedRefusal(policies);
+    if (why) throw policyRefusal(policies.embeds ? 'linkPassword' : 'embeds', why);
+    const made = await this.db
+      .select({ link: boardShareLinks, by: users.name })
+      .from(boardShareLinks)
+      .leftJoin(users, eq(users.id, boardShareLinks.createdBy))
+      .where(and(eq(boardShareLinks.boardId, boardId), eq(boardShareLinks.embed, true), eq(boardShareLinks.canEdit, false), isNull(boardShareLinks.passwordHash), isNull(boardShareLinks.revokedAt)))
+      .orderBy(desc(boardShareLinks.createdAt));
+    const live = made.find((m) => isLive(m.link));
+    if (live) return toDto(live.link, live.by ?? 'Someone');
+    const [link] = await this.db
+      .insert(boardShareLinks)
+      .values({
+        boardId,
+        token: randomBytes(24).toString('base64url'),
+        label: 'Embed',
+        embed: true,
+        createdBy: user.id,
+        expiresAt: policies.linkMaxDays ? new Date(latestExpiry(policies.linkMaxDays)!) : null,
+      })
+      .returning();
+    await this.activity.record(boardId, user, 'made a link to embed the board', link.label ?? undefined);
+    return toDto(link, user.name);
+  }
+
+  /**
+   * The link behind an embed: live, its workspace allowing embeds, and without a password (a page in another tool has
+   * nowhere to type it). Always read-only.
+   */
+  async admitEmbed(token: string): Promise<Admitted> {
+    const { link, title, orgId, policies } = await this.#find(token);
+    if (!policies.embeds) throw policyRefusal('embeds', EMBEDS_OFF);
+    if (link.passwordHash) throw policyRefusal('linkPassword', "This link has a password, so it can't be embedded.");
+    return { link, title, orgId, canEdit: false };
+  }
+
+  /** For the embed page: what the link shows, counting the open. */
+  async openEmbed(token: string): Promise<SharedBoardDto> {
+    const { link, title } = await this.admitEmbed(token);
+    await this.db
+      .update(boardShareLinks)
+      .set({ opens: sql`${boardShareLinks.opens} + 1`, lastOpenedAt: new Date() })
+      .where(eq(boardShareLinks.id, link.id));
+    return { boardId: link.boardId, title, canEdit: false };
+  }
+
   /** A link by id, live or not. */
   async byId(linkId: string): Promise<LinkRow | null> {
     const [link] = await this.db.select().from(boardShareLinks).where(eq(boardShareLinks.id, linkId));
@@ -174,6 +226,7 @@ function toDto(link: LinkRow, by: string): ShareLinkDto {
     expiresAt: link.expiresAt?.getTime() ?? null,
     revoked: !!link.revokedAt,
     hasPassword: !!link.passwordHash,
+    embed: link.embed,
     opens: link.opens,
     lastOpenedAt: link.lastOpenedAt?.getTime() ?? null,
   };

@@ -15,6 +15,8 @@ export class ShareLinkDto {
   revoked!: boolean;
   /** Guests type a password before it opens anything. */
   hasPassword!: boolean;
+  /** Made for embedding the board in another tool. */
+  embed!: boolean;
   opens!: number;
   lastOpenedAt!: number | null;
 }
