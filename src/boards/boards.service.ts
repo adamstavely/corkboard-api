@@ -18,6 +18,7 @@ import {
   boardVisits,
 } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
+import { PoliciesService } from '../policies/policies.service';
 import { SearchIndex } from '../search/search-index';
 
 /** A board with the role the person asking has on it. */
@@ -46,6 +47,7 @@ export class BoardsService {
     private readonly orgs: OrgsService,
     private readonly search: SearchIndex,
     private readonly activity: ActivityService,
+    private readonly policies: PoliciesService,
   ) {}
 
   /** The workspace's boards the user can open, most recently changed first, each with their role on it. */
@@ -145,10 +147,13 @@ export class BoardsService {
 
   /**
    * Sets someone's role on one board, replacing their workspace role there (`none` keeps them out), or with null
-   * returns them to their workspace role. Board owners can; workspace owners own every board and can't be changed.
+   * returns them to their workspace role. Whoever the workspace's policy lets share (board owners by default) can;
+   * someone who isn't a board owner can't give more than their own role, or change anyone above it. Workspace owners own
+   * every board and can't be changed.
    */
   async setRole(user: User, boardId: string, memberId: string, role: BoardAccess | null): Promise<BoardMember> {
-    const board = await this.get(user, boardId, 'owner');
+    const board = await this.get(user, boardId);
+    await this.policies.check(user, board, 'shareWithPeople');
     const [member] = await this.db
       .select({ userId: users.id, name: users.name, email: users.email, workspaceRole: orgMembers.role })
       .from(orgMembers)
@@ -157,6 +162,14 @@ export class BoardsService {
     if (!member) throw new NotFoundException('Only people in the workspace can be given a role on its boards');
     if (member.workspaceRole === 'owner') {
       throw new ConflictException('Workspace owners own every board. Change their workspace role first.');
+    }
+    if (board.role !== 'owner') {
+      const [onBoard] = await this.db.select({ role: boardMembers.role }).from(boardMembers).where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, memberId)));
+      const now = boardRole(member.workspaceRole, onBoard?.role);
+      const after = role === null ? member.workspaceRole : role === 'none' ? undefined : role;
+      if ((now && !atLeast(board.role, now)) || (after && !atLeast(board.role, after))) {
+        throw new ForbiddenException(`You can share this board up to your own role (${board.role}), not above it.`);
+      }
     }
     if (role === null) {
       await this.db.delete(boardMembers).where(and(eq(boardMembers.boardId, boardId), eq(boardMembers.userId, memberId)));

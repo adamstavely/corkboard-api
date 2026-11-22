@@ -166,6 +166,8 @@ export const boardShareLinks = pgTable('board_share_links', {
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   opens: integer('opens').notNull().default(0),
   lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
+  /** A scrypt hash ("scrypt$salt$hash", base64url): guests type the password before the link opens anything. */
+  passwordHash: text('password_hash'),
   createdAt: createdAt(),
 });
 
@@ -644,3 +646,31 @@ export const modelUsage = pgTable(
   },
   (t) => [index('model_usage_org_time_idx').on(t.orgId, t.createdAt)],
 );
+
+/** Who a workspace policy lets do something, on a board: its workspace's owners, the board's owners, anyone who can edit it, or anyone who can open it. */
+export const policyWho = pgEnum('policy_who', ['workspace_owners', 'board_owners', 'editors', 'everyone']);
+
+/** What a workspace's owners allow on its boards. No row: the defaults below, which are how Corkboard behaved before policies. */
+export const workspacePolicies = pgTable('workspace_policies', {
+  orgId: uuid('org_id')
+    .primaryKey()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  /** Who may give people in the workspace a role on a board (never `everyone`). */
+  shareWithPeople: policyWho('share_with_people').notNull().default('board_owners'),
+  /** Who may make, change and turn off share links (never `everyone`). */
+  shareLinks: policyWho('share_links').notNull().default('board_owners'),
+  /** Share links may let guests edit. Off: existing editable links open read-only. */
+  editableLinks: boolean('editable_links').notNull().default(true),
+  /** Share links need a password. On: links without one stop opening. */
+  linkPassword: boolean('link_password').notNull().default(false),
+  /** Share links expire within this many days; null for no limit. */
+  linkMaxDays: integer('link_max_days'),
+  /** Who may export a board: image, PDF, Markdown, CSV, or tasks sent to a tracker. */
+  exports: policyWho('exports').notNull().default('everyone'),
+  /** Who may open a board for feedback from outside the workspace (never `everyone`); board owners includes the facilitator. */
+  feedback: policyWho('feedback').notNull().default('board_owners'),
+  /** Keep board history, saved versions and the assistant's undo list this many days; null keeps them for good. */
+  retentionDays: integer('retention_days'),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

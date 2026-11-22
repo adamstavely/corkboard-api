@@ -942,7 +942,7 @@
             "bearer": []
           }
         ],
-        "summary": "Board owners: the board's share links, newest first.",
+        "summary": "Whoever the workspace's policy lets manage links (board owners by default): the board's share links, newest first.",
         "tags": [
           "links"
         ]
@@ -986,7 +986,7 @@
             "bearer": []
           }
         ],
-        "summary": "Board owners: a link that lets anyone who has it view the board, read-only.",
+        "summary": "A link that lets anyone who has it view the board, read-only unless it lets them edit. The workspace's policies\ndecide who may, whether it may be editable, whether it needs a password and how soon it must expire.",
         "tags": [
           "links"
         ]
@@ -1074,7 +1074,7 @@
             "bearer": []
           }
         ],
-        "summary": "Board owners: turn a link off; anyone viewing through it is let go.",
+        "summary": "Board owners (and whoever the policy lets manage links): turn a link off; anyone viewing through it is let go.",
         "tags": [
           "links"
         ]
@@ -1096,6 +1096,15 @@
             "name": "fileId",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-link-pass",
+            "in": "header",
+            "description": "Proof of the link's password, from unlock",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1128,6 +1137,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-link-pass",
+            "required": false,
+            "in": "header",
+            "description": "Proof of the link's password, from unlock",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1147,7 +1165,53 @@
             "bearer": []
           }
         ],
-        "summary": "Anyone with a link: what it opens. 410 once it's turned off or expired.",
+        "summary": "Anyone with a link: what it opens. 410 once it's turned off or expired; 403 with `passwordRequired` until the\nlink's password has been typed (send the pass from unlock).",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/shared/{token}/unlock": {
+      "post": {
+        "operationId": "LinksController_unlock",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlockLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPassDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone with a link that has a password: type it. 403 when it's wrong; 429 after too many wrong tries.",
         "tags": [
           "links"
         ]
@@ -5461,6 +5525,122 @@
           "assist"
         ]
       }
+    },
+    "/orgs/{orgId}/policies": {
+      "get": {
+        "operationId": "PoliciesController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoliciesDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone in the workspace: its policies.",
+        "tags": [
+          "policies"
+        ]
+      },
+      "put": {
+        "operationId": "PoliciesController_set",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoliciesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoliciesDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: set the workspace's policies. Share links already out there follow at once: cut short to the\nlongest expiry allowed, and guests on links that no longer qualify are let go (editable ones reconnect read-only).\nA shorter retention prunes old history now rather than at the next daily run.",
+        "tags": [
+          "policies"
+        ]
+      }
+    },
+    "/boards/{id}/policy": {
+      "get": {
+        "operationId": "PoliciesController_onBoard",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardPolicyDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone on the board: what the workspace's policies let them do on it, with the reason for anything they can't.",
+        "tags": [
+          "policies"
+        ]
+      }
     }
   },
   "info": {
@@ -5924,6 +6104,10 @@
           "revoked": {
             "type": "boolean"
           },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Guests type a password before it opens anything."
+          },
           "opens": {
             "type": "number"
           },
@@ -5941,6 +6125,7 @@
           "createdAt",
           "expiresAt",
           "revoked",
+          "hasPassword",
           "opens",
           "lastOpenedAt"
         ]
@@ -5961,6 +6146,12 @@
             "description": "Days until it stops working; without it, it works until revoked.",
             "minimum": 1,
             "maximum": 365
+          },
+          "password": {
+            "type": "string",
+            "description": "Guests must type this before the link opens anything; kept only as a hash.",
+            "minLength": 6,
+            "maxLength": 200
           }
         }
       },
@@ -5995,6 +6186,29 @@
           "boardId",
           "title",
           "canEdit"
+        ]
+      },
+      "UnlockLinkDto": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "LinkPassDto": {
+        "type": "object",
+        "properties": {
+          "pass": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pass"
         ]
       },
       "FeedbackLinkDto": {
@@ -9314,6 +9528,140 @@
           "citedFiles",
           "citedPages",
           "suggestionId"
+        ]
+      },
+      "PoliciesDto": {
+        "type": "object",
+        "properties": {
+          "shareWithPeople": {
+            "description": "Who may give people in the workspace a role on a board.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors"
+            ],
+            "type": "string"
+          },
+          "shareLinks": {
+            "description": "Who may make, change and turn off share links.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors"
+            ],
+            "type": "string"
+          },
+          "linkMaxDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "Share links expire within this many days; null for no limit. Links that would outlive it are cut short.",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "exports": {
+            "description": "Who may export a board: image, PDF, Markdown, CSV, or tasks sent to a tracker.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors",
+              "everyone"
+            ],
+            "type": "string"
+          },
+          "feedback": {
+            "description": "Who may open a board for outside feedback; board owners includes the facilitator.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors"
+            ],
+            "type": "string"
+          },
+          "retentionDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "Keep board history, saved versions and the assistant's undo list this many days; null keeps them for good.",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "editableLinks": {
+            "type": "boolean",
+            "description": "Share links may let guests edit. Off: editable links already made open read-only."
+          },
+          "linkPassword": {
+            "type": "boolean",
+            "description": "Share links need a password, which guests type to open them. On: links without one stop opening."
+          }
+        },
+        "required": [
+          "shareWithPeople",
+          "shareLinks",
+          "linkMaxDays",
+          "exports",
+          "feedback",
+          "retentionDays",
+          "editableLinks",
+          "linkPassword"
+        ]
+      },
+      "AllowedDto": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "The policy's (or role's) reason, when not allowed."
+          }
+        },
+        "required": [
+          "allowed",
+          "reason"
+        ]
+      },
+      "BoardPolicyDto": {
+        "type": "object",
+        "properties": {
+          "linkMaxDays": {
+            "type": "number",
+            "nullable": true,
+            "description": "New share links must expire within this many days; null for no limit."
+          },
+          "shareWithPeople": {
+            "$ref": "#/components/schemas/AllowedDto"
+          },
+          "shareLinks": {
+            "$ref": "#/components/schemas/AllowedDto"
+          },
+          "editableLinks": {
+            "description": "Make share links that let guests edit.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AllowedDto"
+              }
+            ]
+          },
+          "exports": {
+            "$ref": "#/components/schemas/AllowedDto"
+          },
+          "feedback": {
+            "$ref": "#/components/schemas/AllowedDto"
+          },
+          "linkPassword": {
+            "type": "boolean",
+            "description": "New share links need a password."
+          }
+        },
+        "required": [
+          "linkMaxDays",
+          "shareWithPeople",
+          "shareLinks",
+          "editableLinks",
+          "exports",
+          "feedback",
+          "linkPassword"
         ]
       }
     }

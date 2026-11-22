@@ -1,28 +1,43 @@
-import { GoneException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, GoneException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { InjectDb, type Db } from '../db/db.module';
 import { boards, boardShareLinks, users, type User } from '../db/schema';
+import { PoliciesService, EDITABLE_OFF, PASSWORD_NEEDED, tooLong } from '../policies/policies.service';
+import { latestExpiry, policyRefusal, type Policies } from '../policies/rules';
 import type { ShareLinkDto, SharedBoardDto } from './links.dto';
+import { Attempts, checkPass, checkPassword, hashPassword, issuePass } from './link-password';
 
 type LinkRow = typeof boardShareLinks.$inferSelect;
 
 /** Whether a link still opens its board. */
 export const isLive = (link: Pick<LinkRow, 'revokedAt' | 'expiresAt'>, now = Date.now()) => !link.revokedAt && (!link.expiresAt || link.expiresAt.getTime() > now);
 
-/** Share links: board owners make and revoke them; anyone with one can view the board, read-only. */
+/** A link that opens, and what it lets its guest do now. */
+export interface Admitted {
+  link: LinkRow;
+  title: string;
+  orgId: string;
+  /** The link lets guests edit, and the workspace still allows that. */
+  canEdit: boolean;
+}
+
+/** Share links: made and turned off by whoever the workspace's policy allows; anyone with one can view the board. */
 @Injectable()
 export class LinksService {
+  readonly #attempts = new Attempts();
+
   constructor(
     @InjectDb() private readonly db: Db,
     private readonly boards: BoardsService,
     private readonly activity: ActivityService,
+    private readonly policies: PoliciesService,
   ) {}
 
   async list(user: User, boardId: string): Promise<ShareLinkDto[]> {
-    await this.boards.get(user, boardId, 'owner');
+    await this.policies.check(user, await this.boards.get(user, boardId), 'shareLinks');
     const rows = await this.db
       .select({ link: boardShareLinks, by: users.name })
       .from(boardShareLinks)
@@ -32,8 +47,11 @@ export class LinksService {
     return rows.map(({ link, by }) => toDto(link, by ?? 'Someone'));
   }
 
-  async create(user: User, boardId: string, label?: string, expiresInDays?: number, canEdit = false): Promise<ShareLinkDto> {
-    await this.boards.get(user, boardId, 'owner');
+  async create(user: User, boardId: string, { label, expiresInDays, canEdit = false, password }: NewLink): Promise<ShareLinkDto> {
+    const policies = await this.policies.check(user, await this.boards.get(user, boardId), 'shareLinks');
+    if (canEdit && !policies.editableLinks) throw policyRefusal('editableLinks', EDITABLE_OFF);
+    if (policies.linkPassword && !password) throw policyRefusal('linkPassword', PASSWORD_NEEDED);
+    if (policies.linkMaxDays !== null && (!expiresInDays || expiresInDays > policies.linkMaxDays)) throw policyRefusal('linkMaxDays', tooLong(policies.linkMaxDays));
     const [link] = await this.db
       .insert(boardShareLinks)
       .values({
@@ -43,26 +61,34 @@ export class LinksService {
         canEdit,
         createdBy: user.id,
         expiresAt: expiresInDays ? new Date(Date.now() + expiresInDays * 86_400_000) : null,
+        passwordHash: password ? await hashPassword(password) : null,
       })
       .returning();
-    await this.activity.record(boardId, user, canEdit ? 'made an editable share link' : 'made a share link', link.label ?? undefined);
+    await this.activity.record(boardId, user, canEdit ? 'made an editable share link' : 'made a share link', link.label ?? undefined, password ? 'With a password' : undefined);
     return toDto(link, user.name);
   }
 
   async setExpiry(user: User, boardId: string, linkId: string, expiresAt: number | null): Promise<ShareLinkDto> {
-    await this.boards.get(user, boardId, 'owner');
+    const policies = await this.policies.check(user, await this.boards.get(user, boardId), 'shareLinks');
+    const [was] = await this.db.select().from(boardShareLinks).where(and(eq(boardShareLinks.id, linkId), eq(boardShareLinks.boardId, boardId)));
+    if (!was) throw new NotFoundException('Link not found');
+    const latest = latestExpiry(policies.linkMaxDays, was.createdAt.getTime());
+    if (latest !== null && (expiresAt === null || expiresAt > latest)) throw policyRefusal('linkMaxDays', tooLong(policies.linkMaxDays!));
     const [link] = await this.db
       .update(boardShareLinks)
       .set({ expiresAt: expiresAt === null ? null : new Date(expiresAt) })
-      .where(and(eq(boardShareLinks.id, linkId), eq(boardShareLinks.boardId, boardId)))
+      .where(eq(boardShareLinks.id, linkId))
       .returning();
-    if (!link) throw new NotFoundException('Link not found');
     return toDto(link, user.name);
   }
 
-  /** It stops working at once; anyone viewing through it is let go (see CollabService). */
+  /**
+   * It stops working at once; anyone viewing through it is let go (see CollabService). Board owners can always turn a
+   * link off, whoever the policy lets make them.
+   */
   async revoke(user: User, boardId: string, linkId: string): Promise<LinkRow> {
-    await this.boards.get(user, boardId, 'owner');
+    const board = await this.boards.get(user, boardId);
+    if (board.role !== 'owner') await this.policies.check(user, board, 'shareLinks');
     const [link] = await this.db
       .update(boardShareLinks)
       .set({ revokedAt: new Date() })
@@ -79,27 +105,62 @@ export class LinksService {
     return link ?? null;
   }
 
-  /** The link behind a token, if it still opens its board. */
-  async byToken(token: string): Promise<LinkRow | null> {
-    const [link] = await this.db.select().from(boardShareLinks).where(eq(boardShareLinks.token, token));
-    return link && isLive(link) ? link : null;
-  }
-
-  /** For the shared page: what the link opens, counting the open. */
-  async open(token: string): Promise<SharedBoardDto> {
+  async #find(token: string): Promise<{ link: LinkRow; title: string; orgId: string; policies: Policies }> {
     const [row] = await this.db
-      .select({ link: boardShareLinks, title: boards.title })
+      .select({ link: boardShareLinks, title: boards.title, orgId: boards.orgId })
       .from(boardShareLinks)
       .innerJoin(boards, eq(boards.id, boardShareLinks.boardId))
       .where(eq(boardShareLinks.token, token));
     if (!row) throw new NotFoundException('This link does not open anything');
     if (!isLive(row.link)) throw new GoneException('This link has been turned off or has expired');
+    const policies = await this.policies.of(row.orgId);
+    if (policies.linkPassword && !row.link.passwordHash) throw policyRefusal('linkPassword', "This workspace's policy now needs a password on share links, so this one no longer opens. Ask for a new link.");
+    return { ...row, policies };
+  }
+
+  /**
+   * The link behind a token, if it opens its board for this guest: live, allowed by the workspace's policies, and with
+   * proof of its password (`pass`, from `unlock`) when it has one. Throws why not: 404, 410, or 403 (`passwordRequired`
+   * when the password is what's missing).
+   */
+  async admit(token: string, pass?: string): Promise<Admitted> {
+    const { link, title, orgId, policies } = await this.#find(token);
+    if (link.passwordHash && !checkPass(pass, link.id, link.passwordHash)) {
+      throw new ForbiddenException({ statusCode: 403, error: 'Forbidden', message: 'This link needs its password', passwordRequired: true });
+    }
+    return { link, title, orgId, canEdit: link.canEdit && policies.editableLinks };
+  }
+
+  /** A guest types a link's password: proof to send with what they open, or 403. Guessing is limited (429). */
+  async unlock(token: string, password: string, address: string): Promise<string> {
+    const { link } = await this.#find(token);
+    if (!link.passwordHash) throw new BadRequestException("This link doesn't have a password");
+    const wait = this.#attempts.waitFor(link.id, address);
+    if (wait) throw new HttpException(`Too many wrong passwords. Try again in ${wait} minute${wait === 1 ? '' : 's'}.`, HttpStatus.TOO_MANY_REQUESTS);
+    if (!(await checkPassword(password, link.passwordHash))) {
+      this.#attempts.miss(link.id, address);
+      throw new ForbiddenException({ statusCode: 403, error: 'Forbidden', message: "That password isn't right", passwordRequired: true });
+    }
+    return issuePass(link.id, link.passwordHash);
+  }
+
+  /** For the shared page: what the link opens, counting the open. */
+  async open(token: string, pass?: string): Promise<SharedBoardDto> {
+    const { link, title, canEdit } = await this.admit(token, pass);
     await this.db
       .update(boardShareLinks)
       .set({ opens: sql`${boardShareLinks.opens} + 1`, lastOpenedAt: new Date() })
-      .where(eq(boardShareLinks.id, row.link.id));
-    return { boardId: row.link.boardId, title: row.title, canEdit: row.link.canEdit };
+      .where(eq(boardShareLinks.id, link.id));
+    return { boardId: link.boardId, title, canEdit };
   }
+}
+
+/** What a new share link is to be. */
+export interface NewLink {
+  label?: string;
+  expiresInDays?: number;
+  canEdit?: boolean;
+  password?: string;
 }
 
 function toDto(link: LinkRow, by: string): ShareLinkDto {
@@ -112,6 +173,7 @@ function toDto(link: LinkRow, by: string): ShareLinkDto {
     createdAt: link.createdAt.getTime(),
     expiresAt: link.expiresAt?.getTime() ?? null,
     revoked: !!link.revokedAt,
+    hasPassword: !!link.passwordHash,
     opens: link.opens,
     lastOpenedAt: link.lastOpenedAt?.getTime() ?? null,
   };
