@@ -3662,6 +3662,120 @@
         ]
       }
     },
+    "/orgs/{orgId}/integrations/{id}/webhook": {
+      "post": {
+        "operationId": "IntegrationsController_setUpWebhook",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSetupDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: a new secret for the tracker to sign its webhooks with, and where to send them. Shown this once;\nany earlier secret stops working. Webhooks only bring syncs forward: linked tasks are checked on a schedule anyway.",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/boards/{id}/tasks/sync": {
+      "get": {
+        "operationId": "IntegrationsController_syncStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardSyncDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone who can open the board: when each task sent to a tracker was last synced with its issue, and any tracker failing.",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "post": {
+        "operationId": "IntegrationsController_syncNow",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardSyncDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: sync the board's linked tasks with their issues now (title, status, assignee, both ways).",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/boards/{id}/tasks/export": {
       "post": {
         "operationId": "IntegrationsController_export",
@@ -8055,12 +8169,12 @@
           },
           "category": {
             "enum": [
+              "team",
               "retro",
               "ideate",
               "plan",
               "discover",
-              "analyse",
-              "team"
+              "analyse"
             ],
             "type": "string"
           },
@@ -8212,6 +8326,11 @@
           "email": {
             "type": "string",
             "format": "email"
+          },
+          "doingLabel": {
+            "type": "string",
+            "description": "GitHub: the label that marks an open issue as in progress; \"in progress\" if not given.",
+            "maxLength": 50
           }
         }
       },
@@ -8238,6 +8357,10 @@
           "target": {
             "type": "string",
             "description": "Where issues go, in words: \"acme/web\", \"Linear team\", \"ENG on acme.atlassian.net\"."
+          },
+          "webhook": {
+            "type": "boolean",
+            "description": "Whether a webhook secret is set up, so the tracker can say when issues change."
           }
         },
         "required": [
@@ -8245,7 +8368,8 @@
           "id",
           "label",
           "config",
-          "target"
+          "target",
+          "webhook"
         ]
       },
       "CreateIntegrationDto": {
@@ -8277,6 +8401,111 @@
           "label",
           "config",
           "token"
+        ]
+      },
+      "WebhookSetupDto": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The path on this API, e.g. /hooks/trackers/<id>; the tracker needs the full address."
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "secret"
+        ]
+      },
+      "TaskSyncDto": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "issueKey": {
+            "type": "string"
+          },
+          "syncedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO time; null until the first sync."
+          }
+        },
+        "required": [
+          "taskId",
+          "issueKey",
+          "syncedAt"
+        ]
+      },
+      "TrackerSyncStateDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "github",
+              "linear",
+              "jira"
+            ],
+            "type": "string"
+          },
+          "integrationId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "syncedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "When it last worked (ISO), or null."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why it last failed, while it's failing; null once it works again."
+          },
+          "errorAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "retryAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "While failing: when it's next tried on its own (it backs off, more each time)."
+          }
+        },
+        "required": [
+          "kind",
+          "integrationId",
+          "label",
+          "syncedAt",
+          "error",
+          "errorAt",
+          "retryAt"
+        ]
+      },
+      "BoardSyncDto": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSyncDto"
+            }
+          },
+          "trackers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrackerSyncStateDto"
+            }
+          }
+        },
+        "required": [
+          "tasks",
+          "trackers"
         ]
       },
       "ExportTasksDto": {
@@ -8870,12 +9099,12 @@
           "category": {
             "type": "string",
             "enum": [
+              "team",
               "retro",
               "ideate",
               "plan",
               "discover",
-              "analyse",
-              "team"
+              "analyse"
             ]
           },
           "columns": {

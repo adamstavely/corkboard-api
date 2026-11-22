@@ -25,7 +25,8 @@ export async function createTestApp(options: { models?: ChatModelFactory; provid
   if (options.models) builder = builder.overrideProvider(CHAT_MODELS).useValue(options.models);
   for (const [token, value] of options.providers ?? []) builder = builder.overrideProvider(token).useValue(value);
   const moduleRef = await builder.compile();
-  const app = moduleRef.createNestApplication();
+  // The raw body, as main.ts keeps it, for checking webhooks' signatures.
+  const app = moduleRef.createNestApplication({ rawBody: true });
   // Listening for real, so tests can open the collaboration socket.
   await app.listen(0, '127.0.0.1');
   const { port } = app.getHttpServer().address() as AddressInfo;

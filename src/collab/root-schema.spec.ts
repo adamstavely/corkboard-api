@@ -53,6 +53,10 @@ describe("a board's tasks and other parts", () => {
   it('checks every field a task may have', () => {
     expect(taskProblem('t', task('t', { external: { kind: 'jira', key: 'P-1', url: 'https://x' } }))).toBeNull();
     expect(taskProblem('t', task('t', { external: { kind: 'jira' } }))).toContain('issue link');
+    expect(taskProblem('t', task('t', { external: { kind: 'jira', key: 'P-1', url: 'https://x', assignee: 'Grace' } }))).toBeNull();
+    expect(taskProblem('t', task('t', { external: { kind: 'jira', key: 'P-1', url: 'https://x', assignee: 3 } }))).toContain('issue assignee');
+    expect(taskProblem('t', task('t', { updated: '2026-11-20T10:00:00.000Z' }))).toBeNull();
+    expect(taskProblem('t', task('t', { updated: 'yesterday' }))).toContain('change time');
     expect(taskProblem('t', task('t', { due: 'tomorrow' }))).toContain('due');
     expect(taskProblem('t', task('t', { priority: 9 }))).toContain('priority');
     expect(taskProblem('t', task('t', { key: 'NW-301' }))).toBeNull();

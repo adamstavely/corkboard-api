@@ -13,6 +13,7 @@ import { PoliciesService } from '../policies/policies.service';
 import { checkConfig, createIssue, type IntegrationConfig, type IntegrationKind } from './exporters';
 import type { CreateIntegrationDto, ExportResultDto, IntegrationDto } from './integrations.dto';
 import { IssueHttp } from './issue-http';
+import { freshlySent } from './tracker-sync';
 
 /**
  * How long a send may hold a task before its claim is taken as left behind by a crash or restart: well past the
@@ -42,6 +43,7 @@ const view = (row: typeof integrations.$inferSelect): IntegrationDto => ({
   label: row.label,
   config: row.config,
   target: target(row.kind, row.config),
+  webhook: !!row.webhookSecretEncrypted,
 });
 
 /**
@@ -161,7 +163,7 @@ export class IntegrationsService {
         try {
           await this.db
             .update(issueExports)
-            .set({ status: 'done', issueKey: made.key, url: made.url })
+            .set({ status: 'done', issueKey: made.key, url: made.url, synced: freshlySent(task.title), syncedAt: new Date() })
             .where(and(eq(issueExports.boardId, boardId), eq(issueExports.taskId, task.id)));
         } catch (err) {
           this.#log.error(`Created ${made.key} (${made.url}) for task ${task.id} on board ${boardId} but couldn't record it: ${String(err)}`);

@@ -4,6 +4,7 @@ import { HttpException, Injectable, Logger, OnApplicationBootstrap, BeforeApplic
 import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingHttpHeaders, IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
+import { Subject } from 'rxjs';
 import { WebSocketServer, type WebSocket } from 'ws';
 import * as Y from 'yjs';
 import { UsersService, type Signin } from '../auth/users.service';
@@ -95,6 +96,8 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
   #signedOut: { unsubscribe(): void } | undefined;
   /** For each board with projections open: a connection keeping the board loaded, and a pending catch-up. */
   readonly #projected = new Map<string, { hold: Promise<{ disconnect(): Promise<void> }>; timer?: NodeJS.Timeout }>();
+  /** Boards someone just changed tasks on, over the socket: their linked issues follow (tracker-sync.service.ts). */
+  readonly tasksEdited = new Subject<string>();
   /** Edits not yet in the history: per board and person, what they touched. */
   readonly #edits = new Map<string, { boardId: string; user: User; touched: Touched; timer: NodeJS.Timeout }>();
 
@@ -215,6 +218,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         // Someone's own edit, from their board (the API's edits record themselves).
         const user = (context as CollabContext | undefined)?.user;
         if (connection && user && !(context).linkId && UUID.test(documentName)) this.#logEdit(documentName, user, document, update);
+        if (connection && UUID.test(documentName) && document.getMap('tasks').size) this.tasksEdited.next(documentName);
         return Promise.resolve();
       },
       afterUnloadDocument: async ({ documentName }) => {

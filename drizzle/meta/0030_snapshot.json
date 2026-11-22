@@ -1,5 +1,5 @@
 {
-  "id": "5cc3b357-be3e-49bd-b99d-fb4448d80f6e",
+  "id": "9c74e80d-2948-4af5-bfbd-5a5ab5fd16b9",
   "prevId": "40bf4cdf-e1bf-4c9e-8ecb-edc32b0b16cf",
   "version": "7",
   "dialect": "postgresql",
@@ -1070,13 +1070,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "embed": {
-          "name": "embed",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1726,6 +1719,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "webhook_secret_encrypted": {
+          "name": "webhook_secret_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "uuid",
@@ -1738,6 +1737,37 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "synced_at": {
+          "name": "synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_error": {
+          "name": "sync_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_error_at": {
+          "name": "sync_error_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_failures": {
+          "name": "sync_failures",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "sync_next_at": {
+          "name": "sync_next_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1834,6 +1864,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "synced": {
+          "name": "synced",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "synced_at": {
+          "name": "synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -3020,13 +3062,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
-        },
-        "embeds": {
-          "name": "embeds",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         },
         "updated_by": {
           "name": "updated_by",

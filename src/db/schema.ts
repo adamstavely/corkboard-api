@@ -1,3 +1,4 @@
+import type { SyncedState } from '../integrations/tracker-sync';
 import { type AnyPgColumn, boolean, customType, integer, index, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
@@ -583,8 +584,17 @@ export const integrations = pgTable('integrations', {
   config: jsonb('config').$type<Record<string, string>>().notNull(),
   /** The access token, encrypted like model keys. */
   tokenEncrypted: text('token_encrypted').notNull(),
+  /** Signs the tracker's webhooks (see webhooks.ts), encrypted like the token; null until an owner sets one up. */
+  webhookSecretEncrypted: text('webhook_secret_encrypted'),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt(),
+  /** Keeping linked tasks in step (tracker-sync.service.ts): when it last worked, and why it last didn't. */
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  syncError: text('sync_error'),
+  syncErrorAt: timestamp('sync_error_at', { withTimezone: true }),
+  /** Failures in a row, for backing off; and when it's next due (each run claims it by moving this on). */
+  syncFailures: integer('sync_failures').notNull().default(0),
+  syncNextAt: timestamp('sync_next_at', { withTimezone: true }),
 });
 
 /**
@@ -607,6 +617,12 @@ export const issueExports = pgTable(
     createdAt: createdAt(),
     /** When the current send claimed it: a claim still pending long after is one a crash or restart left behind. */
     claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Where the task and its issue last agreed (see tracker-sync.ts SyncedState), so each side's changes since can be
+     * told apart; and when they were last compared. Null for tasks sent before sync existed.
+     */
+    synced: jsonb('synced').$type<SyncedState>(),
+    syncedAt: timestamp('synced_at', { withTimezone: true }),
   },
   (t) => [primaryKey({ columns: [t.boardId, t.taskId] })],
 );

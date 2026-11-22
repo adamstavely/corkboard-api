@@ -38,10 +38,14 @@ export function taskProblem(id: string, task: unknown): string | null {
   if (t['due'] !== undefined && (typeof t['due'] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t['due']))) return 'a due date that is not YYYY-MM-DD';
   if (t['noteId'] !== undefined && !isString(t['noteId'], 200)) return 'a note id that is not an id';
   if (t['estimate'] !== undefined && !isString(t['estimate'], 8)) return 'an estimate that is not a size';
+  // When its title, status or assignee last changed on the board, for settling a change made in its tracker too.
+  if (t['updated'] !== undefined && (typeof t['updated'] !== 'string' || Number.isNaN(Date.parse(t['updated'])))) return 'a change time that is not a time';
   const external = t['external'];
   if (external !== undefined) {
     const e = external as Record<string, unknown> | null;
     if (!e || typeof e !== 'object' || !isString(e['kind'], 50) || !isString(e['key'], 200) || !isString(e['url'], 2_000)) return 'an issue link that is not one';
+    // Who the issue is assigned to in the tracker, by name, when they aren't on the board (written by the API).
+    if (e['assignee'] !== undefined && !isString(e['assignee'], 200)) return 'an issue assignee that is not a name';
   }
   return null;
 }
