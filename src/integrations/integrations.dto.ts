@@ -30,6 +30,12 @@ export class IntegrationConfigDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  /** GitHub: the label that marks an open issue as in progress; "in progress" if not given. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  doingLabel?: string;
 }
 
 export class CreateIntegrationDto {
@@ -62,6 +68,8 @@ export class IntegrationDto {
   config!: IntegrationConfigDto;
   /** Where issues go, in words: "acme/web", "Linear team", "ENG on acme.atlassian.net". */
   target!: string;
+  /** Whether a webhook secret is set up, so the tracker can say when issues change. */
+  webhook!: boolean;
 }
 
 export class ExportTasksDto {
@@ -100,4 +108,39 @@ export class ExportResultDto {
   failed!: ExportFailureDto[];
   /** Tasks left out because they'd been sent before. */
   skipped!: number;
+}
+
+/** A task linked to an issue, and when the two were last compared. */
+export class TaskSyncDto {
+  taskId!: string;
+  issueKey!: string;
+  /** ISO time; null until the first sync. */
+  syncedAt!: string | null;
+}
+
+/** How keeping a board's tasks in step with one tracker is going. */
+export class TrackerSyncStateDto {
+  integrationId!: string;
+  @ApiProperty({ enum: INTEGRATION_KINDS })
+  kind!: IntegrationKind;
+  label!: string;
+  /** When it last worked (ISO), or null. */
+  syncedAt!: string | null;
+  /** Why it last failed, while it's failing; null once it works again. */
+  error!: string | null;
+  errorAt!: string | null;
+  /** While failing: when it's next tried on its own (it backs off, more each time). */
+  retryAt!: string | null;
+}
+
+export class BoardSyncDto {
+  tasks!: TaskSyncDto[];
+  trackers!: TrackerSyncStateDto[];
+}
+
+/** Where a tracker sends its webhooks, and the secret it signs them with (shown this once). */
+export class WebhookSetupDto {
+  /** The path on this API, e.g. /hooks/trackers/<id>; the tracker needs the full address. */
+  path!: string;
+  secret!: string;
 }
