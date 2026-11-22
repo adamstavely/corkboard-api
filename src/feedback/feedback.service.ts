@@ -10,6 +10,7 @@ import { facilitatorOf } from '../facilitation/facilitation-doc';
 import type { FeedbackDto, FeedbackJoinDto, ParticipantDto } from './feedback.dto';
 
 import type { Visibility } from '../collab/projection';
+import { PoliciesService } from '../policies/policies.service';
 import { ParticipantsStore, type LinkRow, type ParticipantRow } from './participants.store';
 
 /** "Participant 4": what other participants call someone when names are hidden. */
@@ -28,6 +29,7 @@ export class FeedbackService {
     private readonly collab: CollabService,
     private readonly activity: ActivityService,
     private readonly store: ParticipantsStore,
+    private readonly policies: PoliciesService,
   ) {}
 
   liveLink(boardId: string): Promise<LinkRow | null> {
@@ -47,7 +49,7 @@ export class FeedbackService {
 
   /** Owners and the facilitator: a feedback link (replacing any live one), with what participants see of each other. */
   async open(user: User, boardId: string, visibility: Visibility): Promise<FeedbackDto> {
-    await this.#manage(user, boardId);
+    await this.#manage(user, boardId, true);
     await this.db.transaction(async (tx) => {
       await tx.update(boardFeedbackLinks).set({ revokedAt: new Date() }).where(and(eq(boardFeedbackLinks.boardId, boardId), isNull(boardFeedbackLinks.revokedAt)));
       await tx.insert(boardFeedbackLinks).values({ boardId, token: randomBytes(24).toString('base64url'), visibility, createdBy: user.id });
@@ -137,17 +139,25 @@ export class FeedbackService {
     return active;
   }
 
-  /** Board owners, or whoever holds the facilitator's seat. */
-  async #manage(user: User, boardId: string): Promise<void> {
-    const board = await this.boards.get(user, boardId, 'updater');
-    if (board.role === 'owner') return;
+  /** Whether this person holds the board's facilitator seat. */
+  async facilitates(user: User, boardId: string): Promise<boolean> {
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
-      if (connection.document && facilitatorOf(connection.document).userId === user.id) return;
+      return !!connection.document && facilitatorOf(connection.document).userId === user.id;
     } finally {
       await connection.disconnect();
     }
-    throw new ForbiddenException('Only board owners and the facilitator open a board for feedback');
+  }
+
+  /**
+   * Opening a board for feedback: whoever the workspace's policy allows (board owners and the facilitator by default).
+   * Changing or closing it: them, and always the board's owners and facilitator.
+   */
+  async #manage(user: User, boardId: string, opening = false): Promise<void> {
+    const board = await this.boards.get(user, boardId);
+    const facilitator = () => this.facilitates(user, boardId);
+    if (!opening && (board.role === 'owner' || (board.role === 'updater' && (await facilitator())))) return;
+    await this.policies.check(user, board, 'feedback', facilitator);
   }
 }
 

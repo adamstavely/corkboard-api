@@ -36,7 +36,9 @@ import { SavedTemplatesService } from './boards/saved-templates.service';
 import { PokerService } from './facilitation/poker.service';
 import { WritingController } from './facilitation/writing.controller';
 import { WritingService } from './facilitation/writing.service';
+import { DiagramImageController } from './unfurl/diagram-image.controller';
 import { UnfurlController } from './unfurl/unfurl.controller';
+import { fetchImage, IMAGE_FETCH } from './unfurl/unfurl';
 import { IntegrationsController } from './integrations/integrations.controller';
 import { IntegrationsService } from './integrations/integrations.service';
 import { IssueHttp } from './integrations/issue-http';
@@ -79,6 +81,9 @@ import { MembersService } from './orgs/members.service';
 import { OrgsService } from './orgs/orgs.service';
 import { SearchController } from './search/search.controller';
 import { SearchIndex } from './search/search-index';
+import { PoliciesController } from './policies/policies.controller';
+import { PoliciesService } from './policies/policies.service';
+import { RetentionService } from './policies/retention.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), DbModule],
@@ -99,6 +104,7 @@ import { SearchIndex } from './search/search-index';
     PokerController,
     SavedTemplatesController,
     UnfurlController,
+    DiagramImageController,
     IntegrationsController,
     AdminController,
     LedgerController,
@@ -117,6 +123,7 @@ import { SearchIndex } from './search/search-index';
     TokensController,
     AgentsController,
     McpController,
+    PoliciesController,
   ],
   providers: [
     UsersService,
@@ -129,6 +136,7 @@ import { SearchIndex } from './search/search-index';
     SuggestionsService,
     AppsService,
     { provide: WEB, useFactory: () => realWeb() },
+    { provide: IMAGE_FETCH, useValue: fetchImage },
     AssistService,
     CommentsService,
     ChatService,
@@ -160,6 +168,8 @@ import { SearchIndex } from './search/search-index';
     CollabService,
     TokensService,
     AgentsService,
+    PoliciesService,
+    RetentionService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_PIPE, useValue: new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }) },
   ],

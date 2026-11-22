@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { addNotes, frameGroups, framesOf, notesOf, setColors } from '../assist/board-edit';
-import { ChangeTracker, ledgerEntries, record, redo, undo, type LedgerEntry } from './ledger-doc';
+import { ChangeTracker, forgetBefore, ledgerEntries, record, redo, undo, type LedgerEntry } from './ledger-doc';
 
 const entry = (id: string, tracker: ChangeTracker): LedgerEntry => ({ id, at: 1, model: 'Claude', forName: 'Ada', action: 'Changed', ...tracker.changes(), undone: false });
 
@@ -108,3 +108,14 @@ describe('the change ledger', () => {
   });
 });
 
+
+describe('forgetting old ledger entries', () => {
+  it('drops entries made before the cutoff and keeps the rest in order', () => {
+    const doc = new Y.Doc();
+    const at = (id: string, when: number): LedgerEntry => ({ id, at: when, model: 'Claude', forName: 'Ada', action: 'Changed', created: [], createdNodes: [], removed: [], changed: [], undone: false });
+    doc.getArray<LedgerEntry>('ledger').push([at('a', 1), at('b', 5), at('c', 2), at('d', 9)]);
+    expect(forgetBefore(doc, 5)).toBe(2);
+    expect(ledgerEntries(doc).map((e) => e.id)).toEqual(['b', 'd']);
+    expect(forgetBefore(doc, 5)).toBe(0);
+  });
+});

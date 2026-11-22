@@ -185,6 +185,18 @@ export function record(doc: Y.Doc, entry: LedgerEntry): void {
 
 export const ledgerEntries = (doc: Y.Doc): LedgerEntry[] => ledgerOf(doc).toArray();
 
+/** Drops the entries made before `cutoff` (epoch ms), for a workspace's retention policy; returns how many went. */
+export function forgetBefore(doc: Y.Doc, cutoff: number): number {
+  const ledger = ledgerOf(doc);
+  const old = ledger
+    .toArray()
+    .map((entry, i) => (entry.at < cutoff ? i : -1))
+    .filter((i) => i >= 0);
+  // From the end, so earlier indices stay put.
+  doc.transact(() => old.reverse().forEach((i) => ledger.delete(i, 1)));
+  return old.length;
+}
+
 /**
  * Takes an entry's changes back, leaving alone anything someone has changed since: a note the model wrote that's since
  * been edited or moved stays, and a property is only put back while it's still the model's value. Says why not when it can't.

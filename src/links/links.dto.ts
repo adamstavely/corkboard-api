@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 
 /** A link that lets anyone who has it view the board, live and read-only. */
 export class ShareLinkDto {
@@ -13,6 +13,8 @@ export class ShareLinkDto {
   createdAt!: number;
   expiresAt!: number | null;
   revoked!: boolean;
+  /** Guests type a password before it opens anything. */
+  hasPassword!: boolean;
   opens!: number;
   lastOpenedAt!: number | null;
 }
@@ -34,6 +36,25 @@ export class CreateShareLinkDto {
   @Min(1)
   @Max(365)
   expiresInDays?: number;
+
+  /** Guests must type this before the link opens anything; kept only as a hash. */
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(200)
+  password?: string;
+}
+
+/** A guest typing a link's password. */
+export class UnlockLinkDto {
+  @IsString()
+  @MaxLength(200)
+  password!: string;
+}
+
+/** Proof the password was typed: send it as the X-Link-Pass header (and after the token on the board's socket). */
+export class LinkPassDto {
+  pass!: string;
 }
 
 export class ShareLinkExpiryDto {

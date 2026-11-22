@@ -942,7 +942,7 @@
             "bearer": []
           }
         ],
-        "summary": "Board owners: the board's share links, newest first.",
+        "summary": "Whoever the workspace's policy lets manage links (board owners by default): the board's share links, newest first.",
         "tags": [
           "links"
         ]
@@ -986,7 +986,7 @@
             "bearer": []
           }
         ],
-        "summary": "Board owners: a link that lets anyone who has it view the board, read-only.",
+        "summary": "A link that lets anyone who has it view the board, read-only unless it lets them edit. The workspace's policies\ndecide who may, whether it may be editable, whether it needs a password and how soon it must expire.",
         "tags": [
           "links"
         ]
@@ -1074,7 +1074,7 @@
             "bearer": []
           }
         ],
-        "summary": "Board owners: turn a link off; anyone viewing through it is let go.",
+        "summary": "Board owners (and whoever the policy lets manage links): turn a link off; anyone viewing through it is let go.",
         "tags": [
           "links"
         ]
@@ -1096,6 +1096,15 @@
             "name": "fileId",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-link-pass",
+            "in": "header",
+            "description": "Proof of the link's password, from unlock",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1128,6 +1137,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-link-pass",
+            "required": false,
+            "in": "header",
+            "description": "Proof of the link's password, from unlock",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1147,7 +1165,53 @@
             "bearer": []
           }
         ],
-        "summary": "Anyone with a link: what it opens. 410 once it's turned off or expired.",
+        "summary": "Anyone with a link: what it opens. 410 once it's turned off or expired; 403 with `passwordRequired` until the\nlink's password has been typed (send the pass from unlock).",
+        "tags": [
+          "links"
+        ]
+      }
+    },
+    "/shared/{token}/unlock": {
+      "post": {
+        "operationId": "LinksController_unlock",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlockLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPassDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone with a link that has a password: type it. 403 when it's wrong; 429 after too many wrong tries.",
         "tags": [
           "links"
         ]
@@ -3338,6 +3402,75 @@
         ]
       }
     },
+    "/diagram-image": {
+      "post": {
+        "operationId": "DiagramImageController_image",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagramImageRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone signed in: a picture from a public https address, for a diagram.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
+    "/shared/{token}/diagram-image": {
+      "post": {
+        "operationId": "DiagramImageController_shared",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagramImageRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone with a link: a picture that a diagram on the board it opens shows, while the link is live (410 after).",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
     "/orgs/{orgId}/integrations": {
       "get": {
         "operationId": "IntegrationsController_list",
@@ -5462,20 +5595,26 @@
         ]
       }
     },
-    "/me/tokens": {
+    "/orgs/{orgId}/policies": {
       "get": {
-        "operationId": "TokensController_list",
-        "parameters": [],
+        "operationId": "PoliciesController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AccessTokenDto"
-                  }
+                  "$ref": "#/components/schemas/PoliciesDto"
                 }
               }
             }
@@ -5486,53 +5625,16 @@
             "bearer": []
           }
         ],
-        "summary": "Your tokens, newest first, without the tokens themselves.",
+        "summary": "Anyone in the workspace: its policies.",
         "tags": [
-          "tokens"
+          "policies"
         ]
       },
-      "post": {
-        "operationId": "TokensController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAccessTokenDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreatedAccessTokenDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "A new token for an agent. The response is the only time `token` is shown.",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/me/tokens/{tokenId}": {
-      "delete": {
-        "operationId": "TokensController_revoke",
+      "put": {
+        "operationId": "PoliciesController_set",
         "parameters": [
           {
-            "name": "tokenId",
+            "name": "orgId",
             "required": true,
             "in": "path",
             "schema": {
@@ -5540,36 +5642,23 @@
             }
           }
         ],
-        "responses": {
-          "204": {
-            "description": ""
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoliciesDto"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Stops a token working, at once.",
-        "tags": [
-          "tokens"
-        ]
-      }
-    },
-    "/v1/boards": {
-      "get": {
-        "operationId": "AgentsController_boards",
-        "parameters": [],
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AgentBoardDto"
-                  }
+                  "$ref": "#/components/schemas/PoliciesDto"
                 }
               }
             }
@@ -5580,15 +5669,15 @@
             "bearer": []
           }
         ],
-        "summary": "Scope boards:read. The boards the token's owner can open, in all their workspaces, most recently changed first.",
+        "summary": "Workspace owners: set the workspace's policies. Share links already out there follow at once: cut short to the\nlongest expiry allowed, and guests on links that no longer qualify are let go (editable ones reconnect read-only).\nA shorter retention prunes old history now rather than at the next daily run.",
         "tags": [
-          "agents"
+          "policies"
         ]
       }
     },
-    "/v1/boards/{id}": {
+    "/boards/{id}/policy": {
       "get": {
-        "operationId": "AgentsController_board",
+        "operationId": "PoliciesController_onBoard",
         "parameters": [
           {
             "name": "id",
@@ -5605,7 +5694,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BoardOutlineDto"
+                  "$ref": "#/components/schemas/BoardPolicyDto"
                 }
               }
             }
@@ -5616,141 +5705,9 @@
             "bearer": []
           }
         ],
-        "summary": "Scope boards:read. A board as an outline: frames with their notes, other notes, everything else by kind, and tasks.",
+        "summary": "Anyone on the board: what the workspace's policies let them do on it, with the reason for anything they can't.",
         "tags": [
-          "agents"
-        ]
-      }
-    },
-    "/v1/search": {
-      "get": {
-        "operationId": "AgentsController_search",
-        "parameters": [
-          {
-            "name": "q",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "maxLength": 200,
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AgentSearchHitDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Scope boards:read. Boards whose title or notes match, best first, with matching passages.",
-        "tags": [
-          "agents"
-        ]
-      }
-    },
-    "/v1/boards/{id}/proposals": {
-      "post": {
-        "operationId": "AgentsController_propose",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProposeChangesDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProposalDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Scope boards:propose. Proposes changes as one suggestion on the board, attributed \"<token name> for <owner>\"; nothing\nchanges until an updater or owner accepts it. The token's owner must be an updater or owner of the board.",
-        "tags": [
-          "agents"
-        ]
-      }
-    },
-    "/v1/boards/{id}/comments": {
-      "post": {
-        "operationId": "AgentsController_comment",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCommentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentCommentResultDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Scope comments:write. Comments on a note, frame or other item, as its owner via the agent. Commenters and up.",
-        "tags": [
-          "agents"
+          "policies"
         ]
       }
     }
@@ -6216,6 +6173,10 @@
           "revoked": {
             "type": "boolean"
           },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Guests type a password before it opens anything."
+          },
           "opens": {
             "type": "number"
           },
@@ -6233,6 +6194,7 @@
           "createdAt",
           "expiresAt",
           "revoked",
+          "hasPassword",
           "opens",
           "lastOpenedAt"
         ]
@@ -6253,6 +6215,12 @@
             "description": "Days until it stops working; without it, it works until revoked.",
             "minimum": 1,
             "maximum": 365
+          },
+          "password": {
+            "type": "string",
+            "description": "Guests must type this before the link opens anything; kept only as a hash.",
+            "minLength": 6,
+            "maxLength": 200
           }
         }
       },
@@ -6287,6 +6255,29 @@
           "boardId",
           "title",
           "canEdit"
+        ]
+      },
+      "UnlockLinkDto": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "LinkPassDto": {
+        "type": "object",
+        "properties": {
+          "pass": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pass"
         ]
       },
       "FeedbackLinkDto": {
@@ -8043,6 +8034,19 @@
           "site"
         ]
       },
+      "DiagramImageRequestDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
       "IntegrationConfigDto": {
         "type": "object",
         "properties": {
@@ -8465,11 +8469,6 @@
             "type": "string",
             "description": "As written: someone picked from the mention list is \"@[Name](their user id)\"; show it as \"@Name\"."
           },
-          "via": {
-            "type": "string",
-            "nullable": true,
-            "description": "The agent that wrote it for its author, through one of their access tokens (\"Cursor\"); null when they wrote it themselves."
-          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -8479,7 +8478,6 @@
           "id",
           "author",
           "body",
-          "via",
           "createdAt"
         ]
       },
@@ -9614,593 +9612,138 @@
           "suggestionId"
         ]
       },
-      "AccessTokenDto": {
+      "PoliciesDto": {
         "type": "object",
         "properties": {
-          "id": {
+          "shareWithPeople": {
+            "description": "Who may give people in the workspace a role on a board.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors"
+            ],
             "type": "string"
           },
-          "name": {
-            "type": "string",
-            "description": "What you called it; boards name the agent by it (\"Cursor for Ada\")."
+          "shareLinks": {
+            "description": "Who may make, change and turn off share links.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors"
+            ],
+            "type": "string"
           },
-          "prefix": {
-            "type": "string",
-            "description": "The token's first characters, to tell it apart: \"cbp_AbCd1234\"."
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "boards:read",
-                "boards:propose",
-                "comments:write"
-              ]
-            }
-          },
-          "createdAt": {
-            "type": "number",
-            "description": "Epoch ms."
-          },
-          "expiresAt": {
+          "linkMaxDays": {
             "type": "number",
             "nullable": true,
-            "description": "Epoch ms; null when it never expires."
-          },
-          "lastUsedAt": {
-            "type": "number",
-            "nullable": true,
-            "description": "Epoch ms; null when it's never been used. Updated at most once a minute."
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "prefix",
-          "scopes",
-          "createdAt",
-          "expiresAt",
-          "lastUsedAt"
-        ]
-      },
-      "CreateAccessTokenDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "What to call it, usually the agent that will use it: \"Cursor\", \"Claude Code\".",
-            "maxLength": 60
-          },
-          "scopes": {
-            "type": "array",
-            "minItems": 1,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "enum": [
-                "boards:read",
-                "boards:propose",
-                "comments:write"
-              ]
-            }
-          },
-          "expiresInDays": {
-            "type": "number",
-            "description": "Days until it stops working; without it, it works until revoked.",
+            "description": "Share links expire within this many days; null for no limit. Links that would outlive it are cut short.",
             "minimum": 1,
             "maximum": 365
-          }
-        },
-        "required": [
-          "name",
-          "scopes"
-        ]
-      },
-      "CreatedAccessTokenDto": {
-        "type": "object",
-        "properties": {
-          "id": {
+          },
+          "exports": {
+            "description": "Who may export a board: image, PDF, Markdown, CSV, or tasks sent to a tracker.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors",
+              "everyone"
+            ],
             "type": "string"
           },
-          "name": {
-            "type": "string",
-            "description": "What you called it; boards name the agent by it (\"Cursor for Ada\")."
+          "feedback": {
+            "description": "Who may open a board for outside feedback; board owners includes the facilitator.",
+            "enum": [
+              "workspace_owners",
+              "board_owners",
+              "editors"
+            ],
+            "type": "string"
           },
-          "prefix": {
-            "type": "string",
-            "description": "The token's first characters, to tell it apart: \"cbp_AbCd1234\"."
-          },
-          "scopes": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "enum": [
-                "boards:read",
-                "boards:propose",
-                "comments:write"
-              ]
-            }
-          },
-          "createdAt": {
-            "type": "number",
-            "description": "Epoch ms."
-          },
-          "expiresAt": {
+          "retentionDays": {
             "type": "number",
             "nullable": true,
-            "description": "Epoch ms; null when it never expires."
+            "description": "Keep board history, saved versions and the assistant's undo list this many days; null keeps them for good.",
+            "minimum": 1,
+            "maximum": 3650
           },
-          "lastUsedAt": {
+          "editableLinks": {
+            "type": "boolean",
+            "description": "Share links may let guests edit. Off: editable links already made open read-only."
+          },
+          "linkPassword": {
+            "type": "boolean",
+            "description": "Share links need a password, which guests type to open them. On: links without one stop opening."
+          }
+        },
+        "required": [
+          "shareWithPeople",
+          "shareLinks",
+          "linkMaxDays",
+          "exports",
+          "feedback",
+          "retentionDays",
+          "editableLinks",
+          "linkPassword"
+        ]
+      },
+      "AllowedDto": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "The policy's (or role's) reason, when not allowed."
+          }
+        },
+        "required": [
+          "allowed",
+          "reason"
+        ]
+      },
+      "BoardPolicyDto": {
+        "type": "object",
+        "properties": {
+          "linkMaxDays": {
             "type": "number",
             "nullable": true,
-            "description": "Epoch ms; null when it's never been used. Updated at most once a minute."
+            "description": "New share links must expire within this many days; null for no limit."
           },
-          "token": {
-            "type": "string",
-            "description": "The token, \"cbp_…\". Shown once; only its hash is kept."
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "prefix",
-          "scopes",
-          "createdAt",
-          "expiresAt",
-          "lastUsedAt",
-          "token"
-        ]
-      },
-      "OutlineItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
+          "shareWithPeople": {
+            "$ref": "#/components/schemas/AllowedDto"
           },
-          "kind": {
-            "type": "string",
-            "description": "\"text\", \"shape\", \"diagram\", \"app\", \"image\", \"file\", \"table\"…"
+          "shareLinks": {
+            "$ref": "#/components/schemas/AllowedDto"
           },
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "text"
-        ]
-      },
-      "AgentBoardDto": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "description": "The owner's role on it: readers can read, commenters also comment, updaters and owners also propose changes.",
-            "enum": [
-              "reader",
-              "commenter",
-              "updater",
-              "owner"
-            ],
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "workspaceId": {
-            "type": "string"
-          },
-          "workspace": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string",
-            "description": "ISO time."
-          }
-        },
-        "required": [
-          "role",
-          "id",
-          "title",
-          "workspaceId",
-          "workspace",
-          "updatedAt"
-        ]
-      },
-      "OutlineNoteDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "color": {
-            "type": "string"
-          },
-          "votes": {
-            "type": "number",
-            "description": "Dot votes, when it has any."
-          }
-        },
-        "required": [
-          "id",
-          "text",
-          "color"
-        ]
-      },
-      "OutlineFrameDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "notes": {
-            "description": "The notes inside it, top to bottom, left to right.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OutlineNoteDto"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "notes"
-        ]
-      },
-      "OutlineTaskDto": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "enum": [
-              "todo",
-              "doing",
-              "done"
-            ],
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "priority": {
-            "type": "number",
-            "description": "0 none · 1 low · 2 medium · 3 high · 4 urgent"
-          },
-          "assignee": {
-            "type": "string",
-            "description": "The person it's assigned to, by name."
-          },
-          "due": {
-            "type": "string",
-            "description": "\"YYYY-MM-DD\"."
-          },
-          "noteId": {
-            "type": "string",
-            "description": "The note it came from."
-          }
-        },
-        "required": [
-          "status",
-          "key",
-          "title",
-          "priority"
-        ]
-      },
-      "BoardOutlineDto": {
-        "type": "object",
-        "properties": {
-          "role": {
-            "enum": [
-              "reader",
-              "commenter",
-              "updater",
-              "owner"
-            ],
-            "type": "string"
-          },
-          "items": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/OutlineItemDto"
+          "editableLinks": {
+            "description": "Make share links that let guests edit.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AllowedDto"
               }
-            },
-            "description": "Everything else, by kind: { \"diagram\": [...], \"text\": [...] }."
+            ]
           },
-          "id": {
-            "type": "string"
+          "exports": {
+            "$ref": "#/components/schemas/AllowedDto"
           },
-          "title": {
-            "type": "string"
+          "feedback": {
+            "$ref": "#/components/schemas/AllowedDto"
           },
-          "workspace": {
-            "type": "string"
-          },
-          "canPropose": {
+          "linkPassword": {
             "type": "boolean",
-            "description": "Whether the token's owner may propose changes here (updaters and owners)."
-          },
-          "frames": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OutlineFrameDto"
-            }
-          },
-          "notes": {
-            "description": "Notes in no frame.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OutlineNoteDto"
-            }
-          },
-          "tasks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OutlineTaskDto"
-            }
-          },
-          "pendingSuggestions": {
-            "type": "number",
-            "description": "Suggestions waiting for someone to accept or turn down."
-          },
-          "truncated": {
-            "type": "boolean",
-            "description": "True when the board had more notes than an outline holds (1000), and the rest were left out."
+            "description": "New share links need a password."
           }
         },
         "required": [
-          "role",
-          "items",
-          "id",
-          "title",
-          "workspace",
-          "canPropose",
-          "frames",
-          "notes",
-          "tasks",
-          "pendingSuggestions",
-          "truncated"
-        ]
-      },
-      "AgentSearchHitDto": {
-        "type": "object",
-        "properties": {
-          "boardId": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "workspace": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string",
-            "description": "ISO time."
-          },
-          "snippets": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "boardId",
-          "title",
-          "workspace",
-          "updatedAt",
-          "snippets"
-        ]
-      },
-      "ProposedNoteDto": {
-        "type": "object",
-        "properties": {
-          "color": {
-            "enum": [
-              "yellow",
-              "pink",
-              "blue",
-              "green",
-              "purple",
-              "gray"
-            ],
-            "type": "string"
-          },
-          "text": {
-            "type": "string",
-            "maxLength": 1000
-          },
-          "frameId": {
-            "type": "string",
-            "description": "An existing frame to put it in (an id from the outline); without it, the note goes beside the board.",
-            "maxLength": 100
-          }
-        },
-        "required": [
-          "text"
-        ]
-      },
-      "ProposedFrameNoteDto": {
-        "type": "object",
-        "properties": {
-          "color": {
-            "enum": [
-              "yellow",
-              "pink",
-              "blue",
-              "green",
-              "purple",
-              "gray"
-            ],
-            "type": "string"
-          },
-          "text": {
-            "type": "string",
-            "maxLength": 1000
-          }
-        },
-        "required": [
-          "text"
-        ]
-      },
-      "ProposedFrameDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 200
-          },
-          "noteIds": {
-            "description": "Existing notes to move into it, by id.",
-            "maxItems": 200,
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "notes": {
-            "description": "New notes to write in it.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProposedFrameNoteDto"
-            }
-          }
-        },
-        "required": [
-          "title"
-        ]
-      },
-      "ProposedTaskDto": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "maxLength": 300
-          },
-          "owner": {
-            "type": "string",
-            "description": "A board member's name; someone who isn't one keeps their name in the title.",
-            "maxLength": 100
-          },
-          "due": {
-            "type": "string",
-            "description": "\"YYYY-MM-DD\".",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-          },
-          "priority": {
-            "type": "number",
-            "description": "0 none · 1 low · 2 medium · 3 high · 4 urgent",
-            "minimum": 0,
-            "maximum": 4
-          },
-          "noteId": {
-            "type": "string",
-            "description": "The note it comes from.",
-            "maxLength": 100
-          }
-        },
-        "required": [
-          "title"
-        ]
-      },
-      "ProposeChangesDto": {
-        "type": "object",
-        "properties": {
-          "summary": {
-            "type": "string",
-            "description": "Why, or what was asked, in a line: shown on the suggestion.",
-            "maxLength": 300
-          },
-          "notes": {
-            "description": "New notes, beside the board or in an existing frame.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProposedNoteDto"
-            }
-          },
-          "frames": {
-            "description": "New frames, grouping existing notes and new ones. A frame all of whose notes move into new ones is removed.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProposedFrameDto"
-            }
-          },
-          "tasks": {
-            "description": "New tasks on the board's kanban.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProposedTaskDto"
-            }
-          },
-          "diagram": {
-            "type": "string",
-            "description": "A Mermaid flowchart or sequence diagram, drawn beside the board.",
-            "maxLength": 8000
-          }
-        }
-      },
-      "ProposalDto": {
-        "type": "object",
-        "properties": {
-          "suggestionId": {
-            "type": "string",
-            "description": "The suggestion on the board, waiting for someone to accept or turn down."
-          },
-          "action": {
-            "type": "string",
-            "description": "What it would do: \"Would add 4 notes.\""
-          }
-        },
-        "required": [
-          "suggestionId",
-          "action"
-        ]
-      },
-      "AgentCommentDto": {
-        "type": "object",
-        "properties": {
-          "itemId": {
-            "type": "string",
-            "description": "The note, frame or other item to comment on (an id from the outline).",
-            "maxLength": 200
-          },
-          "body": {
-            "type": "string",
-            "maxLength": 4000
-          }
-        },
-        "required": [
-          "itemId",
-          "body"
-        ]
-      },
-      "AgentCommentResultDto": {
-        "type": "object",
-        "properties": {
-          "threadId": {
-            "type": "string"
-          },
-          "commentId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "commentId"
+          "linkMaxDays",
+          "shareWithPeople",
+          "shareLinks",
+          "editableLinks",
+          "exports",
+          "feedback",
+          "linkPassword"
         ]
       }
     }

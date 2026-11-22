@@ -1,122 +1,9 @@
 {
-  "id": "c29137fd-949a-40ab-8a92-e29a2c5bf726",
+  "id": "40bf4cdf-e1bf-4c9e-8ecb-edc32b0b16cf",
   "prevId": "9cdc69a9-a84b-488f-b2cb-2e38889f8679",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.access_tokens": {
-      "name": "access_tokens",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "prefix": {
-          "name": "prefix",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scopes": {
-          "name": "scopes",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_used_at": {
-          "name": "last_used_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "access_tokens_user_idx": {
-          "name": "access_tokens_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "access_tokens_user_id_users_id_fk": {
-          "name": "access_tokens_user_id_users_id_fk",
-          "tableFrom": "access_tokens",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "access_tokens_token_hash_unique": {
-          "name": "access_tokens_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.auth_challenges": {
       "name": "auth_challenges",
       "schema": "",
@@ -1177,6 +1064,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1719,12 +1612,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "via": {
-          "name": "via",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -3059,6 +2946,123 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.workspace_policies": {
+      "name": "workspace_policies",
+      "schema": "",
+      "columns": {
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "share_with_people": {
+          "name": "share_with_people",
+          "type": "policy_who",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'board_owners'"
+        },
+        "share_links": {
+          "name": "share_links",
+          "type": "policy_who",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'board_owners'"
+        },
+        "editable_links": {
+          "name": "editable_links",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "link_password": {
+          "name": "link_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "link_max_days": {
+          "name": "link_max_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exports": {
+          "name": "exports",
+          "type": "policy_who",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'everyone'"
+        },
+        "feedback": {
+          "name": "feedback",
+          "type": "policy_who",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'board_owners'"
+        },
+        "retention_days": {
+          "name": "retention_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "workspace_policies_org_id_orgs_id_fk": {
+          "name": "workspace_policies_org_id_orgs_id_fk",
+          "tableFrom": "workspace_policies",
+          "tableTo": "orgs",
+          "columnsFrom": [
+            "org_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "workspace_policies_updated_by_users_id_fk": {
+          "name": "workspace_policies_updated_by_users_id_fk",
+          "tableFrom": "workspace_policies",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.workspace_templates": {
       "name": "workspace_templates",
       "schema": "",
@@ -3357,6 +3361,16 @@
         "commenter",
         "updater",
         "owner"
+      ]
+    },
+    "public.policy_who": {
+      "name": "policy_who",
+      "schema": "public",
+      "values": [
+        "workspace_owners",
+        "board_owners",
+        "editors",
+        "everyone"
       ]
     },
     "public.provider_kind": {

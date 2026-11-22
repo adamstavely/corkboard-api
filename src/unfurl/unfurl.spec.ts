@@ -1,4 +1,4 @@
-import { isPrivateAddress, readPreview, unfurl, readableText } from './unfurl';
+import { fetchImage, imageType, isPrivateAddress, readPreview, unfurl, readableText } from './unfurl';
 
 describe('link previews', () => {
   it('refuses private, loopback and metadata addresses', () => {
@@ -45,5 +45,24 @@ describe("a page's readable text", () => {
   it('reads the whole body when there is no main part worth taking, and stops at the limit', () => {
     expect(readableText('<html><head><title>Example Domain</title></head><body><p>Hello</p><div>World</div></body></html>')).toBe('Hello\nWorld');
     expect(readableText(`<p>${'a '.repeat(30_000)}</p>`).length).toBe(20_000);
+  });
+});
+
+describe('pictures for diagrams', () => {
+  it('are told apart by their own bytes', () => {
+    expect(imageType(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'))).toBe('image/png');
+    expect(imageType(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]))).toBe('image/jpeg');
+    expect(imageType(Buffer.from('GIF89a......', 'latin1'))).toBe('image/gif');
+    expect(imageType(Buffer.from('RIFF\0\0\0\0WEBPVP8 ', 'latin1'))).toBe('image/webp');
+    expect(imageType(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'))).toBeNull();
+    expect(imageType(Buffer.from('<html></html>'))).toBeNull();
+    expect(imageType(Buffer.alloc(0))).toBeNull();
+  });
+
+  it('come only from public https addresses', async () => {
+    await expect(fetchImage('http://example.com/a.png')).rejects.toThrow('Only https');
+    await expect(fetchImage('https://127.0.0.1/a.png')).rejects.toThrow('not allowed');
+    await expect(fetchImage('https://169.254.169.254/a.png')).rejects.toThrow('not allowed');
+    await expect(fetchImage('https://localhost/a.png')).rejects.toThrow('not allowed');
   });
 });
