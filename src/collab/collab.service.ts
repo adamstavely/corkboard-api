@@ -22,6 +22,7 @@ import { project } from './projection';
 import { describe as describeEdits, touchedBy, touched, type Touched } from './edit-log';
 import { ActivityService } from '../activity/activity.service';
 import { ParticipantsStore } from '../feedback/participants.store';
+import { SessionLog, serverNoteSource, type Attendee } from './session-log';
 
 /** Who someone viewing through a share link is: nobody in particular. */
 const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
@@ -109,6 +110,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     private readonly links: LinksService,
     private readonly participants: ParticipantsStore,
     private readonly activity: ActivityService,
+    private readonly sessions: SessionLog,
   ) {
     this.hocuspocus = new Hocuspocus<CollabContext>({
       name: 'corkboard',
@@ -199,6 +201,17 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         this.#refusing.add(connection);
         return Promise.resolve();
       },
+      // Who had the board open, for the facilitator's participation view: signed-in people only, never share-link guests.
+      connected: ({ documentName, context }) => {
+        const who = attendee(documentName, context);
+        if (who) this.sessions.joined(who.boardId, who.attendee);
+        return Promise.resolve();
+      },
+      onDisconnect: ({ documentName, context }) => {
+        const who = attendee(documentName, context);
+        if (who) this.sessions.left(who.boardId, who.attendee);
+        return Promise.resolve();
+      },
       afterHandleMessage: ({ connection }) => {
         if (this.#refusing.delete(connection)) connection.readOnly = false;
         return Promise.resolve();
@@ -218,6 +231,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         // Someone's own edit, from their board (the API's edits record themselves).
         const user = (context as CollabContext | undefined)?.user;
         if (connection && user && !(context).linkId && UUID.test(documentName)) this.#logEdit(documentName, user, document, update);
+        else if (!connection && UUID.test(documentName)) this.#logServerNotes(documentName, document, update);
         if (connection && UUID.test(documentName) && document.getMap('tasks').size) this.tasksEdited.next(documentName);
         return Promise.resolve();
       },
@@ -368,6 +382,29 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     this.#expiries.set(linkId, timer);
   }
 
+  /** Which of these are frames on the board, while it's open (if nobody has it open, nobody is looking at it). */
+  framesOn(boardId: string, ids: readonly string[]): string[] {
+    const nodes = this.hocuspocus.documents.get(boardId)?.getMap<Y.Map<unknown>>('nodes');
+    if (!nodes) return [];
+    return [...new Set(ids)].filter((id) => {
+      const node = nodes.get(id);
+      return node instanceof Y.Map && node.get('kind') === 'frame';
+    });
+  }
+
+  /** The feedback participants with a board open right now, by id. */
+  participantsOn(boardId: string): Set<string> {
+    const ids = new Set<string>();
+    for (const [name, document] of this.hocuspocus.documents) {
+      if (PROJECTION.exec(name)?.[1] !== boardId) continue;
+      for (const connection of document.connections.keys()) {
+        const context = connection.context as CollabContext | undefined;
+        if (context?.user) ids.add(context.user.id);
+      }
+    }
+    return ids;
+  }
+
   /** The people with a board open right now (not guests on a share link), once each. */
   peopleOn(boardId: string): { id: string; name: string }[] {
     const people = new Map<string, string>();
@@ -404,9 +441,31 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         pending = { boardId, user, touched: touched(), timer };
         this.#edits.set(key, pending);
       }
-      touchedBy(doc, update, pending.touched);
+      const now = touchedBy(doc, update);
+      for (const id of now.added) {
+        pending.touched.added.add(id);
+        if (noteIn(doc, id)) this.sessions.noteAdded(boardId, id, { kind: 'member', id: user.id });
+      }
+      for (const id of now.changed) pending.touched.changed.add(id);
+      for (const id of now.removed) pending.touched.removed.add(id);
     } catch (err) {
       this.#log.warn(`Couldn't follow ${user.id}'s edit on board ${boardId}: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Notes the API added for someone (a participant's, or a writing round's when revealed), for the participation view.
+   * Only notes that say whose they are count: the model's, and notes brought back with a version, don't.
+   */
+  #logServerNotes(boardId: string, doc: Y.Doc, update: Uint8Array): void {
+    try {
+      for (const id of touchedBy(doc, update).added) {
+        const node = noteIn(doc, id);
+        const source = node && serverNoteSource(node);
+        if (source) this.sessions.noteAdded(boardId, id, source);
+      }
+    } catch (err) {
+      this.#log.warn(`Couldn't follow notes added on board ${boardId}: ${String(err)}`);
     }
   }
 
@@ -488,4 +547,19 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     });
     ws.on('error', (err) => this.#log.warn(`Socket error: ${err.message}`));
   }
+}
+
+/** Who a connection is, for the session log: a signed-in team member on the board, or a participant on their view of it. */
+function attendee(documentName: string, context: CollabContext | undefined): { boardId: string; attendee: Attendee } | null {
+  // The server's own connections have no sign-in; guests on share links aren't anyone in particular.
+  if (!context?.user || !context.session || context.linkId) return null;
+  const projection = PROJECTION.exec(documentName);
+  if (projection) return { boardId: projection[1], attendee: { kind: 'participant', id: context.user.id } };
+  return UUID.test(documentName) ? { boardId: documentName, attendee: { kind: 'member', id: context.user.id, name: context.user.name } } : null;
+}
+
+/** The note with this id on the board, if it is one. */
+function noteIn(doc: Y.Doc, id: string): Y.Map<unknown> | null {
+  const node = doc.getMap<Y.Map<unknown>>('nodes').get(id);
+  return node instanceof Y.Map && node.get('kind') === 'note' ? node : null;
 }

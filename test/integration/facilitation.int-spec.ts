@@ -386,4 +386,44 @@ describe('Dot voting and the shared timer', () => {
     await privacy(ada, false).expect(204);
     await eventually(() => !privacyOf(doc).on);
   });
+
+  it("shows the facilitator who has taken part and which frames nobody has looked at, naming nobody in private mode", async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const quiet = await joined(ada, 'commenter');
+    const reader = await joined(ada, 'reader');
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Workshop' });
+    const doc = await open(board.id, ada);
+    await open(board.id, quiet);
+    const looked = newFrame(doc, 'Ideas', { x: 0, y: 0, w: 800, h: 600 }, 1);
+    const unseen = newFrame(doc, 'Risks', { x: 2000, y: 0, w: 800, h: 600 }, 2);
+    addNotes(doc, [{ text: 'Shorter standups', color: 'yellow' }]);
+    await new Promise((r) => setTimeout(r, 300));
+    const participation = (who: Person) => request(server).get(`/boards/${board.id}/participation`).set(who.auth);
+
+    await request(server).post(`/boards/${board.id}/seen`).set(quiet.auth).send({ frameIds: [looked, randomUUID()] }).expect(204);
+    await request(server).post(`/boards/${board.id}/seen`).set(quiet.auth).send({ frameIds: ['not-a-frame'] }).expect(400);
+    await participation(reader).expect(403);
+    await participation(quiet).expect(403);
+
+    const { body } = await participation(ada).expect(200);
+    expect(body.fromAgenda).toBe(false);
+    expect(body.private).toBe(false);
+    expect(body.people).toHaveLength(2);
+    // The quiet one first.
+    expect(body.people[0]).toMatchObject({ online: true, notes: 0, votes: 0, comments: 0, chat: 0 });
+    expect(body.people[1]).toMatchObject({ online: true, notes: 1 });
+    expect(body.team).toMatchObject({ people: 2, online: 2, quiet: 1, notes: 1 });
+    expect(body.frames.map((f: { id: string; viewers: number }) => [f.id, f.viewers])).toEqual([
+      [unseen, 0],
+      [looked, 1],
+    ]);
+
+    await request(server).put(`/boards/${board.id}/privacy`).set(ada.auth).send({ on: true }).expect(204);
+    await eventually(() => privacyOf(doc).on);
+    const { body: hidden } = await participation(ada).expect(200);
+    expect(hidden.private).toBe(true);
+    expect(hidden.people).toEqual([]);
+    expect(hidden.team).toMatchObject({ people: 2, quiet: 1, notes: 1 });
+  });
 });

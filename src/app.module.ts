@@ -65,6 +65,7 @@ import { UsersService } from './auth/users.service';
 import { BoardsController } from './boards/boards.controller';
 import { BoardsService } from './boards/boards.service';
 import { CollabService } from './collab/collab.service';
+import { SessionLog } from './collab/session-log';
 import configuration from './config/configuration';
 import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
@@ -177,6 +178,7 @@ import { RetentionService } from './policies/retention.service';
     BoardsService,
     SearchIndex,
     CollabService,
+    SessionLog,
     TokensService,
     AgentsService,
     PoliciesService,

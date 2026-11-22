@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
 import { MyEstimateDto, PokerEstimateDto } from '../facilitation/poker.dto';
+import { SeenFramesDto } from '../facilitation/facilitation.dto';
 import { BlockParticipantDto, FeedbackDto, FeedbackJoinDto, OpenFeedbackDto } from './feedback.dto';
 import { FeedbackService } from './feedback.service';
 import {
@@ -137,5 +138,12 @@ export class FeedbackController {
   @Get('feedback/boards/:id/poker/estimates/mine')
   async myEstimate(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<MyEstimateDto> {
     return { value: await this.participation.myEstimate(user, id) };
+  }
+
+  /** Frames this participant has had in view for a few seconds: counted for the facilitator, never by who. */
+  @Post('feedback/boards/:id/seen')
+  @HttpCode(204)
+  seen(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: SeenFramesDto): Promise<void> {
+    return this.participation.seen(user, id, body.frameIds);
   }
 }

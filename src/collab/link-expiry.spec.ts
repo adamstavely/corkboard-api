@@ -6,6 +6,7 @@ import type { BoardsService } from '../boards/boards.service';
 import type { LinksService } from '../links/links.service';
 import type { SearchIndex } from '../search/search-index';
 import { CollabService } from './collab.service';
+import { SessionLog } from './session-log';
 
 describe("a share link's deadline", () => {
   afterEach(() => jest.useRealTimers());
@@ -14,7 +15,7 @@ describe("a share link's deadline", () => {
     jest.useFakeTimers();
     const links = { byId: jest.fn().mockRejectedValueOnce(new Error('database unavailable')) } as unknown as LinksService;
     const users = { signedOut: { subscribe: () => ({ unsubscribe: () => undefined }) } } as unknown as UsersService;
-    const collab = new CollabService({} as HttpAdapterHost, users, {} as BoardsService, {} as SearchIndex, links, {} as ParticipantsStore, {} as ActivityService);
+    const collab = new CollabService({} as HttpAdapterHost, users, {} as BoardsService, {} as SearchIndex, links, {} as ParticipantsStore, {} as ActivityService, new SessionLog());
     const disconnect = jest.spyOn(collab, 'disconnectLink').mockImplementation(() => undefined);
 
     collab.watchLink('l1', Date.now() + 1000);
