@@ -232,7 +232,7 @@ export class ProposeChangesDto {
   @Type(() => ProposedTaskDto)
   tasks?: ProposedTaskDto[];
 
-  /** A Mermaid flowchart or sequence diagram, drawn beside the board. */
+  /** Mermaid text for a diagram drawn beside the board, starting with its kind ("flowchart TD", "sequenceDiagram", "gantt"…). */
   @IsOptional()
   @IsString()
   @MaxLength(MAX_DIAGRAM_CHARS)

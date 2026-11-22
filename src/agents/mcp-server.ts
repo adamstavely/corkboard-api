@@ -131,7 +131,7 @@ export function mcpServer(agents: AgentsService, user: User, agent: Agent): McpS
           .string()
           .max(MAX_DIAGRAM_CHARS)
           .optional()
-          .describe('Mermaid text for a diagram drawn beside the board: start with "flowchart TD" (or LR) or "sequenceDiagram".'),
+          .describe('Mermaid text for a diagram drawn beside the board, starting with its kind: "flowchart TD" (or LR), "sequenceDiagram", "stateDiagram-v2", "erDiagram", "gantt", "mindmap", "timeline" and the other Mermaid kinds.'),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },

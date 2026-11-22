@@ -10444,7 +10444,7 @@
           },
           "diagram": {
             "type": "string",
-            "description": "A Mermaid flowchart or sequence diagram, drawn beside the board.",
+            "description": "Mermaid text for a diagram drawn beside the board, starting with its kind (\"flowchart TD\", \"sequenceDiagram\", \"gantt\"…).",
             "maxLength": 8000
           }
         }

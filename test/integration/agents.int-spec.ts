@@ -172,7 +172,7 @@ describe('Agents: access tokens, the agent API and MCP', () => {
     const bad = await request(server).post(`/v1/boards/${board.id}/proposals`).set(agent).send({ notes: [{ text: 'x', frameId: 'nope' }] }).expect(400);
     expect(bad.body.message).toContain("There's no frame");
     await request(server).post(`/v1/boards/${board.id}/proposals`).set(agent).send({}).expect(400);
-    await request(server).post(`/v1/boards/${board.id}/proposals`).set(agent).send({ diagram: 'pie title x' }).expect(400);
+    await request(server).post(`/v1/boards/${board.id}/proposals`).set(agent).send({ diagram: 'not a diagram' }).expect(400);
     await request(server).post(`/v1/boards/${randomUUID()}/proposals`).set(agent).send({ notes: [{ text: 'x' }] }).expect(404);
   });
 
