@@ -350,7 +350,7 @@ describe('Model connections and the assistant', () => {
 
     let refused = '';
     script = async (req) => {
-      refused = await req.execute('make_diagram', { source: 'pie title Pets' }).catch((e: Error) => e.message);
+      refused = await req.execute('make_diagram', { source: 'architecture-beta\n  service db(database)[DB]' }).catch((e: Error) => e.message);
       await req.execute('make_diagram', { source: 'flowchart TD\n  a[Ask] --> b{Approve?}' });
       return 'Drew it.';
     };

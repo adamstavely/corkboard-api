@@ -36,7 +36,9 @@ import { SavedTemplatesService } from './boards/saved-templates.service';
 import { PokerService } from './facilitation/poker.service';
 import { WritingController } from './facilitation/writing.controller';
 import { WritingService } from './facilitation/writing.service';
+import { DiagramImageController } from './unfurl/diagram-image.controller';
 import { UnfurlController } from './unfurl/unfurl.controller';
+import { fetchImage, IMAGE_FETCH } from './unfurl/unfurl';
 import { IntegrationsController } from './integrations/integrations.controller';
 import { IntegrationsService } from './integrations/integrations.service';
 import { IssueHttp } from './integrations/issue-http';
@@ -94,6 +96,7 @@ import { SearchIndex } from './search/search-index';
     PokerController,
     SavedTemplatesController,
     UnfurlController,
+    DiagramImageController,
     IntegrationsController,
     AdminController,
     LedgerController,
@@ -121,6 +124,7 @@ import { SearchIndex } from './search/search-index';
     SuggestionsService,
     AppsService,
     { provide: WEB, useFactory: () => realWeb() },
+    { provide: IMAGE_FETCH, useValue: fetchImage },
     AssistService,
     CommentsService,
     ChatService,
