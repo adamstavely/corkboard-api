@@ -21,6 +21,8 @@ export class AppDto {
 /** One version of a mini-app, with its code. */
 export class AppVersionDto extends AppVersionSummaryDto {
   html!: string;
+  /** Only suggested so far ("ask me first"): it joins the app's versions if the suggestion is accepted. */
+  suggested!: boolean;
 }
 
 export class RestoreAppDto {

@@ -466,6 +466,8 @@ export class AssistService {
     /** In "ask first" mode, the copy of the board the model changes instead; what it did becomes a suggestion. */
     let draft: Draft | undefined;
     let suggestionId: string | null = null;
+    /** The suggestion this run's draft becomes, named up front so app versions made for it can say so. */
+    const proposalId = randomUUID();
 
     /** Writes the run's ledger entry, if it changed anything, or its suggestion when it only proposed. */
     const recordRun = async (failed: boolean): Promise<boolean> => {
@@ -477,7 +479,7 @@ export class AssistService {
         const done = `${describeChanges(counts)}${failed ? ' (then stopped with an error)' : ''}`;
         const changes = proposed.tracker.changes();
         const suggestion = {
-          id: randomUUID(),
+          id: proposalId,
           at: Date.now(),
           model: model.label,
           forId: user.id,
@@ -687,7 +689,9 @@ export class AssistService {
             const now = await this.boards.access(user, boardId).catch(() => null);
             if (!now || !canChangeLocked(doc, now.role, user.id)) throw new Error('That app is locked on the board, so it stays as it is.');
           }
-          const version = /^[0-9a-f-]{36}$/i.test(appId) ? await this.apps.addVersion(boardId, appId, { userId: user.id, model: model.label }, html as string, typeof args['note'] === 'string' ? args['note'] : '') : null;
+          // In "ask me first", the version belongs to the suggestion: out of the app's versions until it's accepted.
+          const note = typeof args['note'] === 'string' ? args['note'] : '';
+          const version = /^[0-9a-f-]{36}$/i.test(appId) ? await this.apps.addVersion(boardId, appId, { userId: user.id, model: model.label }, html as string, note, draft ? proposalId : null) : null;
           if (version === null) throw new Error('There is no app with that id on this board.');
           let shown = 0;
           await edit((d) => (shown = showAppVersion(d, appId, version)));

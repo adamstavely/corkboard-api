@@ -116,6 +116,42 @@ describe("The model's suggestions", () => {
     expect(notesOf(doc).map((n) => n.text)).toEqual(['Maybe']);
   });
 
+  it("keeps an app version made when asking first out of the app's versions until it's accepted, and drops it if not", async () => {
+    const { server, auth, board, model } = await setup();
+    const page = (title: string) => `<!doctype html><title>${title}</title><p>${title}</p>`;
+    let appId = '';
+    script = async (req) => {
+      appId = /id ([0-9a-f-]{36})/.exec(await req.execute('make_app', { title: 'Tally', html: page('One'), note_ids: null }))![1];
+      return 'Made.';
+    };
+    await request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: model.id, instruction: 'Make an app' }).expect(200);
+    const versions = async () => ((await request(server).get(`/boards/${board.id}/apps/${appId}`).set(auth).expect(200)).body.versions as { version: number }[]).map((v) => v.version);
+    const change = (title: string) => {
+      script = async (req) => {
+        await req.execute('change_app', { app_id: appId, html: page(title), note: title });
+        return 'Changed.';
+      };
+      return request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: model.id, instruction: 'Change it', propose: true }).expect(200);
+    };
+
+    // Turned down: the suggested version never joins the app, and its code is gone.
+    const no = await change('Two');
+    expect(await versions()).toEqual([1]);
+    const preview = await request(server).get(`/boards/${board.id}/apps/${appId}/versions/2`).set(auth).expect(200);
+    expect(preview.body).toMatchObject({ suggested: true, html: page('Two') });
+    await request(server).post(`/boards/${board.id}/apps/${appId}/restore`).set(auth).send({ version: 2 }).expect(404);
+    await request(server).post(`/boards/${board.id}/suggestions/${no.body.suggestionId}/reject`).set(auth).expect(204);
+    expect(await versions()).toEqual([1]);
+    await request(server).get(`/boards/${board.id}/apps/${appId}/versions/2`).set(auth).expect(404);
+
+    // Accepted: it becomes the app's next version.
+    const yes = await change('Three');
+    expect(await versions()).toEqual([1]);
+    await request(server).post(`/boards/${board.id}/suggestions/${yes.body.suggestionId}/accept`).set(auth).expect(204);
+    expect(await versions()).toEqual([2, 1]);
+    expect((await request(server).get(`/boards/${board.id}/apps/${appId}/versions/2`).set(auth).expect(200)).body).toMatchObject({ suggested: false, html: page('Three') });
+  });
+
   it('suggests nothing when the model changes nothing', async () => {
     const { server, auth, board, model, doc } = await setup();
     script = () => Promise.resolve('Looks good as it is.');

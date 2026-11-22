@@ -197,6 +197,13 @@
       "when": 1794785519325,
       "tag": "0027_export_claimed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795314586560,
+      "tag": "0028_app_version_suggestion",
+      "breakpoints": true
     }
   ]
 }

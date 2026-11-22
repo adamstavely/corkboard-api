@@ -313,6 +313,8 @@ export const boardAppVersions = pgTable(
     note: text('note').notNull(),
     /** The model that wrote it, if one did. */
     model: text('model'),
+    /** Set while it's only suggested ("ask me first"): hidden from the app's versions until accepted, deleted if turned down. */
+    suggestionId: uuid('suggestion_id'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: createdAt(),
   },
