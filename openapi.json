@@ -8808,6 +8808,14 @@
               "gray"
             ]
           },
+          "fill": {
+            "type": "string",
+            "description": "tint: see-through, under the notes (for Venn diagrams).",
+            "enum": [
+              "solid",
+              "tint"
+            ]
+          },
           "label": {
             "type": "string"
           },

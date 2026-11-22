@@ -9,6 +9,8 @@ export const FRAME_BORDERS = ['solid', 'dashed', 'none'] as const;
 /** A frame's shape: outlined (as frames always were), a card, a header band, a folder tab, a soft zone, a drop zone, a lane, a 16:9 slide or a browser window. */
 export const FRAME_LOOKS = ['outline', 'card', 'band', 'tab', 'zone', 'drop', 'lane', 'slide', 'browser'] as const;
 export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout'] as const;
+/** A shape's fill: solid (as shapes always were), or a see-through tint that lies under notes, so overlapping shapes (a Venn diagram) show where they meet. */
+export const SHAPE_FILLS = ['solid', 'tint'] as const;
 export const TEXT_SIZES = { sm: 14, md: 20, lg: 32, xl: 48 } as const;
 export const ARROW_ROUTES = ['straight', 'elbow', 'curve'] as const;
 export const ARROW_DASHES = ['solid', 'dashed', 'dotted'] as const;
@@ -20,6 +22,7 @@ export type FrameFill = (typeof FRAME_FILLS)[number];
 export type FrameBorder = (typeof FRAME_BORDERS)[number];
 export type FrameLook = (typeof FRAME_LOOKS)[number];
 export type ShapeKind = (typeof SHAPES)[number];
+export type ShapeFill = (typeof SHAPE_FILLS)[number];
 export type TextSize = keyof typeof TEXT_SIZES;
 export type ArrowRoute = (typeof ARROW_ROUTES)[number];
 export type ArrowDash = (typeof ARROW_DASHES)[number];
@@ -37,7 +40,8 @@ export interface Layout {
    */
   notes?: { key?: string; text: string; rich?: RichNode[]; color?: NoteColor; x: number; y: number; w?: number; h?: number }[];
   texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number }[];
-  shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; label?: string; x: number; y: number; w: number; h: number }[];
+  /** Tinted shapes go under the notes (above the frames); solid ones on top with the rest. */
+  shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; fill?: ShapeFill; label?: string; x: number; y: number; w: number; h: number }[];
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
   tables?: { key?: string; x: number; y: number; rows?: number; cols?: number; cells: string[][]; colWidth?: number }[];
   views?: { key?: string; view: BoardView; x: number; y: number }[];
@@ -108,7 +112,7 @@ export function layoutProblem(layout: Layout): string | null {
   if (!(layout.frames ?? []).every((f) => one(FRAME_FILLS, f.fill) && one(FRAME_BORDERS, f.border) && one(FRAME_LOOKS, f.look))) return 'a frame style the board does not have';
   if (![...(layout.notes ?? []), ...(layout.shapes ?? [])].every((n) => one(NOTE_COLORS, n.color))) return 'a colour the board does not have';
   if (!(layout.texts ?? []).every((t) => one(Object.keys(TEXT_SIZES), t.size))) return 'a text size the board does not have';
-  if (!(layout.shapes ?? []).every((s) => SHAPES.includes(s.shape))) return 'a shape the board does not have';
+  if (!(layout.shapes ?? []).every((s) => SHAPES.includes(s.shape) && one(SHAPE_FILLS, s.fill))) return 'a shape the board does not have';
   if (!(layout.views ?? []).every((v) => BOARD_VIEWS.includes(v.view))) return 'a view the board does not have';
   for (const t of layout.tables ?? []) {
     const { rows, cols } = tableSize(t);
@@ -155,6 +159,14 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
       if (f.look) node.set('look', f.look);
       keep(f.key, id);
     }
+    const shape = (s: NonNullable<Layout['shapes']>[number]) =>
+      keep(s.key, newItem(doc, 'shape', { ...pos(s), w: s.w, h: s.h }, ++z, author, (n) => {
+        n.set('shape', s.shape);
+        n.set('color', s.color ?? 'blue');
+        n.set('label', s.label ?? '');
+        if (s.fill === 'tint') n.set('fill', 'tint');
+      }));
+    for (const s of layout.shapes ?? []) if (s.fill === 'tint') shape(s);
     for (const n of layout.notes ?? []) {
       const id = newNote(doc, { text: n.rich ? '' : n.text, color: n.color ?? 'yellow' }, pos(n), ++z, author);
       const node = doc.getMap<Y.Map<unknown>>('nodes').get(id)!;
@@ -174,13 +186,7 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
         n.set('size', size);
       }));
     }
-    for (const s of layout.shapes ?? []) {
-      keep(s.key, newItem(doc, 'shape', { ...pos(s), w: s.w, h: s.h }, ++z, author, (n) => {
-        n.set('shape', s.shape);
-        n.set('color', s.color ?? 'blue');
-        n.set('label', s.label ?? '');
-      }));
-    }
+    for (const s of layout.shapes ?? []) if (s.fill !== 'tint') shape(s);
     for (const t of layout.tables ?? []) {
       const { rows, cols } = tableSize(t);
       keep(t.key, newItem(doc, 'table', { ...pos(t), w: cols * (t.colWidth ?? COL_WIDTH), h: rows * ROW_HEIGHT }, ++z, author, (n) => {
