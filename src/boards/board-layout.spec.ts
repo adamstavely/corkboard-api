@@ -12,7 +12,10 @@ describe('a board as a template', () => {
     ],
     notes: [{ key: 'n', text: 'One thing per note', color: 'blue', x: 20, y: 60 }],
     texts: [{ text: 'Retro', size: 'lg', x: 0, y: 340 }],
-    shapes: [{ key: 's', shape: 'star', color: 'yellow', label: 'Goal', x: 960, y: 0, w: 160, h: 160 }],
+    shapes: [
+      { key: 's', shape: 'star', color: 'yellow', label: 'Goal', x: 960, y: 0, w: 160, h: 160 },
+      { key: 'v', shape: 'ellipse', color: 'blue', fill: 'tint', label: '', x: 1200, y: 0, w: 300, h: 300 },
+    ],
     tables: [{ x: 0, y: 420, cells: [['Owner', 'Due'], ['Ada', 'Friday']] }],
     arrows: [{ from: 'a', to: 's', route: 'curve' }],
   };
@@ -23,13 +26,15 @@ describe('a board as a template', () => {
     setAgenda(doc, [{ id: 'x', title: 'Write', seconds: 300, frameId: ids.get('a')!, activity: { kind: 'writing', anonymous: true } }]);
     const { layout: saved, agenda, things } = layoutFromBoard(doc, true);
     expect(layoutProblem(saved)).toBeNull();
-    expect(things).toBe(7);
+    expect(things).toBe(8);
     expect(saved.frames?.map((f) => [f.title, f.x, f.y, f.fill ?? null, f.look ?? null]).sort()).toEqual([
       ['To improve', 480, 0, null, null],
       ['Went well', 0, 0, 'green', 'card'],
     ].sort());
     expect(saved.notes?.[0]).toMatchObject({ text: 'One thing per note', color: 'blue' });
-    expect(saved.shapes?.[0]).toMatchObject({ shape: 'star', label: 'Goal', x: 960, y: 0 });
+    expect(saved.shapes?.find((x) => x.shape === 'star')).toMatchObject({ label: 'Goal', x: 960, y: 0 });
+    expect(saved.shapes?.find((x) => x.shape === 'ellipse')).toMatchObject({ fill: 'tint', x: 1200 });
+    expect(saved.shapes?.find((x) => x.shape === 'star')?.fill).toBeUndefined();
     expect(saved.tables?.[0].cells).toEqual([['Owner', 'Due'], ['Ada', 'Friday']]);
     expect(saved.arrows).toHaveLength(1);
     const went = saved.frames!.find((f) => f.title === 'Went well')!;

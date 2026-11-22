@@ -1,6 +1,6 @@
 import type { NoteColor } from '../assist/board-edit';
 import type { StepActivityDto } from '../facilitation/facilitation.dto';
-import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeKind, TextSize } from './layout';
+import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeFill, ShapeKind, TextSize } from './layout';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { type TemplateCategory } from './templates';
@@ -92,6 +92,8 @@ export class TemplateShapeDto {
   key?: string;
   shape!: ShapeKind;
   color?: NoteColor;
+  /** tint: see-through, under the notes (for Venn diagrams). */
+  fill?: ShapeFill;
   label?: string;
   x!: number;
   y!: number;

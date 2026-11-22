@@ -82,7 +82,8 @@ export function layoutFromBoard(doc: Y.Doc, keepNotes: boolean): { layout: Layou
       case 'shape': {
         const shape = pick<ShapeKind>(SHAPES, node.get('shape')) ?? 'rect';
         const color = pick<NoteColor>(NOTE_COLORS, node.get('color'));
-        layout.shapes.push({ key: keyOf(id), shape, ...(color ? { color } : {}), label: str(node.get('label')).slice(0, 2000), ...box, ...size });
+        const fill = node.get('fill') === 'tint' ? { fill: 'tint' as const } : {};
+        layout.shapes.push({ key: keyOf(id), shape, ...(color ? { color } : {}), ...fill, label: str(node.get('label')).slice(0, 2000), ...box, ...size });
         break;
       }
       case 'table': {

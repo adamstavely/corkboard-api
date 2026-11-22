@@ -956,7 +956,105 @@ const DISCOVER: BoardTemplate[] = [
   },
 ];
 
+/** A line of text centred on a point, its width guessed from its length (text sits left-aligned in its box). */
+function centred(text: string, size: 'sm' | 'md' | 'lg', cx: number, cy: number): NonNullable<Layout['texts']>[number] {
+  const per = { sm: 8, md: 11, lg: 17 }[size];
+  const line = { sm: 22, md: 32, lg: 51 }[size];
+  const w = Math.max(80, Math.ceil(text.length * per) + 16);
+  return { text, size, x: Math.round(cx - w / 2), y: Math.round(cy - line / 2), w };
+}
+
+/**
+ * Overlapping see-through circles, each named outside it, with what goes where written in the spaces they make. A
+ * circle's `at` is its centre and `name` where its name goes; a region's `at` is where its words go.
+ */
+function venn(r: number, circles: { name: string; color: NoteColor; at: [number, number]; name_at: [number, number] }[], regions: { text: string; at: [number, number] }[]): Layout {
+  return {
+    shapes: circles.map((c, i) => ({ key: `set${i}`, shape: 'ellipse', fill: 'tint', color: c.color, x: c.at[0] - r, y: c.at[1] - r, w: 2 * r, h: 2 * r })),
+    texts: [...circles.map((c) => centred(c.name, 'lg', ...c.name_at)), ...regions.map((g) => centred(g.text, 'sm', ...g.at))],
+  };
+}
+
+/** Two circles side by side, overlapping enough for a column of notes in the middle. */
+function venn2(a: string, b: string, regions: [string, string, string]): Layout {
+  const r = 440;
+  const top = 80;
+  return venn(
+    r,
+    [
+      { name: a, color: 'blue', at: [r, top + r], name_at: [r - 120, 32] },
+      { name: b, color: 'pink', at: [r + 560, top + r], name_at: [r + 680, 32] },
+    ],
+    [
+      { text: regions[0], at: [r - 200, top + 160] },
+      { text: regions[1], at: [r + 280, top + 160] },
+      { text: regions[2], at: [r + 760, top + 160] },
+    ],
+  );
+}
+
+/** Three circles in a triangle, two above and one below; regions in the order A, B, C, A+B, A+C, B+C, all three. */
+function venn3(names: [string, string, string], regions: string[]): Layout {
+  const r = 420;
+  const d = 520;
+  const top = 80;
+  const [ax, ay] = [r, top + r];
+  const [bx, cx, cy] = [r + d, r + d / 2, top + r + Math.round((d * Math.sqrt(3)) / 2)];
+  const mid = (cy + 2 * ay) / 3;
+  return venn(
+    r,
+    [
+      { name: names[0], color: 'blue', at: [ax, ay], name_at: [ax - 140, 32] },
+      { name: names[1], color: 'pink', at: [bx, ay], name_at: [bx + 140, 32] },
+      { name: names[2], color: 'green', at: [cx, cy], name_at: [cx, cy + r + 48] },
+    ],
+    [
+      { text: regions[0], at: [ax - 190, ay - 60] },
+      { text: regions[1], at: [bx + 190, ay - 60] },
+      { text: regions[2], at: [cx, cy + 230] },
+      { text: regions[3], at: [cx, ay - 190] },
+      { text: regions[4], at: [ax + 50, mid + 190] },
+      { text: regions[5], at: [bx - 50, mid + 190] },
+      { text: regions[6], at: [cx, mid] },
+    ],
+  );
+}
+
 const ANALYSE: BoardTemplate[] = [
+  {
+    id: 'venn-two',
+    name: 'Venn diagram: two sets',
+    description: 'Compare two things: what only each has, and what they share in the middle.',
+    category: 'analyse',
+    agenda: [
+      { title: 'Name the two sets', minutes: 2 },
+      { title: 'Add notes where they belong', minutes: 8, activity: { kind: 'writing', anonymous: false } },
+      { title: 'Talk about the overlap', minutes: 10 },
+    ],
+    layout: venn2('Option A', 'Option B', ['Only A', 'Both', 'Only B']),
+  },
+  {
+    id: 'venn-three',
+    name: 'Venn diagram: three sets',
+    description: 'Compare three things and find what two of them, or all three, have in common.',
+    category: 'analyse',
+    agenda: [
+      { title: 'Name the three sets', minutes: 2 },
+      { title: 'Add notes where they belong', minutes: 10, activity: { kind: 'writing', anonymous: false } },
+      { title: 'Talk about the middle', minutes: 10 },
+    ],
+    layout: venn3(['Set A', 'Set B', 'Set C'], ['Only A', 'Only B', 'Only C', 'A and B', 'A and C', 'B and C', 'All three']),
+  },
+  {
+    id: 'desirable-feasible-viable',
+    name: 'Desirable, feasible, viable',
+    description: 'Test ideas against what people want, what we can build and what works for the business.',
+    category: 'analyse',
+    layout: venn3(
+      ['Desirable', 'Feasible', 'Viable'],
+      ['People want it', 'We can build it', 'It pays its way', 'Wanted, buildable', 'Wanted, pays', 'Buildable, pays', 'The sweet spot'],
+    ),
+  },
   {
     id: 'pestle',
     name: 'PESTLE',
@@ -1143,6 +1241,34 @@ const ANALYSE: BoardTemplate[] = [
 ];
 
 const TEAM: BoardTemplate[] = [
+  {
+    id: 'ikigai',
+    name: 'Ikigai',
+    description: 'Find work worth doing where what you love, are good at, are paid for and the world needs meet.',
+    category: 'team',
+    layout: (() => {
+      const r = 400;
+      const c = 760;
+      const o = 260;
+      const circles: [string, NoteColor, number, number, number, number][] = [
+        ['What you love', 'pink', c, c - o, c, 40],
+        ['What you’re good at', 'blue', c - o, c, 180, c - r - 20],
+        ['What the world needs', 'green', c + o, c, c * 2 - 180, c - r - 20],
+        ['What you can be paid for', 'yellow', c, c + o, c, 2 * c - 20],
+      ];
+      return venn(
+        r,
+        circles.map(([name, color, x, y, nx, ny]) => ({ name, color, at: [x, y], name_at: [nx, ny] })),
+        [
+          { text: 'Passion', at: [c - 250, c - 250] },
+          { text: 'Mission', at: [c + 250, c - 250] },
+          { text: 'Profession', at: [c - 250, c + 250] },
+          { text: 'Vocation', at: [c + 250, c + 250] },
+          { text: 'Ikigai', at: [c, c] },
+        ],
+      );
+    })(),
+  },
   {
     id: 'lean-coffee',
     name: 'Lean coffee',

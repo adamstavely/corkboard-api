@@ -11,7 +11,7 @@ import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
 import type { AssistRequestDto, AssistResultDto, AssistTurnDto } from './assist.dto';
-import { FRAME_LOOKS, layoutProblem, placeBeside, type Layout, SHAPES } from '../boards/layout';
+import { FRAME_LOOKS, layoutProblem, placeBeside, type Layout, SHAPE_FILLS, SHAPES } from '../boards/layout';
 import { addTasks, type StoredTask } from './tasks-doc';
 import { placeMindMap, type MindTree } from '../boards/mindmap';
 import { SearchIndex } from '../search/search-index';
@@ -102,7 +102,7 @@ const LAYOUT = obj({
   ),
   notes: list(obj({ key: KEY, text: str, color: opt(COLOR), x: num, y: num })),
   texts: list(obj({ key: KEY, text: str, size: opt({ type: 'string', enum: ['sm', 'md', 'lg', 'xl'] }), x: num, y: num, w: opt(num) })),
-  shapes: list(obj({ key: KEY, shape: { type: 'string', enum: [...SHAPES], description: 'callout is a speech bubble; arrow is a block arrow pointing right.' }, color: opt(COLOR), label: opt(str), x: num, y: num, w: num, h: num })),
+  shapes: list(obj({ key: KEY, shape: { type: 'string', enum: [...SHAPES], description: 'callout is a speech bubble; arrow is a block arrow pointing right.' }, color: opt(COLOR), fill: opt({ type: 'string', enum: [...SHAPE_FILLS], description: 'tint: see-through and under the notes, for overlapping circles such as a Venn diagram.' }), label: opt(str), x: num, y: num, w: num, h: num })),
   tables: list(obj({ key: KEY, x: num, y: num, cells: { type: 'array', items: { type: 'array', items: str }, description: 'cells[row][col]' } })),
   arrows: list(obj({ from: str, to: str, route: opt({ type: 'string', enum: ['straight', 'elbow', 'curve'] }) })),
 });

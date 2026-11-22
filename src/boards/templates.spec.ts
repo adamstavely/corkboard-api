@@ -92,6 +92,35 @@ describe('board templates', () => {
     expect(Math.min(...zs.filter(([k]) => k !== 'frame').map(([, z]) => z))).toBeGreaterThan(frame.get('z') as number);
   });
 
+  it('lays see-through shapes under the notes, and solid ones on top', () => {
+    const layout: Layout = {
+      notes: [{ key: 'n', text: 'In both', x: 300, y: 100 }],
+      shapes: [
+        { key: 'a', shape: 'ellipse', fill: 'tint', color: 'blue', x: 0, y: 0, w: 500, h: 500 },
+        { key: 'b', shape: 'star', x: 600, y: 0, w: 100, h: 100 },
+      ],
+    };
+    expect(layoutProblem(layout)).toBeNull();
+    const doc = new Y.Doc();
+    const ids = applyLayout(doc, layout, { x: 0, y: 0 });
+    const nodes = doc.getMap<Y.Map<unknown>>('nodes');
+    const [tint, note, solid] = ['a', 'n', 'b'].map((k) => nodes.get(ids.get(k)!)!);
+    expect([tint.get('fill'), solid.get('fill')]).toEqual(['tint', undefined]);
+    expect(tint.get('z') as number).toBeLessThan(note.get('z') as number);
+    expect(solid.get('z') as number).toBeGreaterThan(note.get('z') as number);
+    expect(layoutProblem({ shapes: [{ shape: 'ellipse', fill: 'glass' as never, x: 0, y: 0, w: 10, h: 10 }] })).toMatch(/shape/);
+  });
+
+  it('draws its Venn diagrams as overlapping see-through circles', () => {
+    for (const id of ['venn-two', 'venn-three', 'desirable-feasible-viable', 'ikigai']) {
+      const shapes = TEMPLATES.find((t) => t.id === id)!.layout.shapes ?? [];
+      expect(shapes.length).toBeGreaterThanOrEqual(2);
+      expect(shapes.every((s) => s.shape === 'ellipse' && s.fill === 'tint')).toBe(true);
+      const [a, b] = shapes;
+      expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(true);
+    }
+  });
+
   it('refuses layouts the board cannot show', () => {
     expect(layoutProblem({})).toMatch(/empty/);
     expect(layoutProblem({ notes: [{ text: 'x', color: 'teal' as never, x: 0, y: 0 }] })).toMatch(/colour/);
