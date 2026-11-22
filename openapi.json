@@ -7881,6 +7881,55 @@
           "sources"
         ]
       },
+      "RecapResultItemDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The note, option, finger count or estimate; or, for the agenda, the step."
+          },
+          "count": {
+            "type": "number",
+            "description": "How many voted, answered or estimated it; absent for agenda steps."
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "RecapResultDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "agenda",
+              "vote",
+              "poll",
+              "estimate"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "The poll's question, the vote's agenda step (\"Dot vote\" when none), what was estimated, or \"Steps run\"."
+          },
+          "open": {
+            "type": "boolean",
+            "description": "True while the vote or poll was still open when the recap was written."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecapResultItemDto"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "items"
+        ]
+      },
       "SessionRecapDto": {
         "type": "object",
         "properties": {
@@ -7906,6 +7955,13 @@
               "type": "string"
             }
           },
+          "results": {
+            "description": "The session's votes, polls, estimates and agenda steps, with exact counts.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecapResultDto"
+            }
+          },
           "model": {
             "type": "string",
             "description": "The model's name, and who asked."
@@ -7922,6 +7978,7 @@
           "decisions",
           "actions",
           "questions",
+          "results",
           "model",
           "by",
           "at"

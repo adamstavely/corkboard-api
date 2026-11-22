@@ -1,5 +1,5 @@
 import * as Y from 'yjs';
-import { agendaOf, answerPoll, endPoll, pollCounts, pollOf, startPoll, castVote, setAgenda, setAgendaStep, setTimer, setVoting, timerOf, voteCounts, votingOf } from './facilitation-doc';
+import { agendaOf, answerPoll, endPoll, pollCounts, pollOf, startPoll, castVote, setAgenda, setAgendaStep, setTimer, setVoting, stepsRun, timerOf, voteCounts, votingOf } from './facilitation-doc';
 
 /** A board with these notes on it. */
 function withNotes(...ids: string[]): Y.Doc {
@@ -97,5 +97,24 @@ describe('polls', () => {
     endPoll(doc, true);
     expect(pollOf(doc)).toBeNull();
     expect(pollCounts(doc).size).toBe(0);
+  });
+});
+
+describe('the steps run', () => {
+  const step = (id: string) => ({ id, title: id, seconds: 0, frameId: null });
+
+  it('remembers each step reached, through the end, and starts afresh from the first step', () => {
+    const doc = new Y.Doc();
+    setAgenda(doc, [step('a'), step('b'), step('c')]);
+    expect(stepsRun(doc)).toEqual([]);
+    setAgendaStep(doc, 0);
+    setAgendaStep(doc, 2);
+    setAgendaStep(doc, 0);
+    setAgendaStep(doc, null);
+    expect(stepsRun(doc)).toEqual(['a', 'c']);
+    setAgenda(doc, [step('a'), step('b')]);
+    expect(stepsRun(doc)).toEqual(['a']);
+    setAgendaStep(doc, 0);
+    expect(stepsRun(doc)).toEqual(['a']);
   });
 });
