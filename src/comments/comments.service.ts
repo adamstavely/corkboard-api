@@ -30,8 +30,11 @@ export class CommentsService {
     return this.#threads(boardId);
   }
 
-  /** Adds a comment to the note or frame's thread, starting it if need be, and reopening it if it was resolved. */
-  async add(user: User, boardId: string, nodeId: string, body: string, anchor?: { x: number; y: number }): Promise<CommentThreadDto> {
+  /**
+   * Adds a comment to the note or frame's thread, starting it if need be, and reopening it if it was resolved. `via`: the
+   * agent writing it for them, through one of their access tokens.
+   */
+  async add(user: User, boardId: string, nodeId: string, body: string, anchor?: { x: number; y: number }, via?: string): Promise<CommentThreadDto> {
     const board = await this.boards.get(user, boardId, 'commenter');
     const threadId = await this.db.transaction(async (tx) => {
       const [thread] = await tx
@@ -39,13 +42,15 @@ export class CommentsService {
         .values({ boardId, nodeId, ...(anchor ? { anchorX: anchor.x, anchorY: anchor.y } : {}) })
         .onConflictDoUpdate({ target: [commentThreads.boardId, commentThreads.nodeId], set: { resolvedAt: null, resolvedBy: null } })
         .returning({ id: commentThreads.id });
-      await tx.insert(comments).values({ threadId: thread.id, authorId: user.id, body: body.trim() });
+      await tx.insert(comments).values({ threadId: thread.id, authorId: user.id, body: body.trim(), via: via ?? null });
       return thread.id;
     });
     this.#changed(boardId);
     const thread = (await this.#threads(boardId, threadId))[0];
     const said = plainMentions(body.trim());
-    await this.activity.record(boardId, user, 'commented', undefined, said);
+    // An agent's comment is its owner's, said as theirs through it: "Ada via Cursor".
+    const actor = via ? `${user.name} via ${via}` : user.name;
+    await this.activity.record(boardId, { id: user.id, name: actor }, 'commented', undefined, said);
     // Others in the thread hear of the reply; anyone named with an @ hears they were mentioned, once, not twice.
     const people = (await this.boards.members(user, boardId)).filter((m) => m.role).map((m) => ({ id: m.userId, name: m.name }));
     const named = new Set(mentioned(body, people).filter((id) => id !== user.id));
@@ -54,8 +59,8 @@ export class CommentsService {
     const others = new Set(thread.comments.map((c) => c.author?.id).filter((id): id is string => !!id && id !== user.id && !named.has(id) && current.has(id)));
     // Opening it goes to the board with the note or frame selected and its thread open.
     const link = `/boards/${boardId}?comment=${encodeURIComponent(nodeId)}`;
-    await this.notifications.notify(named, { kind: 'mention', actor: user.name, title: 'mentioned you in a comment', body: said, context: board.title, link, boardId });
-    await this.notifications.notify(others, { kind: 'reply', actor: user.name, title: 'replied in a thread you’re in', body: said, context: board.title, link, boardId });
+    await this.notifications.notify(named, { kind: 'mention', actor, title: 'mentioned you in a comment', body: said, context: board.title, link, boardId });
+    await this.notifications.notify(others, { kind: 'reply', actor, title: 'replied in a thread you’re in', body: said, context: board.title, link, boardId });
     return thread;
   }
 
@@ -103,7 +108,7 @@ export class CommentsService {
       .orderBy(asc(commentThreads.createdAt));
     if (threads.length === 0) return [];
     const rows = await this.db
-      .select({ id: comments.id, threadId: comments.threadId, body: comments.body, createdAt: comments.createdAt, authorId: comments.authorId, name: users.name })
+      .select({ id: comments.id, threadId: comments.threadId, body: comments.body, via: comments.via, createdAt: comments.createdAt, authorId: comments.authorId, name: users.name })
       .from(comments)
       .leftJoin(users, eq(users.id, comments.authorId))
       .where(inArray(comments.threadId, threads.map((t) => t.id)))
@@ -115,7 +120,7 @@ export class CommentsService {
       resolvedAt: t.resolvedAt,
       comments: rows
         .filter((c) => c.threadId === t.id)
-        .map((c) => ({ id: c.id, author: { id: c.authorId, name: c.name ?? 'Someone who left' }, body: c.body, createdAt: c.createdAt })),
+        .map((c) => ({ id: c.id, author: { id: c.authorId, name: c.name ?? 'Someone who left' }, body: c.body, via: c.via, createdAt: c.createdAt })),
     }));
   }
 }

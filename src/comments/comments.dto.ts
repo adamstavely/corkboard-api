@@ -12,6 +12,8 @@ export class CommentDto {
   author!: CommentAuthorDto;
   /** As written: someone picked from the mention list is "@[Name](their user id)"; show it as "@Name". */
   body!: string;
+  /** The agent that wrote it for its author, through one of their access tokens ("Cursor"); null when they wrote it themselves. */
+  via!: string | null;
   createdAt!: Date;
 }
 
