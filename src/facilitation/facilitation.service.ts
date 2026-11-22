@@ -9,6 +9,12 @@ import { randomUUID } from 'node:crypto';
 import { agendaOf, answerPoll, setPrivacy, castVote, endPoll, pollOf, startPoll, facilitatorOf, setAgenda, setAgendaStep, setFacilitator, setTimer, setVoting, spotlight, votingOf, type StepActivity } from './facilitation-doc';
 import { WritingService } from './writing.service';
 import { ActivityService } from '../activity/activity.service';
+import { and, eq, gte } from 'drizzle-orm';
+import { InjectDb, type Db } from '../db/db.module';
+import { comments, commentThreads } from '../db/schema';
+import { SessionLog } from '../collab/session-log';
+import { ParticipantsStore } from '../feedback/participants.store';
+import { participationOf, sessionStart, type Participation } from './participation';
 
 const DEFAULT_VOTES = 3;
 
@@ -23,6 +29,9 @@ export class FacilitationService {
     private readonly collab: CollabService,
     private readonly activity: ActivityService,
     private readonly writing: WritingService,
+    private readonly sessions: SessionLog,
+    private readonly participants: ParticipantsStore,
+    @InjectDb() private readonly db: Db,
   ) {}
 
   /** `ifIdle`: start a vote only when none is running, rather than start a new round over the votes cast so far. */
@@ -33,6 +42,7 @@ export class FacilitationService {
       if (open && ifIdle && votingOf(doc).open) throw new ConflictException('A vote is already running');
       setVoting(doc, open, votesEach);
     });
+    if (open) this.sessions.voteStarted(boardId);
     await this.activity.record(boardId, user, open ? 'started a vote' : 'finished the vote', undefined, open ? `${votesEach} votes each` : undefined);
   }
 
@@ -179,6 +189,8 @@ export class FacilitationService {
       title = s.title;
       if (s.activity && agenda.current !== step) entering = { activity: s.activity, frameId: s.frameId };
       if (!now.userId) setFacilitator(doc, { id: user.id, name: user.name });
+      // Starting the agenda starts the session the participation view looks at.
+      if (agenda.current === null) this.sessions.agendaStarted(boardId);
       setAgendaStep(doc, step);
       setTimer(doc, s.seconds > 0 ? s.seconds : null, s.title, user.name);
       const frame = s.frameId ? framesOf(doc).find((f) => f.id === s.frameId) : undefined;
@@ -252,6 +264,48 @@ export class FacilitationService {
       setPrivacy(doc, on, user.name);
     });
     await this.activity.record(boardId, user, on ? 'turned private mode on' : 'turned private mode off');
+  }
+
+  /**
+   * Updaters and owners: who has taken part in the session so far and which frames nobody has looked at. Anonymous
+   * notes and feedback participants are only counted, and in private mode nobody is named.
+   */
+  async participation(user: User, boardId: string): Promise<Participation> {
+    const board = await this.boards.get(user, boardId, 'updater');
+    const now = Date.now();
+    const session = this.sessions.of(boardId, now);
+    const { since } = sessionStart(session, now);
+    const [members, joined, written] = await Promise.all([
+      this.boards.members(user, boardId),
+      this.participants.all(boardId),
+      this.db
+        .select({ authorId: comments.authorId })
+        .from(comments)
+        .innerJoin(commentThreads, eq(commentThreads.id, comments.threadId))
+        .where(and(eq(commentThreads.boardId, board.id), gte(comments.createdAt, new Date(since)))),
+    ]);
+    const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
+    try {
+      return participationOf({
+        doc: connection.document as unknown as Y.Doc,
+        session,
+        now,
+        team: new Map(members.map((m) => [m.userId, m.name])),
+        participantIds: new Set(joined.map((p) => p.userId)),
+        onlineMembers: new Map(this.collab.peopleOn(boardId).map((p) => [p.id, p.name])),
+        onlineParticipants: this.collab.participantsOn(boardId),
+        commentAuthors: written.map((c) => c.authorId),
+      });
+    } finally {
+      await connection.disconnect();
+    }
+  }
+
+  /** Anyone on the board: they've looked at these frames for a while. Kept for the session only. */
+  async seen(user: User, boardId: string, frameIds: readonly string[]): Promise<void> {
+    await this.boards.get(user, boardId);
+    const frames = this.collab.framesOn(boardId, frameIds);
+    if (frames.length) this.sessions.viewed(boardId, user.id, frames);
   }
 
   async #edit(user: User, boardId: string, change: (doc: Y.Doc) => void): Promise<void> {

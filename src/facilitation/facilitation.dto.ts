@@ -210,3 +210,83 @@ export class SetPrivacyDto {
   @IsBoolean()
   on!: boolean;
 }
+
+export class SeenFramesDto {
+  /** Frames this person has had in view for a few seconds. */
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  frameIds!: string[];
+}
+
+/** One team member's part in the session. */
+export class PersonPartDto {
+  id!: string;
+  name!: string;
+  /** Has the board open now. */
+  online!: boolean;
+  /** Notes added this session that are still on the board; never anonymous ones. */
+  notes!: number;
+  /** Dot votes in this session's round. */
+  votes!: number;
+  comments!: number;
+  /** Messages in the board's chat. */
+  chat!: number;
+}
+
+export class TeamPartDto {
+  people!: number;
+  online!: number;
+  /** How many have added nothing yet. */
+  quiet!: number;
+  notes!: number;
+  votes!: number;
+  comments!: number;
+  chat!: number;
+}
+
+/** Feedback participants from outside the team: only ever counted. */
+export class ParticipantsPartDto {
+  people!: number;
+  online!: number;
+  notes!: number;
+  votes!: number;
+  comments!: number;
+}
+
+/** A hidden writing round under way: how many notes from how many people, never what or whose. */
+export class WritingPartDto {
+  open!: boolean;
+  notes!: number;
+  writers!: number;
+}
+
+export class FramePartDto {
+  id!: string;
+  title!: string;
+  /** How many people had it in view for a few seconds. */
+  viewers!: number;
+  /** How many people added notes in it. */
+  contributors!: number;
+  /** Notes added in it this session, anonymous ones too. */
+  notes!: number;
+}
+
+/** Who has taken part in the session, for the facilitator. */
+export class ParticipationDto {
+  /** Where the session starts, epoch ms: when the agenda started, or 3 hours ago without one. */
+  since!: number;
+  /** Whether `since` is when the agenda started. */
+  fromAgenda!: boolean;
+  /** Private mode is on: nobody is listed, there are only totals. */
+  private!: boolean;
+  /** Team members who were here or took part, quietest first; empty in private mode. */
+  people!: PersonPartDto[];
+  team!: TeamPartDto;
+  participants!: ParticipantsPartDto;
+  /** Notes from anonymous writing rounds this session. */
+  anonymousNotes!: number;
+  writing!: WritingPartDto;
+  /** The board's frames, those nobody has looked at first. */
+  frames!: FramePartDto[];
+}

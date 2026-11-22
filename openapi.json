@@ -644,6 +644,81 @@
         ]
       }
     },
+    "/boards/{id}/participation": {
+      "get": {
+        "operationId": "FacilitationController_participation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Updaters and owners: who has taken part in the session (since the agenda started, or the last 3 hours) and which\nframes nobody has looked at. Anonymous notes and feedback participants are only counted; in private mode nobody is\nnamed.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
+    "/boards/{id}/seen": {
+      "post": {
+        "operationId": "FacilitationController_seen",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeenFramesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone on the board: frames they've had in view for a few seconds, for the facilitator's participation view.",
+        "tags": [
+          "facilitation"
+        ]
+      }
+    },
     "/orgs/{orgId}/folders": {
       "get": {
         "operationId": "OrganiseController_folders",
@@ -1954,6 +2029,45 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/feedback/boards/{id}/seen": {
+      "post": {
+        "operationId": "FeedbackController_seen",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeenFramesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Frames this participant has had in view for a few seconds: counted for the facilitator, never by who.",
         "tags": [
           "feedback"
         ]
@@ -6639,6 +6753,229 @@
         },
         "required": [
           "on"
+        ]
+      },
+      "PersonPartDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean",
+            "description": "Has the board open now."
+          },
+          "notes": {
+            "type": "number",
+            "description": "Notes added this session that are still on the board; never anonymous ones."
+          },
+          "votes": {
+            "type": "number",
+            "description": "Dot votes in this session's round."
+          },
+          "comments": {
+            "type": "number"
+          },
+          "chat": {
+            "type": "number",
+            "description": "Messages in the board's chat."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "online",
+          "notes",
+          "votes",
+          "comments",
+          "chat"
+        ]
+      },
+      "TeamPartDto": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "number"
+          },
+          "online": {
+            "type": "number"
+          },
+          "quiet": {
+            "type": "number",
+            "description": "How many have added nothing yet."
+          },
+          "notes": {
+            "type": "number"
+          },
+          "votes": {
+            "type": "number"
+          },
+          "comments": {
+            "type": "number"
+          },
+          "chat": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "people",
+          "online",
+          "quiet",
+          "notes",
+          "votes",
+          "comments",
+          "chat"
+        ]
+      },
+      "ParticipantsPartDto": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "number"
+          },
+          "online": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "number"
+          },
+          "votes": {
+            "type": "number"
+          },
+          "comments": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "people",
+          "online",
+          "notes",
+          "votes",
+          "comments"
+        ]
+      },
+      "WritingPartDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "number"
+          },
+          "writers": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "open",
+          "notes",
+          "writers"
+        ]
+      },
+      "FramePartDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "viewers": {
+            "type": "number",
+            "description": "How many people had it in view for a few seconds."
+          },
+          "contributors": {
+            "type": "number",
+            "description": "How many people added notes in it."
+          },
+          "notes": {
+            "type": "number",
+            "description": "Notes added in it this session, anonymous ones too."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "viewers",
+          "contributors",
+          "notes"
+        ]
+      },
+      "ParticipationDto": {
+        "type": "object",
+        "properties": {
+          "since": {
+            "type": "number",
+            "description": "Where the session starts, epoch ms: when the agenda started, or 3 hours ago without one."
+          },
+          "fromAgenda": {
+            "type": "boolean",
+            "description": "Whether `since` is when the agenda started."
+          },
+          "private": {
+            "type": "boolean",
+            "description": "Private mode is on: nobody is listed, there are only totals."
+          },
+          "people": {
+            "description": "Team members who were here or took part, quietest first; empty in private mode.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonPartDto"
+            }
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamPartDto"
+          },
+          "participants": {
+            "$ref": "#/components/schemas/ParticipantsPartDto"
+          },
+          "anonymousNotes": {
+            "type": "number",
+            "description": "Notes from anonymous writing rounds this session."
+          },
+          "writing": {
+            "$ref": "#/components/schemas/WritingPartDto"
+          },
+          "frames": {
+            "description": "The board's frames, those nobody has looked at first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FramePartDto"
+            }
+          }
+        },
+        "required": [
+          "since",
+          "fromAgenda",
+          "private",
+          "people",
+          "team",
+          "participants",
+          "anonymousNotes",
+          "writing",
+          "frames"
+        ]
+      },
+      "SeenFramesDto": {
+        "type": "object",
+        "properties": {
+          "frameIds": {
+            "description": "Frames this person has had in view for a few seconds.",
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "frameIds"
         ]
       },
       "FolderDto": {

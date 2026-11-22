@@ -14,6 +14,7 @@ import { react } from '../reactions/reactions';
 import type { ParticipantCommentThreadDto, ParticipantNoteDto } from './participation.dto';
 import { ParticipantsStore } from './participants.store';
 import { plainMentions } from '../activity/notifications';
+import { SessionLog } from '../collab/session-log';
 
 /**
  * What a participant from outside the team does on a board: add and change their own notes, comment, react, vote and
@@ -28,6 +29,7 @@ export class ParticipationService {
     private readonly collab: CollabService,
     private readonly activity: ActivityService,
     private readonly poker: PokerService,
+    private readonly sessions: SessionLog,
   ) {}
 
   /** A participant who may act now, or 403. */
@@ -61,6 +63,13 @@ export class ParticipationService {
     } finally {
       await connection.disconnect();
     }
+  }
+
+  /** A participant has looked at these frames for a while: counted in the facilitator's view, never by who. */
+  async seen(user: User, boardId: string, frameIds: readonly string[]): Promise<void> {
+    await this.#me(user, boardId);
+    const frames = this.collab.framesOn(boardId, frameIds);
+    if (frames.length) this.sessions.viewed(boardId, `p:${user.id}`, frames);
   }
 
   async addNote(user: User, boardId: string, note: { text: string; color: NoteColor; x: number; y: number }): Promise<ParticipantNoteDto> {

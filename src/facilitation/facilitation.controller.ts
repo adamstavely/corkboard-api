@@ -1,8 +1,8 @@
-import { Body, Controller, Delete, HttpCode, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/current-user';
 import type { User } from '../db/schema';
-import { AgendaGoDto, AnswerPollDto, SetPrivacyDto, EndPollDto, StartPollDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
+import { AgendaGoDto, AnswerPollDto, SetPrivacyDto, ParticipationDto, SeenFramesDto, EndPollDto, StartPollDto, BreakoutTimerDto, BringEveryoneDto, SetAgendaDto, CastVoteDto, JoinBreakoutDto, SetTimerDto, SetVotingDto, StartBreakoutsDto } from './facilitation.dto';
 import { FacilitationService } from './facilitation.service';
 
 @ApiTags('facilitation')
@@ -125,5 +125,22 @@ export class FacilitationController {
   @HttpCode(204)
   setPrivacy(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: SetPrivacyDto): Promise<void> {
     return this.facilitation.setPrivacy(user, id, body.on);
+  }
+
+  /**
+   * Updaters and owners: who has taken part in the session (since the agenda started, or the last 3 hours) and which
+   * frames nobody has looked at. Anonymous notes and feedback participants are only counted; in private mode nobody is
+   * named.
+   */
+  @Get('participation')
+  participation(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<ParticipationDto> {
+    return this.facilitation.participation(user, id);
+  }
+
+  /** Anyone on the board: frames they've had in view for a few seconds, for the facilitator's participation view. */
+  @Post('seen')
+  @HttpCode(204)
+  seen(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: SeenFramesDto): Promise<void> {
+    return this.facilitation.seen(user, id, body.frameIds);
   }
 }
