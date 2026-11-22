@@ -3443,6 +3443,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "x-link-pass",
+            "in": "header",
+            "description": "Proof of the link's password, from unlock",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {

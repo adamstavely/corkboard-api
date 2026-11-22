@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   GoneException,
+  Headers,
   HttpCode,
   Inject,
   NotFoundException,
@@ -10,13 +11,19 @@ import {
   Post,
   Res,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiProduces, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiProduces,
+  ApiTags,
+} from "@nestjs/swagger";
 import type { Response } from "express";
 import * as Y from "yjs";
 import { diagramImageUrls, diagramsOn } from "../assist/diagram-node";
 import { Public } from "../auth/auth.guard";
 import { BoardsService } from "../boards/boards.service";
 import { CollabService } from "../collab/collab.service";
+import { PASS_HEADER } from "../links/links.controller";
 import { LinksService } from "../links/links.service";
 import { DiagramImageRequestDto } from "./diagram-image.dto";
 import { IMAGE_FETCH, type ImageFetch } from "./unfurl";
@@ -52,15 +59,26 @@ export class DiagramImageController {
   @Public()
   @Post("shared/:token/diagram-image")
   @HttpCode(200)
+  @ApiHeader({
+    name: PASS_HEADER,
+    required: false,
+    description: "Proof of the link's password, from unlock",
+  })
   @ApiProduces("image/png", "image/jpeg", "image/gif", "image/webp")
   async shared(
     @Param("token") token: string,
     @Body() body: DiagramImageRequestDto,
+    @Headers(PASS_HEADER) pass: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    const link = await this.links.byToken(token);
-    if (!link)
-      throw new GoneException("This link has been turned off or has expired");
+    // A link with a password needs proof it was typed; one that's gone or never was is simply gone.
+    const { link } = await this.links
+      .admit(token, pass)
+      .catch((err: unknown) => {
+        throw err instanceof NotFoundException
+          ? new GoneException("This link has been turned off or has expired")
+          : err;
+      });
     // A guest only gets the pictures the board's diagrams show, so a link isn't a way to fetch anything at all.
     const shown = diagramsOn(await this.#doc(link.boardId)).some((d) =>
       diagramImageUrls(d.source).includes(body.url),
