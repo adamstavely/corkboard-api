@@ -6,7 +6,7 @@ import { InjectDb, type Db } from '../db/db.module';
 import { comments, commentThreads, users, type User } from '../db/schema';
 import type { CommentThreadDto } from './comments.dto';
 import { ActivityService } from '../activity/activity.service';
-import { mentioned, NotificationsService } from '../activity/notifications';
+import { mentioned, NotificationsService, plainMentions } from '../activity/notifications';
 
 /** What the board's open connections are told when its comments change, so they fetch them again. */
 export const COMMENTS_CHANGED = JSON.stringify({ type: 'comments' });
@@ -44,16 +44,18 @@ export class CommentsService {
     });
     this.#changed(boardId);
     const thread = (await this.#threads(boardId, threadId))[0];
-    await this.activity.record(boardId, user, 'commented', undefined, body.trim());
-    // Others in the thread hear of the reply; anyone named with an @ hears they were mentioned.
+    const said = plainMentions(body.trim());
+    await this.activity.record(boardId, user, 'commented', undefined, said);
+    // Others in the thread hear of the reply; anyone named with an @ hears they were mentioned, once, not twice.
     const people = (await this.boards.members(user, boardId)).filter((m) => m.role).map((m) => ({ id: m.userId, name: m.name }));
     const named = new Set(mentioned(body, people).filter((id) => id !== user.id));
     // Only people who can still open the board: someone who's since lost access hears nothing new.
     const current = new Set(people.map((p) => p.id));
     const others = new Set(thread.comments.map((c) => c.author?.id).filter((id): id is string => !!id && id !== user.id && !named.has(id) && current.has(id)));
-    const link = `/boards/${boardId}`;
-    await this.notifications.notify(named, { kind: 'mention', actor: user.name, title: 'mentioned you in a comment', body, context: board.title, link, boardId });
-    await this.notifications.notify(others, { kind: 'reply', actor: user.name, title: 'replied in a thread you’re in', body, context: board.title, link, boardId });
+    // Opening it goes to the board with the note or frame selected and its thread open.
+    const link = `/boards/${boardId}?comment=${encodeURIComponent(nodeId)}`;
+    await this.notifications.notify(named, { kind: 'mention', actor: user.name, title: 'mentioned you in a comment', body: said, context: board.title, link, boardId });
+    await this.notifications.notify(others, { kind: 'reply', actor: user.name, title: 'replied in a thread you’re in', body: said, context: board.title, link, boardId });
     return thread;
   }
 

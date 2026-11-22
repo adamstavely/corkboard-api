@@ -9,7 +9,7 @@ import type { User } from '../db/schema';
 import { ProvidersService } from '../models/providers.service';
 import { appendChat, chatOf, MODEL_AUTHOR, type ChatMessage } from './chat-doc';
 import type { ChatMessageDto, SendChatDto } from './chat.dto';
-import { mentioned, NotificationsService } from '../activity/notifications';
+import { mentioned, NotificationsService, plainMentions } from '../activity/notifications';
 
 /** Sent to everyone on a board while the model answers someone, and when it's done. */
 export const answering = (personId: string, on: boolean) => JSON.stringify({ type: 'answering', personId, on });
@@ -45,7 +45,7 @@ export class ChatService {
     const people = (await this.boards.members(user, boardId)).filter((m) => m.role).map((m) => ({ id: m.userId, name: m.name }));
     await this.notifications.notify(
       mentioned(message.text, people).filter((id) => id !== user.id),
-      { kind: 'mention', actor: user.name, title: 'mentioned you in the board chat', body: message.text, context: board.title, link: `/boards/${boardId}`, boardId },
+      { kind: 'mention', actor: user.name, title: 'mentioned you in the board chat', body: plainMentions(message.text), context: board.title, link: `/boards/${boardId}`, boardId },
     );
     // The answer comes into the chat when it's ready; the sender doesn't wait for it.
     // It's model work, which shutdown stops and waits for (see ModelJobs.work); refused once shutdown has begun.
