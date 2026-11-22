@@ -29,6 +29,8 @@ const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest',
 export const SERVER: User = { id: '00000000-0000-0000-0000-000000000001', name: 'Corkboard', email: 'server@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
 /** Share-link viewers connect with this before the link's token. */
 const LINK = 'link:';
+/** An embedded board (Notion, Confluence) connects with this before its link's token. */
+const EMBED = 'embed:';
 
 /** Where clients connect: wss://…/collab (the UI reaches it as /api/collab). */
 export const COLLAB_PATH = '/collab';
@@ -55,6 +57,8 @@ interface CollabContext {
   session?: { hash: string; expiresAt: number };
   /** A participant on their projection of this board. */
   projectionOf?: string;
+  /** An embed's viewer: the board's workspace, so turning embeds off there lets them go. */
+  embedIn?: string;
 }
 
 /** How often live connections' sessions are checked against the database, and how stale a writer's check may be. */
@@ -117,7 +121,7 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         const projection = PROJECTION.exec(documentName);
         if (projection) {
           const [, boardId, userId] = projection;
-          if (token.startsWith(LINK)) throw new Error('Board not found');
+          if (token.startsWith(LINK) || token.startsWith(EMBED)) throw new Error('Board not found');
           let signin: Signin;
           try {
             signin = await this.users.signin(token);
@@ -130,6 +134,16 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         }
         if (!UUID.test(documentName)) throw new Error('Board not found');
         // Someone with a share link: as a guest, on that link's board only, read-only unless the link lets them edit.
+        // An embed: through its link, always read-only, while the workspace allows embeds.
+        if (token.startsWith(EMBED)) {
+          const { link, orgId } = await this.links.admitEmbed(token.slice(EMBED.length)).catch((err: unknown) => {
+            throw new Error(err instanceof HttpException ? err.message : 'This link has been turned off or has expired');
+          });
+          if (link.boardId !== documentName) throw new Error('This link has been turned off or has expired');
+          connectionConfig.readOnly = true;
+          this.watchLink(link.id, link.expiresAt?.getTime() ?? null);
+          return { user: GUEST, role: 'reader', linkId: link.id, embedIn: orgId };
+        }
         // "link:<token>", or "link:<token>:<pass>" for a link with a password.
         if (token.startsWith(LINK)) {
           const [linkToken, pass] = token.slice(LINK.length).split(':');
@@ -313,6 +327,15 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
     for (const [, document] of this.hocuspocus.documents) {
       for (const connection of document.connections.keys()) {
         if ((connection.context as CollabContext | undefined)?.linkId === linkId) connection.close();
+      }
+    }
+  }
+
+  /** Lets go of everyone viewing a workspace's boards embedded elsewhere, when it turns embeds off. */
+  disconnectEmbeds(orgId: string): void {
+    for (const [, document] of this.hocuspocus.documents) {
+      for (const connection of document.connections.keys()) {
+        if ((connection.context as CollabContext | undefined)?.embedIn === orgId) connection.close();
       }
     }
   }

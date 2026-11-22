@@ -169,6 +169,8 @@ export const boardShareLinks = pgTable('board_share_links', {
   lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
   /** A scrypt hash ("scrypt$salt$hash", base64url): guests type the password before the link opens anything. */
   passwordHash: text('password_hash'),
+  /** Made for embedding the board elsewhere (Notion, Confluence): read-only, no password; reused while it's live. */
+  embed: boolean('embed').notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -717,6 +719,8 @@ export const workspacePolicies = pgTable('workspace_policies', {
   feedback: policyWho('feedback').notNull().default('board_owners'),
   /** Keep board history, saved versions and the assistant's undo list this many days; null keeps them for good. */
   retentionDays: integer('retention_days'),
+  /** Boards can be embedded elsewhere, live and read-only, through share links. Off: embeds stop showing. */
+  embeds: boolean('embeds').notNull().default(true),
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

@@ -37,6 +37,16 @@ export class LinksController {
     return this.links.create(user, id, body);
   }
 
+  /**
+   * Whoever may make share links: a read-only link without a password to embed the board in Notion, Confluence and
+   * the like (the one already made, while it's live). Its page is /embed/{token}; GET /oembed describes it.
+   */
+  @Post('boards/:id/links/embed')
+  @HttpCode(200)
+  embed(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<ShareLinkDto> {
+    return this.links.embed(user, id);
+  }
+
   @Patch('boards/:id/links/:linkId')
   async setExpiry(
     @CurrentUser() user: User,
@@ -79,6 +89,16 @@ export class LinksController {
   @ApiHeader({ name: PASS_HEADER, required: false, description: "Proof of the link's password, from unlock" })
   open(@Param('token') token: string, @Headers(PASS_HEADER) pass?: string): Promise<SharedBoardDto> {
     return this.links.open(token, pass);
+  }
+
+  /**
+   * An embedded board's page: what the link shows. 410 once it's turned off or expired; 403 naming the policy when the
+   * workspace turns embeds off or the link has a password.
+   */
+  @Public()
+  @Get('embed/:token')
+  openEmbed(@Param('token') token: string): Promise<SharedBoardDto> {
+    return this.links.openEmbed(token);
   }
 
   /** Anyone with a link that has a password: type it. 403 when it's wrong; 429 after too many wrong tries. */

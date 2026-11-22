@@ -21,6 +21,7 @@ export interface Policies {
   exports: PolicyWho;
   feedback: PolicyWho;
   retentionDays: number | null;
+  embeds: boolean;
 }
 
 /** A workspace without policies set: how Corkboard behaved before there were any. */
@@ -33,6 +34,7 @@ export const DEFAULT_POLICIES: Policies = {
   exports: 'everyone',
   feedback: 'board_owners',
   retentionDays: null,
+  embeds: true,
 };
 
 /** What each policy is about, in the words its refusals use. */
@@ -78,7 +80,7 @@ export function refusalText(policy: WhoPolicy, who: PolicyWho): string {
 }
 
 /** Which policy said no, so a caller can show it beside the control it turns off. */
-export type PolicyName = WhoPolicy | 'editableLinks' | 'linkPassword' | 'linkMaxDays';
+export type PolicyName = WhoPolicy | 'editableLinks' | 'linkPassword' | 'linkMaxDays' | 'embeds';
 
 /** A 403 that names the policy behind it. */
 export const policyRefusal = (policy: PolicyName, message: string) => new ForbiddenException({ statusCode: 403, error: 'Forbidden', message, policy });

@@ -14,6 +14,8 @@ export interface PolicyChange {
   letGo: string[];
   /** Links cut short to the new longest expiry, with their new expiry (epoch ms). */
   shortened: { id: string; expiresAt: number }[];
+  /** Embeds are off now: whatever shows the workspace's boards embedded stops. */
+  embedsOff: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ export class PoliciesService {
       exports: row.exports,
       feedback: row.feedback,
       retentionDays: row.retentionDays,
+      embeds: row.embeds,
     };
   }
 
@@ -70,7 +73,7 @@ export class PoliciesService {
     const letGo = [];
     if (next.linkPassword) letGo.push(...(await this.db.select({ id: boardShareLinks.id }).from(boardShareLinks).where(and(live, isNull(boardShareLinks.passwordHash)))));
     if (!next.editableLinks) letGo.push(...(await this.db.select({ id: boardShareLinks.id }).from(boardShareLinks).where(and(live, eq(boardShareLinks.canEdit, true)))));
-    return { policies: await this.of(orgId), letGo: [...new Set(letGo.map((l) => l.id))], shortened };
+    return { policies: await this.of(orgId), letGo: [...new Set(letGo.map((l) => l.id))], shortened, embedsOff: !next.embeds };
   }
 
   /** Why this person can't do what `policy` covers on the board; null when they can. */
@@ -95,21 +98,27 @@ export class PoliciesService {
   async onBoard(user: User, board: BoardWithRole, facilitator: () => Promise<boolean>): Promise<BoardPolicyDto> {
     const policies = await this.of(board.orgId);
     const allowed = (reason: string | null): AllowedDto => ({ allowed: !reason, reason });
-    const [shareWithPeople, shareLinks, exports, feedback] = await Promise.all(
+    // (Not `exports`: that name is the module's own once compiled.)
+    const [shareWithPeople, shareLinks, exporting, feedback] = await Promise.all(
       (['shareWithPeople', 'shareLinks', 'exports', 'feedback'] as const).map((p) => this.refusal(user, board, p, policies, facilitator)),
     );
     return {
       shareWithPeople: allowed(shareWithPeople),
       shareLinks: allowed(shareLinks),
       editableLinks: allowed(shareLinks ?? (policies.editableLinks ? null : EDITABLE_OFF)),
-      exports: allowed(exports),
+      exports: allowed(exporting),
       feedback: allowed(feedback),
+      embeds: allowed(shareLinks ?? embedRefusal(policies)),
       linkPassword: policies.linkPassword,
       linkMaxDays: policies.linkMaxDays,
     };
   }
 }
 
+/** Why the workspace's policies keep its boards from being embedded; null when they don't. */
+export const embedRefusal = (policies: Policies): string | null =>
+  !policies.embeds ? EMBEDS_OFF : policies.linkPassword ? "This workspace's policy needs a password on share links, and a link with a password can't be embedded." : null;
+export const EMBEDS_OFF = "This workspace's policy doesn't allow embedding boards in other tools.";
 export const EDITABLE_OFF = "This workspace's policy doesn't allow share links that let guests edit.";
 export const PASSWORD_NEEDED = "This workspace's policy needs a password on every share link.";
 export const tooLong = (days: number) => `This workspace's policy needs share links to expire within ${days} day${days === 1 ? '' : 's'}.`;

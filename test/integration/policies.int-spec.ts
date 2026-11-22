@@ -20,6 +20,7 @@ const DEFAULTS = {
   exports: 'everyone',
   feedback: 'board_owners',
   retentionDays: null as number | null,
+  embeds: true,
 };
 
 describe('Workspace policies', () => {
@@ -143,6 +144,9 @@ describe('Workspace policies', () => {
     const policy = (await request(server).get(`/boards/${board.id}/policy`).set(grace.auth)).body;
     expect(policy.shareLinks.allowed).toBe(false);
     expect(policy.editableLinks.allowed).toBe(false);
+    const adas = (await request(server).get(`/boards/${board.id}/policy`).set(ada.auth).expect(200)).body;
+    expect(adas.shareLinks.allowed).toBe(true);
+    expect(adas.editableLinks).toEqual({ allowed: false, reason: "This workspace's policy doesn't allow share links that let guests edit." });
   });
 
   it('puts a password on share links, and limits wrong guesses', async () => {

@@ -34,8 +34,9 @@ export class PoliciesController {
    */
   @Put('orgs/:orgId/policies')
   async set(@CurrentUser() user: User, @Param('orgId', ParseUUIDPipe) orgId: string, @Body() body: PoliciesDto): Promise<PoliciesDto> {
-    const { policies, letGo, shortened } = await this.policies.set(user, orgId, body);
+    const { policies, letGo, shortened, embedsOff } = await this.policies.set(user, orgId, body);
     for (const id of letGo) this.collab.disconnectLink(id);
+    if (embedsOff) this.collab.disconnectEmbeds(orgId);
     for (const link of shortened) this.collab.watchLink(link.id, link.expiresAt);
     await this.retention.pruneOrg(orgId);
     return policies;

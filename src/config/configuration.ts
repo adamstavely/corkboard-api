@@ -12,7 +12,10 @@ export interface AppConfig {
    * NODE_ENV is production. Passkey sign-in works either way.
    */
   peoplePicker: boolean;
-  /** Passkeys: the site they belong to (the UI's host name) and the origins sign-ins may come from. */
+  /**
+   * Passkeys: the site they belong to (the UI's host name) and the origins sign-ins may come from, which are the UI's
+   * addresses (oEmbed answers only for embed pages on them).
+   */
   webauthn: { rpId: string; rpName: string; origins: string[] };
   /**
    * How often tasks linked to issues are checked against their trackers (TRACKER_SYNC_MS), in ms; 0 turns the
