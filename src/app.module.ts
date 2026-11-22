@@ -76,6 +76,9 @@ import { MembersService } from './orgs/members.service';
 import { OrgsService } from './orgs/orgs.service';
 import { SearchController } from './search/search.controller';
 import { SearchIndex } from './search/search-index';
+import { PoliciesController } from './policies/policies.controller';
+import { PoliciesService } from './policies/policies.service';
+import { RetentionService } from './policies/retention.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), DbModule],
@@ -112,6 +115,7 @@ import { SearchIndex } from './search/search-index';
     SuggestionsController,
     AppsController,
     AssistController,
+    PoliciesController,
   ],
   providers: [
     UsersService,
@@ -154,6 +158,8 @@ import { SearchIndex } from './search/search-index';
     BoardsService,
     SearchIndex,
     CollabService,
+    PoliciesService,
+    RetentionService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_PIPE, useValue: new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }) },
   ],

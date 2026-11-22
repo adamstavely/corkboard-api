@@ -1,13 +1,16 @@
-import { Body, Controller, Delete, Get, GoneException, HttpCode, Param, ParseUUIDPipe, Patch, Post, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, GoneException, Headers, HttpCode, NotFoundException, Ip, Param, ParseUUIDPipe, Patch, Post, Res } from '@nestjs/common';
+import { ApiBearerAuth, ApiHeader, ApiProduces, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user';
 import { CollabService } from '../collab/collab.service';
 import { FilesService, sendFile } from '../files/files.service';
 import type { User } from '../db/schema';
-import { CreateShareLinkDto, SharedBoardDto, ShareLinkDto, ShareLinkExpiryDto } from './links.dto';
+import { CreateShareLinkDto, LinkPassDto, SharedBoardDto, ShareLinkDto, ShareLinkExpiryDto, UnlockLinkDto } from './links.dto';
 import { LinksService } from './links.service';
+
+/** The header a guest sends proof of a link's password in. */
+export const PASS_HEADER = 'x-link-pass';
 
 @ApiTags('links')
 @ApiBearerAuth()
@@ -19,16 +22,19 @@ export class LinksController {
     private readonly files: FilesService,
   ) {}
 
-  /** Board owners: the board's share links, newest first. */
+  /** Whoever the workspace's policy lets manage links (board owners by default): the board's share links, newest first. */
   @Get('boards/:id/links')
   list(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string): Promise<ShareLinkDto[]> {
     return this.links.list(user, id);
   }
 
-  /** Board owners: a link that lets anyone who has it view the board, read-only. */
+  /**
+   * A link that lets anyone who has it view the board, read-only unless it lets them edit. The workspace's policies
+   * decide who may, whether it may be editable, whether it needs a password and how soon it must expire.
+   */
   @Post('boards/:id/links')
   create(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Body() body: CreateShareLinkDto): Promise<ShareLinkDto> {
-    return this.links.create(user, id, body.label, body.expiresInDays, body.canEdit);
+    return this.links.create(user, id, body);
   }
 
   @Patch('boards/:id/links/:linkId')
@@ -44,7 +50,7 @@ export class LinksController {
     return link;
   }
 
-  /** Board owners: turn a link off; anyone viewing through it is let go. */
+  /** Board owners (and whoever the policy lets manage links): turn a link off; anyone viewing through it is let go. */
   @Delete('boards/:id/links/:linkId')
   @HttpCode(204)
   async revoke(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string, @Param('linkId', ParseUUIDPipe) linkId: string): Promise<void> {
@@ -56,16 +62,30 @@ export class LinksController {
   @Public()
   @Get('shared/:token/files/:fileId')
   @ApiProduces('application/octet-stream')
-  async file(@Param('token') token: string, @Param('fileId', ParseUUIDPipe) fileId: string, @Res() res: Response): Promise<void> {
-    const link = await this.links.byToken(token);
-    if (!link) throw new GoneException('This link has been turned off or has expired');
+  @ApiHeader({ name: PASS_HEADER, required: false, description: "Proof of the link's password, from unlock" })
+  async file(@Param('token') token: string, @Param('fileId', ParseUUIDPipe) fileId: string, @Headers(PASS_HEADER) pass: string | undefined, @Res() res: Response): Promise<void> {
+    const { link } = await this.links.admit(token, pass).catch((err: unknown) => {
+      throw err instanceof NotFoundException ? new GoneException('This link has been turned off or has expired') : err;
+    });
     sendFile(res, await this.files.onBoard(link.boardId, fileId));
   }
 
-  /** Anyone with a link: what it opens. 410 once it's turned off or expired. */
+  /**
+   * Anyone with a link: what it opens. 410 once it's turned off or expired; 403 with `passwordRequired` until the
+   * link's password has been typed (send the pass from unlock).
+   */
   @Public()
   @Get('shared/:token')
-  open(@Param('token') token: string): Promise<SharedBoardDto> {
-    return this.links.open(token);
+  @ApiHeader({ name: PASS_HEADER, required: false, description: "Proof of the link's password, from unlock" })
+  open(@Param('token') token: string, @Headers(PASS_HEADER) pass?: string): Promise<SharedBoardDto> {
+    return this.links.open(token, pass);
+  }
+
+  /** Anyone with a link that has a password: type it. 403 when it's wrong; 429 after too many wrong tries. */
+  @Public()
+  @Post('shared/:token/unlock')
+  @HttpCode(200)
+  async unlock(@Param('token') token: string, @Body() body: UnlockLinkDto, @Ip() ip: string): Promise<LinkPassDto> {
+    return { pass: await this.links.unlock(token, body.password, ip) };
   }
 }

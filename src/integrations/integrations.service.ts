@@ -9,6 +9,7 @@ import { InjectDb, type Db } from '../db/db.module';
 import { integrations, issueExports, users, type User } from '../db/schema';
 import { SecretBox } from '../models/secret-box';
 import { OrgsService } from '../orgs/orgs.service';
+import { PoliciesService } from '../policies/policies.service';
 import { checkConfig, createIssue, type IntegrationConfig, type IntegrationKind } from './exporters';
 import type { CreateIntegrationDto, ExportResultDto, IntegrationDto } from './integrations.dto';
 import { IssueHttp } from './issue-http';
@@ -58,6 +59,7 @@ export class IntegrationsService {
     private readonly secrets: SecretBox,
     private readonly http: IssueHttp,
     private readonly activity: ActivityService,
+    private readonly policies: PoliciesService,
   ) {}
 
   async list(user: User, orgId: string): Promise<IntegrationDto[]> {
@@ -87,6 +89,7 @@ export class IntegrationsService {
   /** Sends tasks to the tracker one by one; those that fail are reported, and the rest still go. */
   async export(user: User, boardId: string, integrationId: string, taskIds?: string[]): Promise<ExportResultDto> {
     const board = await this.boards.get(user, boardId, 'updater');
+    await this.policies.check(user, board, 'exports');
     const [row] = await this.db.select().from(integrations).where(and(eq(integrations.id, integrationId), eq(integrations.orgId, board.orgId)));
     if (!row) throw new NotFoundException('Connection not found');
     const token = this.secrets.open(row.tokenEncrypted);

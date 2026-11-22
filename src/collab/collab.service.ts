@@ -1,6 +1,6 @@
 import { Database } from '@hocuspocus/extension-database';
 import { Hocuspocus } from '@hocuspocus/server';
-import { Injectable, Logger, OnApplicationBootstrap, BeforeApplicationShutdown } from '@nestjs/common';
+import { HttpException, Injectable, Logger, OnApplicationBootstrap, BeforeApplicationShutdown } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingHttpHeaders, IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -25,7 +25,7 @@ import { ParticipantsStore } from '../feedback/participants.store';
 /** Who someone viewing through a share link is: nobody in particular. */
 const GUEST: User = { id: '00000000-0000-0000-0000-000000000000', name: 'Guest', email: 'guest@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
 /** The server itself, keeping a board loaded while its projections are open. */
-const SERVER: User = { id: '00000000-0000-0000-0000-000000000001', name: 'Corkboard', email: 'server@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
+export const SERVER: User = { id: '00000000-0000-0000-0000-000000000001', name: 'Corkboard', email: 'server@corkboard.invalid', assistantAsksFirst: false, createdAt: new Date(0) };
 /** Share-link viewers connect with this before the link's token. */
 const LINK = 'link:';
 
@@ -127,13 +127,18 @@ export class CollabService implements OnApplicationBootstrap, BeforeApplicationS
         }
         if (!UUID.test(documentName)) throw new Error('Board not found');
         // Someone with a share link: as a guest, on that link's board only, read-only unless the link lets them edit.
+        // "link:<token>", or "link:<token>:<pass>" for a link with a password.
         if (token.startsWith(LINK)) {
-          const link = await this.links.byToken(token.slice(LINK.length));
-          if (!link || link.boardId !== documentName) throw new Error('This link has been turned off or has expired');
+          const [linkToken, pass] = token.slice(LINK.length).split(':');
+          const admitted = await this.links.admit(linkToken, pass).catch((err: unknown) => {
+            throw new Error(err instanceof HttpException ? err.message : 'This link has been turned off or has expired');
+          });
+          const { link, canEdit } = admitted;
+          if (link.boardId !== documentName) throw new Error('This link has been turned off or has expired');
           // An editable link's guests change the board like updaters; chat, votes and the rest stay the API's.
-          connectionConfig.readOnly = !link.canEdit;
+          connectionConfig.readOnly = !canEdit;
           this.watchLink(link.id, link.expiresAt?.getTime() ?? null);
-          return { user: GUEST, role: link.canEdit ? 'updater' : 'reader', linkId: link.id };
+          return { user: GUEST, role: canEdit ? 'updater' : 'reader', linkId: link.id };
         }
         let signin: Signin;
         try {
