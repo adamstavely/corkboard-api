@@ -2170,6 +2170,95 @@
         ]
       }
     },
+    "/boards/{id}/replay": {
+      "get": {
+        "operationId": "ReplayController_frames",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone on the board (as for its versions): the points in its history replay can show, oldest first, what people\ndid meanwhile, and where \"this session\" starts.",
+        "tags": [
+          "activity"
+        ]
+      }
+    },
+    "/boards/{id}/replay/states": {
+      "get": {
+        "operationId": "ReplayController_states",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStatesDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone on the board: the board at up to 30 consecutive points from `from` on, to step through.",
+        "tags": [
+          "activity"
+        ]
+      }
+    },
     "/me/notifications/stream": {
       "get": {
         "operationId": "NotificationsController_stream",
@@ -7310,6 +7399,96 @@
         },
         "required": [
           "beforeVersionId"
+        ]
+      },
+      "ReplayFrameDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "kind": {
+            "type": "string",
+            "description": "A snapshot kept while people edit, or a saved version.",
+            "enum": [
+              "version",
+              "snapshot"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "description": "A version's name; null for snapshots."
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "label"
+        ]
+      },
+      "ReplayDto": {
+        "type": "object",
+        "properties": {
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplayFrameDto"
+            }
+          },
+          "events": {
+            "description": "What happened from the first point on, oldest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardEventDto"
+            }
+          },
+          "sessionStartId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The point \"this session\" starts from: the board as it was when the last stretch of editing (or agenda) began."
+          }
+        },
+        "required": [
+          "frames",
+          "events",
+          "sessionStartId"
+        ]
+      },
+      "ReplayStateDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The point's id."
+          },
+          "update": {
+            "type": "string",
+            "description": "A Yjs update, base64: the whole board for the first, only what changed since the one before for the rest."
+          }
+        },
+        "required": [
+          "id",
+          "update"
+        ]
+      },
+      "ReplayStatesDto": {
+        "type": "object",
+        "properties": {
+          "states": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplayStateDto"
+            }
+          }
+        },
+        "required": [
+          "states"
         ]
       },
       "NotificationDto": {

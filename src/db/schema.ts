@@ -389,6 +389,29 @@ export const boardEvents = pgTable(
   (t) => [index('board_events_board').on(t.boardId, t.createdAt)],
 );
 
+/**
+ * Close-together states of a board while people edit it, to replay how it grew (see replay-chain.ts). Most rows hold
+ * only what changed since the row before (`depth` > 0); every so often one holds the whole state (`depth` 0), so a
+ * replay never reads far back. Capped per board, and pruned under the workspace's retention policy.
+ */
+export const boardSnapshots = pgTable(
+  'board_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boardId: uuid('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    /** The whole state (depth 0), or a Yjs update with what changed since the row before. */
+    state: bytea('state').notNull(),
+    /** The board's Yjs state vector at this point, so the next row can hold only what changed. */
+    vector: bytea('vector').notNull(),
+    /** Rows since the last whole state: 0 for a whole state. */
+    depth: integer('depth').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('board_snapshots_board').on(t.boardId, t.createdAt)],
+);
+
 /** Saved states of a board's document, to look back at and restore. */
 export const boardVersions = pgTable(
   'board_versions',

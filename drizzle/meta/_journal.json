@@ -232,6 +232,13 @@
       "when": 1795316812722,
       "tag": "0032_live_embeds",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795322352820,
+      "tag": "0033_board_snapshots",
+      "breakpoints": true
     }
   ]
 }

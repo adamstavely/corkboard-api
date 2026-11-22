@@ -57,4 +57,15 @@ export class ActivityService {
       .limit(limit);
     return rows.map((r) => ({ id: r.id, at: r.createdAt.getTime(), actor: r.restricted && !owner ? 'Someone' : r.actorName, action: r.action, target: r.target, detail: r.detail }));
   }
+
+  /** From `from` (epoch ms) on, oldest first: the latest `limit` of them. Restricted events say who only to owners. */
+  async from(boardId: string, from: number, limit: number, { owner = false } = {}): Promise<BoardEvent[]> {
+    const rows = await this.db
+      .select()
+      .from(boardEvents)
+      .where(and(eq(boardEvents.boardId, boardId), gte(boardEvents.createdAt, new Date(from))))
+      .orderBy(desc(boardEvents.createdAt))
+      .limit(limit);
+    return rows.reverse().map((r) => ({ id: r.id, at: r.createdAt.getTime(), actor: r.restricted && !owner ? 'Someone' : r.actorName, action: r.action, target: r.target, detail: r.detail }));
+  }
 }
