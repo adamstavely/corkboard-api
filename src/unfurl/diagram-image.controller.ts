@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   GoneException,
+  Headers,
   HttpCode,
   Inject,
   NotFoundException,
@@ -17,6 +18,7 @@ import { diagramImageUrls, diagramsOn } from "../assist/diagram-node";
 import { Public } from "../auth/auth.guard";
 import { BoardsService } from "../boards/boards.service";
 import { CollabService } from "../collab/collab.service";
+import { PASS_HEADER } from "../links/links.controller";
 import { LinksService } from "../links/links.service";
 import { DiagramImageRequestDto } from "./diagram-image.dto";
 import { IMAGE_FETCH, type ImageFetch } from "./unfurl";
@@ -56,11 +58,15 @@ export class DiagramImageController {
   async shared(
     @Param("token") token: string,
     @Body() body: DiagramImageRequestDto,
+    @Headers(PASS_HEADER) pass: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    const link = await this.links.byToken(token);
-    if (!link)
-      throw new GoneException("This link has been turned off or has expired");
+    // Admitted as the board itself is: live, allowed by the workspace's policies, and with its password's proof.
+    const { link } = await this.links.admit(token, pass).catch((err: unknown) => {
+      throw err instanceof NotFoundException
+        ? new GoneException("This link has been turned off or has expired")
+        : err;
+    });
     // A guest only gets the pictures the board's diagrams show, so a link isn't a way to fetch anything at all.
     const shown = diagramsOn(await this.#doc(link.boardId)).some((d) =>
       diagramImageUrls(d.source).includes(body.url),
