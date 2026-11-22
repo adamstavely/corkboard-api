@@ -3338,6 +3338,75 @@
         ]
       }
     },
+    "/diagram-image": {
+      "post": {
+        "operationId": "DiagramImageController_image",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagramImageRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone signed in: a picture from a public https address, for a diagram.",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
+    "/shared/{token}/diagram-image": {
+      "post": {
+        "operationId": "DiagramImageController_shared",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagramImageRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone with a link: a picture that a diagram on the board it opens shows, while the link is live (410 after).",
+        "tags": [
+          "boards"
+        ]
+      }
+    },
     "/orgs/{orgId}/integrations": {
       "get": {
         "operationId": "IntegrationsController_list",
@@ -7749,6 +7818,19 @@
           "description",
           "image",
           "site"
+        ]
+      },
+      "DiagramImageRequestDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
+          }
+        },
+        "required": [
+          "url"
         ]
       },
       "IntegrationConfigDto": {
