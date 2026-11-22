@@ -9139,6 +9139,10 @@
           },
           "html": {
             "type": "string"
+          },
+          "suggested": {
+            "type": "boolean",
+            "description": "Only suggested so far (\"ask me first\"): it joins the app's versions if the suggestion is accepted."
           }
         },
         "required": [
@@ -9146,7 +9150,8 @@
           "note",
           "model",
           "createdAt",
-          "html"
+          "html",
+          "suggested"
         ]
       },
       "RestoreAppDto": {

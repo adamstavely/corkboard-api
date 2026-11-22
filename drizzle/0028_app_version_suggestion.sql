@@ -1,0 +1,1 @@
+ALTER TABLE "board_app_versions" ADD COLUMN "suggestion_id" uuid;

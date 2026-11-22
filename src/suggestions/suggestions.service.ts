@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable } from '@nestjs/commo
 import { randomUUID } from 'node:crypto';
 import type * as Y from 'yjs';
 import { ActivityService } from '../activity/activity.service';
+import { AppsService } from '../apps/apps.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
 import { changeUnlocked, LockedError } from '../collab/locks';
@@ -17,6 +18,7 @@ export class SuggestionsService {
     private readonly boards: BoardsService,
     private readonly collab: CollabService,
     private readonly activity: ActivityService,
+    private readonly apps: AppsService,
   ) {}
 
   /** Updaters and owners: makes a suggestion's changes, kept in the history so they can be undone like the model's own. */
@@ -29,12 +31,14 @@ export class SuggestionsService {
         record(doc, { id: randomUUID(), at: Date.now(), model: found.model, forName: found.forName, action: found.done, ...tracker.changes(), undone: false });
       }
     });
+    await this.apps.settleSuggested(boardId, id, true);
     await this.activity.record(boardId, user, "accepted the model's suggestion", s.model, s.action);
   }
 
   /** Updaters and owners: drops a suggestion, changing nothing. */
   async reject(user: User, boardId: string, id: string): Promise<void> {
     const s = await this.#take(user, boardId, id, () => undefined);
+    await this.apps.settleSuggested(boardId, id, false);
     await this.activity.record(boardId, user, "turned down the model's suggestion", s.model, s.action);
   }
 

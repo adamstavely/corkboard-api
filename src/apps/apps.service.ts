@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type * as Y from 'yjs';
-import { and, desc, eq, max } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, max } from 'drizzle-orm';
 import { ActivityService } from '../activity/activity.service';
 import { BoardsService } from '../boards/boards.service';
 import { CollabService } from '../collab/collab.service';
@@ -41,8 +41,11 @@ export class AppsService {
     });
   }
 
-  /** A new version of an app on this board; null if there's no such app here. */
-  async addVersion(boardId: string, appId: string, by: { userId: string; model: string | null }, html: string, note: string): Promise<number | null> {
+  /**
+   * A new version of an app on this board; null if there's no such app here. One made for a suggestion stays out of the
+   * app's versions until the suggestion is accepted (settleSuggested).
+   */
+  async addVersion(boardId: string, appId: string, by: { userId: string; model: string | null }, html: string, note: string, suggestionId: string | null = null): Promise<number | null> {
     const problem = htmlProblem(html);
     if (problem) throw new BadRequestException(problem);
     return this.db.transaction(async (tx) => {
@@ -50,9 +53,17 @@ export class AppsService {
       if (!app) return null;
       const [{ latest }] = await tx.select({ latest: max(boardAppVersions.version) }).from(boardAppVersions).where(eq(boardAppVersions.appId, appId));
       const version = (latest ?? 0) + 1;
-      await tx.insert(boardAppVersions).values({ appId, version, html, note: note.trim().slice(0, 200) || `Version ${version}`, model: by.model, createdBy: by.userId });
+      await tx.insert(boardAppVersions).values({ appId, version, html, note: note.trim().slice(0, 200) || `Version ${version}`, model: by.model, createdBy: by.userId, suggestionId });
       return version;
     });
+  }
+
+  /** A suggestion was accepted (its versions join their apps) or turned down (its versions go). */
+  async settleSuggested(boardId: string, suggestionId: string, accepted: boolean): Promise<void> {
+    const onBoard = this.db.select({ id: boardApps.id }).from(boardApps).where(eq(boardApps.boardId, boardId));
+    const these = and(eq(boardAppVersions.suggestionId, suggestionId), inArray(boardAppVersions.appId, onBoard));
+    if (accepted) await this.db.update(boardAppVersions).set({ suggestionId: null }).where(these);
+    else await this.db.delete(boardAppVersions).where(these);
   }
 
   /** An app's latest code, for the model to change; null if there's no such app on this board. */
@@ -61,7 +72,7 @@ export class AppsService {
       .select({ title: boardApps.title, version: boardAppVersions.version, html: boardAppVersions.html })
       .from(boardApps)
       .innerJoin(boardAppVersions, eq(boardAppVersions.appId, boardApps.id))
-      .where(and(eq(boardApps.id, appId), eq(boardApps.boardId, boardId)))
+      .where(and(eq(boardApps.id, appId), eq(boardApps.boardId, boardId), isNull(boardAppVersions.suggestionId)))
       .orderBy(desc(boardAppVersions.version))
       .limit(1);
     return row ?? null;
@@ -74,7 +85,7 @@ export class AppsService {
     const versions = await this.db
       .select({ version: boardAppVersions.version, note: boardAppVersions.note, model: boardAppVersions.model, createdAt: boardAppVersions.createdAt })
       .from(boardAppVersions)
-      .where(eq(boardAppVersions.appId, appId))
+      .where(and(eq(boardAppVersions.appId, appId), isNull(boardAppVersions.suggestionId)))
       .orderBy(desc(boardAppVersions.version));
     return { id: app.id, title: app.title, latest: versions[0]?.version ?? 1, versions };
   }
@@ -82,18 +93,21 @@ export class AppsService {
   async version(user: User, boardId: string, appId: string, version: number): Promise<AppVersionDto> {
     await this.boards.get(user, boardId);
     const [row] = await this.db
-      .select({ version: boardAppVersions.version, note: boardAppVersions.note, model: boardAppVersions.model, createdAt: boardAppVersions.createdAt, html: boardAppVersions.html })
+      .select({ version: boardAppVersions.version, note: boardAppVersions.note, model: boardAppVersions.model, createdAt: boardAppVersions.createdAt, html: boardAppVersions.html, suggestionId: boardAppVersions.suggestionId })
       .from(boardAppVersions)
       .innerJoin(boardApps, eq(boardApps.id, boardAppVersions.appId))
       .where(and(eq(boardAppVersions.appId, appId), eq(boardAppVersions.version, version), eq(boardApps.boardId, boardId)));
     if (!row) throw new NotFoundException('That version of the app was not found');
-    return row;
+    // A suggested version can be looked at (its suggestion previews it), but says so.
+    const { suggestionId, ...rest } = row;
+    return { ...rest, suggested: suggestionId !== null };
   }
 
   /** Updaters: brings back an earlier version as a new one, shown wherever the app is on the board. */
   async restore(user: User, boardId: string, appId: string, version: number): Promise<AppDto> {
     const { role } = await this.boards.get(user, boardId, 'updater');
     const old = await this.version(user, boardId, appId, version);
+    if (old.suggested) throw new NotFoundException('That version of the app is only suggested so far');
     const connection = await this.collab.hocuspocus.openDirectConnection(boardId, { user });
     try {
       // A locked app on the board stays as it is for those who may not change locked things: refused before it's saved.
