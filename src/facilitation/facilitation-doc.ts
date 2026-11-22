@@ -159,6 +159,16 @@ export interface AgendaState {
   current: number | null;
 }
 
+/** The ids of the steps the session has been on, in the order first reached: what the recap says was run. */
+export function stepsRun(doc: Y.Doc): string[] {
+  const m = agendaMap(doc);
+  const ran = m.get('ran');
+  if (Array.isArray(ran)) return ran.filter((id): id is string => typeof id === 'string');
+  // Boards from before steps were remembered: everything up to the step it's on.
+  const { steps, current } = agendaOf(doc);
+  return current === null ? [] : steps.slice(0, current + 1).map((s) => s.id);
+}
+
 const agendaMap = (doc: Y.Doc) => doc.getMap<unknown>('agenda');
 
 export function agendaOf(doc: Y.Doc): AgendaState {
@@ -179,6 +189,9 @@ export function setAgenda(doc: Y.Doc, steps: AgendaStep[]): void {
     // Plain objects: Yjs won't store class instances (the request's DTOs).
     m.set('steps', steps.map((s) => ({ id: s.id, title: s.title, seconds: s.seconds, frameId: s.frameId, activity: s.activity ? activityOf(s.activity) : null })));
     m.set('current', at >= 0 ? at : null);
+    // Steps taken out no longer count as run.
+    const kept = new Set(steps.map((s) => s.id));
+    m.set('ran', stepsRun(doc).filter((id) => kept.has(id)));
   });
 }
 
@@ -190,7 +203,16 @@ function activityOf(a: StepActivity): StepActivity {
 }
 
 export function setAgendaStep(doc: Y.Doc, current: number | null): void {
-  agendaMap(doc).set('current', current);
+  const m = agendaMap(doc);
+  doc.transact(() => {
+    const was = agendaOf(doc);
+    const id = current === null ? undefined : was.steps[current]?.id;
+    // Starting again from the first step is a new session: what an earlier one ran no longer counts.
+    const ran = current === 0 && was.current === null ? [] : stepsRun(doc);
+    if (id && !ran.includes(id)) m.set('ran', [...ran, id]);
+    else if (!Array.isArray(m.get('ran'))) m.set('ran', ran);
+    m.set('current', current);
+  });
 }
 
 /**
