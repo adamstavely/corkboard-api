@@ -14,6 +14,8 @@ import { ParticipantsStore } from './feedback/participants.store';
 import { ParticipationService } from './feedback/participation.service';
 import { LinksService } from './links/links.service';
 import { ActivityController } from './activity/activity.controller';
+import { ReplayController } from './activity/replay.controller';
+import { ReplayService } from './activity/replay';
 import { VersionsService } from './activity/activity';
 import { ActivityService } from './activity/activity.service';
 import { NotificationsController } from './activity/notifications.controller';
@@ -98,6 +100,7 @@ import { RetentionService } from './policies/retention.service';
     LinksController,
     FeedbackController,
     ActivityController,
+    ReplayController,
     NotificationsController,
     PasskeysController,
     FilesController,
@@ -154,6 +157,7 @@ import { RetentionService } from './policies/retention.service';
     ParticipationService,
     ActivityService,
     VersionsService,
+    ReplayService,
     NotificationsService,
     NotificationHub,
     PasskeysService,

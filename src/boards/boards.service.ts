@@ -1,8 +1,9 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, lt } from 'drizzle-orm';
 import { atLeast, boardRole, needs, type Role } from '../access/roles';
 import { InjectDb, type Db } from '../db/db.module';
 import { ActivityService } from '../activity/activity.service';
+import { nextSnapshot, SNAPSHOT_CAP, SNAPSHOT_MS } from '../activity/replay-chain';
 import {
   boardDocuments,
   boardMembers,
@@ -14,6 +15,7 @@ import {
   type OrgRole,
   type User,
   boardVersions,
+  boardSnapshots,
   boardStars,
   boardVisits,
 } from '../db/schema';
@@ -213,7 +215,32 @@ export class BoardsService {
         .orderBy(desc(boardVersions.createdAt))
         .limit(1);
       if (!latest || now.getTime() - latest.at.getTime() >= AUTOSAVE_MS) await tx.insert(boardVersions).values({ boardId, state, label: 'Autosave' });
+      // And a snapshot every 30 seconds or so, to replay how it grew.
+      const [last] = await tx
+        .select({ at: boardSnapshots.createdAt, vector: boardSnapshots.vector, depth: boardSnapshots.depth })
+        .from(boardSnapshots)
+        .where(eq(boardSnapshots.boardId, boardId))
+        .orderBy(desc(boardSnapshots.createdAt))
+        .limit(1);
+      if (!last || now.getTime() - last.at.getTime() >= SNAPSHOT_MS) {
+        const snapshot = nextSnapshot(state, last);
+        await tx.insert(boardSnapshots).values({ boardId, ...snapshot, createdAt: now });
+        // Checked only with each whole state: past the cap, the oldest whole state and what builds on it go.
+        if (snapshot.depth === 0) await this.#capSnapshots(tx, boardId);
+      }
       return board;
     });
+  }
+
+  async #capSnapshots(tx: Pick<Db, 'select' | 'delete'>, boardId: string): Promise<void> {
+    const [{ n }] = await tx.select({ n: count() }).from(boardSnapshots).where(eq(boardSnapshots.boardId, boardId));
+    if (n <= SNAPSHOT_CAP) return;
+    const [, second] = await tx
+      .select({ at: boardSnapshots.createdAt })
+      .from(boardSnapshots)
+      .where(and(eq(boardSnapshots.boardId, boardId), eq(boardSnapshots.depth, 0)))
+      .orderBy(asc(boardSnapshots.createdAt))
+      .limit(2);
+    if (second) await tx.delete(boardSnapshots).where(and(eq(boardSnapshots.boardId, boardId), lt(boardSnapshots.createdAt, second.at)));
   }
 }
