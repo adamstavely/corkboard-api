@@ -14,6 +14,11 @@ export interface AppConfig {
   peoplePicker: boolean;
   /** Passkeys: the site they belong to (the UI's host name) and the origins sign-ins may come from. */
   webauthn: { rpId: string; rpName: string; origins: string[] };
+  /**
+   * How often tasks linked to issues are checked against their trackers (TRACKER_SYNC_MS), in ms; 0 turns the
+   * schedule off (tests do). Webhooks, edits on the board and Sync now still sync.
+   */
+  trackerSyncMs: number;
 }
 
 export default (): AppConfig => ({
@@ -23,6 +28,7 @@ export default (): AppConfig => ({
   elasticsearchNode: process.env.ES_NODE ?? 'http://localhost:9210',
   modelKeySecret: process.env.MODEL_KEY_SECRET?.trim() || undefined,
   peoplePicker: process.env.PEOPLE_PICKER ? process.env.PEOPLE_PICKER === 'true' : process.env.NODE_ENV !== 'production',
+  trackerSyncMs: Number(process.env.TRACKER_SYNC_MS ?? (process.env.NODE_ENV === 'test' ? 0 : 120_000)),
   webauthn: {
     rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
     rpName: 'Corkboard',

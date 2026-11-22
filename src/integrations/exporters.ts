@@ -13,6 +13,8 @@ export interface IntegrationConfig {
   baseUrl?: string;
   projectKey?: string;
   email?: string;
+  /** GitHub: the label that marks an open issue as in progress (by default "in progress"). */
+  doingLabel?: string;
 }
 
 /** One task, as it goes out. */

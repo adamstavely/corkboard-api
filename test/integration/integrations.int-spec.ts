@@ -49,7 +49,7 @@ describe('Sending tasks to issue trackers', () => {
     await request(server).post(`/orgs/${orgId}/integrations`).set(auth).send({ kind: 'github', label: 'Web repo', config: { repo: 'nope' }, token: 'ghp_x' }).expect(400);
     await request(server).post(`/orgs/${orgId}/integrations`).set(readerAuth).send({ kind: 'github', label: 'Web repo', config: { repo: 'acme/web' }, token: 'ghp_x' }).expect(403);
     const { body: gh } = await request(server).post(`/orgs/${orgId}/integrations`).set(auth).send({ kind: 'github', label: 'Web repo', config: { repo: 'acme/web' }, token: 'ghp_secret' }).expect(201);
-    expect(gh).toEqual({ id: expect.any(String), kind: 'github', label: 'Web repo', config: { repo: 'acme/web' }, target: 'acme/web' });
+    expect(gh).toEqual({ id: expect.any(String), kind: 'github', label: 'Web repo', config: { repo: 'acme/web' }, target: 'acme/web', webhook: false });
     const { body: listed } = await request(server).get(`/orgs/${orgId}/integrations`).set(readerAuth).expect(200);
     expect(JSON.stringify(listed)).not.toContain('ghp_secret');
 

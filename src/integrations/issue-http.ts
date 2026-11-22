@@ -8,6 +8,8 @@ import { guardedLookup } from '../unfurl/unfurl';
 export interface HttpReply {
   status: number;
   json: unknown;
+  /** The answer's headers, lower-cased (for rate limits: retry-after, x-ratelimit-reset). */
+  headers?: Record<string, string | string[] | undefined>;
 }
 
 const TIMEOUT_MS = 15_000;
@@ -49,7 +51,7 @@ export class IssueHttp {
             } catch {
               json = { message: text.slice(0, 200) };
             }
-            resolve({ status: res.statusCode ?? 0, json });
+            resolve({ status: res.statusCode ?? 0, json, headers: res.headers });
           });
           res.on('error', reject);
         },

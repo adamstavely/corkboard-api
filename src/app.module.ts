@@ -42,6 +42,8 @@ import { fetchImage, IMAGE_FETCH } from './unfurl/unfurl';
 import { IntegrationsController } from './integrations/integrations.controller';
 import { IntegrationsService } from './integrations/integrations.service';
 import { IssueHttp } from './integrations/issue-http';
+import { TrackerSyncService } from './integrations/tracker-sync.service';
+import { TrackerWebhooksController } from './integrations/tracker-webhooks.controller';
 import { AdminController } from './admin/admin.controller';
 import { AdminService } from './admin/admin.service';
 import { LedgerController } from './ledger/ledger.controller';
@@ -101,6 +103,7 @@ import { RetentionService } from './policies/retention.service';
     UnfurlController,
     DiagramImageController,
     IntegrationsController,
+    TrackerWebhooksController,
     AdminController,
     LedgerController,
     CommentsController,
@@ -153,6 +156,7 @@ import { RetentionService } from './policies/retention.service';
     SavedTemplatesService,
     IntegrationsService,
     IssueHttp,
+    TrackerSyncService,
     AdminService,
     LedgerService,
     BoardsService,

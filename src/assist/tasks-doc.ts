@@ -17,6 +17,10 @@ export interface StoredTask {
   due?: string;
   noteId?: string;
   created: string;
+  /** When its title, status or assignee last changed on the board (ISO). */
+  updated?: string;
+  /** The issue it was sent to a tracker as (see tracker-sync.service.ts); `assignee` names who has it there, when they aren't on the board. */
+  external?: { kind: string; key: string; url: string; assignee?: string };
 }
 
 /** Adds tasks to the board's kanban, numbered T-1, T-2… after the ones there, and returns them. */
