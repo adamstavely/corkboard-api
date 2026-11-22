@@ -59,5 +59,6 @@ describe('suggestions', () => {
   it('words a change as a proposal', () => {
     expect(wouldDo('Made 3 frames, moved 9 notes into them and added 2 notes')).toBe('Would make 3 frames, move 9 notes into them and add 2 notes.');
     expect(wouldDo('Changed the board')).toBe('Would change the board.');
+    expect(wouldDo('Added 1 task and drew 1 diagram')).toBe('Would add 1 task and draw 1 diagram.');
   });
 });

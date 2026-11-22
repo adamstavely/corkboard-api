@@ -268,6 +268,8 @@ export const comments = pgTable(
       .references(() => commentThreads.id, { onDelete: 'cascade' }),
     authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
     body: text('body').notNull(),
+    /** The agent that wrote it for its author, through one of their access tokens ("Cursor"); null when they wrote it. */
+    via: text('via'),
     createdAt: createdAt(),
   },
   (t) => [index('comments_thread').on(t.threadId, t.createdAt)],
@@ -468,6 +470,34 @@ export const sessions = pgTable(
   },
   (t) => [index('sessions_user_idx').on(t.userId)],
 );
+
+/**
+ * Personal access tokens, for agents (Claude, Cursor…) working with Corkboard through the agent API and MCP. Each acts
+ * as its owner, with their access, limited to its scopes. Only a hash of each token is kept, and its first characters
+ * for people to tell them apart.
+ */
+export const accessTokens = pgTable(
+  'access_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** What its owner called it, and how the board names the agent: "Cursor", "Claude Code". */
+    name: text('name').notNull(),
+    /** The token's first characters, "cbp_AbCd1234", shown in the list. */
+    prefix: text('prefix').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    scopes: text('scopes').array().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index('access_tokens_user_idx').on(t.userId)],
+);
+
+export type AccessToken = typeof accessTokens.$inferSelect;
 
 /** A sign-in or sign-up under way: the challenge the passkey must sign, used once, for a few minutes. */
 export const authChallenges = pgTable('auth_challenges', {

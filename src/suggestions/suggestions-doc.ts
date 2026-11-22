@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { ChangeTracker, type LedgerEntry } from '../ledger/ledger-doc';
 
@@ -18,8 +19,10 @@ export interface Suggestion {
   id: string;
   /** Epoch ms. */
   at: number;
-  /** The model's name, and who asked. */
+  /** The model's name (or, from an agent, its access token's name: "Cursor"), and who asked. */
   model: string;
+  /** Proposed by an agent through one of `forId`'s access tokens, not by the assistant. */
+  agent?: boolean;
   forId: string;
   forName: string;
   /** What was asked, shortened. */
@@ -36,11 +39,11 @@ export interface Suggestion {
   update: string;
 }
 
-const FUTURE: Record<string, string> = { made: 'make', moved: 'move', added: 'add', changed: 'change' };
+const FUTURE: Record<string, string> = { made: 'make', moved: 'move', added: 'add', changed: 'change', drew: 'draw' };
 
 /** "Made 3 frames and moved 9 notes into them" as a proposal: "Would make 3 frames and move 9 notes into them." */
 export function wouldDo(done: string): string {
-  const line = done.replace(/\b(made|moved|added|changed)\b/gi, (verb) => FUTURE[verb.toLowerCase()]);
+  const line = done.replace(/\b(made|moved|added|changed|drew)\b/gi, (verb) => FUTURE[verb.toLowerCase()]);
   return `Would ${line[0].toLowerCase()}${line.slice(1)}.`;
 }
 
@@ -79,6 +82,31 @@ export class Draft {
   update(): Uint8Array {
     return Y.encodeStateAsUpdate(this.doc, this.#base);
   }
+}
+
+/** What a draft changed, as a suggestion to put on the board. `done` says it in words: "Added 3 notes". */
+export function suggestionFrom(
+  draft: Draft,
+  who: { id?: string; model: string; forId: string; forName: string; asked: string; agent?: boolean },
+  done: string,
+  now = Date.now(),
+): Suggestion {
+  const changes = draft.tracker.changes();
+  return {
+    id: who.id ?? randomUUID(),
+    at: now,
+    model: who.model,
+    ...(who.agent ? { agent: true } : {}),
+    forId: who.forId,
+    forName: who.forName,
+    asked: who.asked.trim().slice(0, 300),
+    action: wouldDo(done),
+    done,
+    added: changes.createdNodes.map(({ id, attrs, text }) => ({ id, attrs, ...(text !== undefined ? { text } : {}) })),
+    changed: changes.changed,
+    removed: changes.removed.map((r) => r.id),
+    update: Buffer.from(draft.update()).toString('base64'),
+  };
 }
 
 /** Puts a suggestion on the board, dropping the oldest past MAX_SUGGESTIONS. */

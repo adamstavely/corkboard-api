@@ -18,7 +18,7 @@ import { SearchIndex } from '../search/search-index';
 import { FilesService } from '../files/files.service';
 import { ToolsService } from '../web/tools.service';
 import { WEB, type Web } from '../web/web';
-import { Draft, propose, wouldDo } from '../suggestions/suggestions-doc';
+import { Draft, propose, suggestionFrom } from '../suggestions/suggestions-doc';
 import { appNodes, appsOn, placeApp, showAppVersion } from '../apps/app-node';
 import { diagramProblem, diagramsOn, placeDiagram, setDiagramSource } from './diagram-node';
 import { AppsService, htmlProblem } from '../apps/apps.service';
@@ -477,21 +477,7 @@ export class AssistService {
         draft = undefined;
         if (proposed.empty) return false;
         const done = `${describeChanges(counts)}${failed ? ' (then stopped with an error)' : ''}`;
-        const changes = proposed.tracker.changes();
-        const suggestion = {
-          id: proposalId,
-          at: Date.now(),
-          model: model.label,
-          forId: user.id,
-          forName: user.name,
-          asked: request.instruction.trim().slice(0, 300),
-          action: wouldDo(done),
-          done,
-          added: changes.createdNodes.map(({ id, attrs, text }) => ({ id, attrs, ...(text !== undefined ? { text } : {}) })),
-          changed: changes.changed,
-          removed: changes.removed.map((r) => r.id),
-          update: Buffer.from(proposed.update()).toString('base64'),
-        };
+        const suggestion = suggestionFrom(proposed, { id: proposalId, model: model.label, forId: user.id, forName: user.name, asked: request.instruction }, done);
         await connection.transact((d) => propose(d, suggestion));
         suggestionId = suggestion.id;
         await this.activity.record(boardId, user, 'had the model suggest a change', model.label, suggestion.action);
