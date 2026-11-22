@@ -5709,6 +5709,298 @@
         ]
       }
     },
+    "/me/tokens": {
+      "get": {
+        "operationId": "TokensController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccessTokenDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Your tokens, newest first, without the tokens themselves.",
+        "tags": [
+          "tokens"
+        ]
+      },
+      "post": {
+        "operationId": "TokensController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedAccessTokenDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A new token for an agent. The response is the only time `token` is shown.",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/me/tokens/{tokenId}": {
+      "delete": {
+        "operationId": "TokensController_revoke",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stops a token working, at once.",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/v1/boards": {
+      "get": {
+        "operationId": "AgentsController_boards",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentBoardDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Scope boards:read. The boards the token's owner can open, in all their workspaces, most recently changed first.",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/boards/{id}": {
+      "get": {
+        "operationId": "AgentsController_board",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardOutlineDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Scope boards:read. A board as an outline: frames with their notes, other notes, everything else by kind, and tasks.",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "AgentsController_search",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSearchHitDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Scope boards:read. Boards whose title or notes match, best first, with matching passages.",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/boards/{id}/proposals": {
+      "post": {
+        "operationId": "AgentsController_propose",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeChangesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Scope boards:propose. Proposes changes as one suggestion on the board, attributed \"<token name> for <owner>\"; nothing\nchanges until an updater or owner accepts it. The token's owner must be an updater or owner of the board.",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/boards/{id}/comments": {
+      "post": {
+        "operationId": "AgentsController_comment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCommentResultDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Scope comments:write. Comments on a note, frame or other item, as its owner via the agent. Commenters and up.",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/orgs/{orgId}/policies": {
       "get": {
         "operationId": "PoliciesController_get",
@@ -8698,6 +8990,11 @@
             "type": "string",
             "description": "As written: someone picked from the mention list is \"@[Name](their user id)\"; show it as \"@Name\"."
           },
+          "via": {
+            "type": "string",
+            "nullable": true,
+            "description": "The agent that wrote it for its author, through one of their access tokens (\"Cursor\"); null when they wrote it themselves."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -8707,6 +9004,7 @@
           "id",
           "author",
           "body",
+          "via",
           "createdAt"
         ]
       },
@@ -9839,6 +10137,595 @@
           "citedFiles",
           "citedPages",
           "suggestionId"
+        ]
+      },
+      "AccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "What you called it; boards name the agent by it (\"Cursor for Ada\")."
+          },
+          "prefix": {
+            "type": "string",
+            "description": "The token's first characters, to tell it apart: \"cbp_AbCd1234\"."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "boards:read",
+                "boards:propose",
+                "comments:write"
+              ]
+            }
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "expiresAt": {
+            "type": "number",
+            "nullable": true,
+            "description": "Epoch ms; null when it never expires."
+          },
+          "lastUsedAt": {
+            "type": "number",
+            "nullable": true,
+            "description": "Epoch ms; null when it's never been used. Updated at most once a minute."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "createdAt",
+          "expiresAt",
+          "lastUsedAt"
+        ]
+      },
+      "CreateAccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What to call it, usually the agent that will use it: \"Cursor\", \"Claude Code\".",
+            "maxLength": 60
+          },
+          "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "boards:read",
+                "boards:propose",
+                "comments:write"
+              ]
+            }
+          },
+          "expiresInDays": {
+            "type": "number",
+            "description": "Days until it stops working; without it, it works until revoked.",
+            "minimum": 1,
+            "maximum": 365
+          }
+        },
+        "required": [
+          "name",
+          "scopes"
+        ]
+      },
+      "CreatedAccessTokenDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "What you called it; boards name the agent by it (\"Cursor for Ada\")."
+          },
+          "prefix": {
+            "type": "string",
+            "description": "The token's first characters, to tell it apart: \"cbp_AbCd1234\"."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "boards:read",
+                "boards:propose",
+                "comments:write"
+              ]
+            }
+          },
+          "createdAt": {
+            "type": "number",
+            "description": "Epoch ms."
+          },
+          "expiresAt": {
+            "type": "number",
+            "nullable": true,
+            "description": "Epoch ms; null when it never expires."
+          },
+          "lastUsedAt": {
+            "type": "number",
+            "nullable": true,
+            "description": "Epoch ms; null when it's never been used. Updated at most once a minute."
+          },
+          "token": {
+            "type": "string",
+            "description": "The token, \"cbp_…\". Shown once; only its hash is kept."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "scopes",
+          "createdAt",
+          "expiresAt",
+          "lastUsedAt",
+          "token"
+        ]
+      },
+      "OutlineItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "\"text\", \"shape\", \"diagram\", \"app\", \"image\", \"file\", \"table\"…"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "text"
+        ]
+      },
+      "AgentBoardDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "description": "The owner's role on it: readers can read, commenters also comment, updaters and owners also propose changes.",
+            "enum": [
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO time."
+          }
+        },
+        "required": [
+          "role",
+          "id",
+          "title",
+          "workspaceId",
+          "workspace",
+          "updatedAt"
+        ]
+      },
+      "OutlineNoteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "votes": {
+            "type": "number",
+            "description": "Dot votes, when it has any."
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "color"
+        ]
+      },
+      "OutlineFrameDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "notes": {
+            "description": "The notes inside it, top to bottom, left to right.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineNoteDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "notes"
+        ]
+      },
+      "OutlineTaskDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "todo",
+              "doing",
+              "done"
+            ],
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "number",
+            "description": "0 none · 1 low · 2 medium · 3 high · 4 urgent"
+          },
+          "assignee": {
+            "type": "string",
+            "description": "The person it's assigned to, by name."
+          },
+          "due": {
+            "type": "string",
+            "description": "\"YYYY-MM-DD\"."
+          },
+          "noteId": {
+            "type": "string",
+            "description": "The note it came from."
+          }
+        },
+        "required": [
+          "status",
+          "key",
+          "title",
+          "priority"
+        ]
+      },
+      "BoardOutlineDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "reader",
+              "commenter",
+              "updater",
+              "owner"
+            ],
+            "type": "string"
+          },
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/OutlineItemDto"
+              }
+            },
+            "description": "Everything else, by kind: { \"diagram\": [...], \"text\": [...] }."
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "canPropose": {
+            "type": "boolean",
+            "description": "Whether the token's owner may propose changes here (updaters and owners)."
+          },
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineFrameDto"
+            }
+          },
+          "notes": {
+            "description": "Notes in no frame.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineNoteDto"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutlineTaskDto"
+            }
+          },
+          "pendingSuggestions": {
+            "type": "number",
+            "description": "Suggestions waiting for someone to accept or turn down."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when the board had more notes than an outline holds (1000), and the rest were left out."
+          }
+        },
+        "required": [
+          "role",
+          "items",
+          "id",
+          "title",
+          "workspace",
+          "canPropose",
+          "frames",
+          "notes",
+          "tasks",
+          "pendingSuggestions",
+          "truncated"
+        ]
+      },
+      "AgentSearchHitDto": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO time."
+          },
+          "snippets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "boardId",
+          "title",
+          "workspace",
+          "updatedAt",
+          "snippets"
+        ]
+      },
+      "ProposedNoteDto": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "enum": [
+              "yellow",
+              "pink",
+              "blue",
+              "green",
+              "purple",
+              "gray"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "frameId": {
+            "type": "string",
+            "description": "An existing frame to put it in (an id from the outline); without it, the note goes beside the board.",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "ProposedFrameNoteDto": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "enum": [
+              "yellow",
+              "pink",
+              "blue",
+              "green",
+              "purple",
+              "gray"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "ProposedFrameDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "noteIds": {
+            "description": "Existing notes to move into it, by id.",
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "description": "New notes to write in it.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposedFrameNoteDto"
+            }
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "ProposedTaskDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "owner": {
+            "type": "string",
+            "description": "A board member's name; someone who isn't one keeps their name in the title.",
+            "maxLength": 100
+          },
+          "due": {
+            "type": "string",
+            "description": "\"YYYY-MM-DD\".",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "priority": {
+            "type": "number",
+            "description": "0 none · 1 low · 2 medium · 3 high · 4 urgent",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "noteId": {
+            "type": "string",
+            "description": "The note it comes from.",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "ProposeChangesDto": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "string",
+            "description": "Why, or what was asked, in a line: shown on the suggestion.",
+            "maxLength": 300
+          },
+          "notes": {
+            "description": "New notes, beside the board or in an existing frame.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposedNoteDto"
+            }
+          },
+          "frames": {
+            "description": "New frames, grouping existing notes and new ones. A frame all of whose notes move into new ones is removed.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposedFrameDto"
+            }
+          },
+          "tasks": {
+            "description": "New tasks on the board's kanban.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposedTaskDto"
+            }
+          },
+          "diagram": {
+            "type": "string",
+            "description": "Mermaid text for a diagram drawn beside the board, starting with its kind (\"flowchart TD\", \"sequenceDiagram\", \"gantt\"…).",
+            "maxLength": 8000
+          }
+        }
+      },
+      "ProposalDto": {
+        "type": "object",
+        "properties": {
+          "suggestionId": {
+            "type": "string",
+            "description": "The suggestion on the board, waiting for someone to accept or turn down."
+          },
+          "action": {
+            "type": "string",
+            "description": "What it would do: \"Would add 4 notes.\""
+          }
+        },
+        "required": [
+          "suggestionId",
+          "action"
+        ]
+      },
+      "AgentCommentDto": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "description": "The note, frame or other item to comment on (an id from the outline).",
+            "maxLength": 200
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "itemId",
+          "body"
+        ]
+      },
+      "AgentCommentResultDto": {
+        "type": "object",
+        "properties": {
+          "threadId": {
+            "type": "string"
+          },
+          "commentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "commentId"
         ]
       },
       "PoliciesDto": {

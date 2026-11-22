@@ -53,6 +53,11 @@ import { ChatService } from './chat/chat.service';
 import { CommentsController } from './comments/comments.controller';
 import { CommentsService } from './comments/comments.service';
 import { AuthGuard } from './auth/auth.guard';
+import { AgentsController } from './agents/agents.controller';
+import { AgentsService } from './agents/agents.service';
+import { McpController } from './agents/mcp.controller';
+import { TokensController } from './tokens/tokens.controller';
+import { TokensService } from './tokens/tokens.service';
 import { PeopleController } from './auth/people.controller';
 import { UsersService } from './auth/users.service';
 import { BoardsController } from './boards/boards.controller';
@@ -118,6 +123,9 @@ import { RetentionService } from './policies/retention.service';
     SuggestionsController,
     AppsController,
     AssistController,
+    TokensController,
+    AgentsController,
+    McpController,
     PoliciesController,
   ],
   providers: [
@@ -162,6 +170,8 @@ import { RetentionService } from './policies/retention.service';
     BoardsService,
     SearchIndex,
     CollabService,
+    TokensService,
+    AgentsService,
     PoliciesService,
     RetentionService,
     { provide: APP_GUARD, useClass: AuthGuard },

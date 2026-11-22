@@ -11,6 +11,10 @@ import type { User } from '../db/schema';
 import { ChangeTracker, record } from '../ledger/ledger-doc';
 import { applySuggestion, suggestionsOf, take, type Suggestion } from './suggestions-doc';
 
+/** The activity's words for a decision on a suggestion: the model's, or an agent's for someone. */
+const said = (s: Suggestion, decided: string): [string, string, string] =>
+  s.agent ? [`${decided} a suggestion from`, `${s.model} for ${s.forName}`, s.action] : [`${decided} the model's suggestion`, s.model, s.action];
+
 /** Accepting the model's suggestions onto a board, or turning them down. */
 @Injectable()
 export class SuggestionsService {
@@ -32,14 +36,14 @@ export class SuggestionsService {
       }
     });
     await this.apps.settleSuggested(boardId, id, true);
-    await this.activity.record(boardId, user, "accepted the model's suggestion", s.model, s.action);
+    await this.activity.record(boardId, user, ...said(s, 'accepted'));
   }
 
   /** Updaters and owners: drops a suggestion, changing nothing. */
   async reject(user: User, boardId: string, id: string): Promise<void> {
     const s = await this.#take(user, boardId, id, () => undefined);
     await this.apps.settleSuggested(boardId, id, false);
-    await this.activity.record(boardId, user, "turned down the model's suggestion", s.model, s.action);
+    await this.activity.record(boardId, user, ...said(s, 'turned down'));
   }
 
   async #take(user: User, boardId: string, id: string, then: (doc: Y.Doc, s: Suggestion, role: Role) => void): Promise<Suggestion> {
