@@ -35,6 +35,8 @@ export interface FlowNode {
   laneId?: string;
   type: string;
   label: string;
+  /** What a BPMN step is beyond its engine type (its element and marker), kept in its part. */
+  extra?: Record<string, string | string[] | boolean>;
   x?: number;
   y?: number;
 }
@@ -44,6 +46,8 @@ export interface FlowEdge {
   to: string;
   label?: string;
   feedback?: boolean;
+  /** A BPMN message flow (between pools): dashed. */
+  message?: boolean;
 }
 export interface FlowNote {
   id: string;
@@ -118,11 +122,17 @@ function stepBox(n: FlowNode, tb: boolean, LE: FlowEngine['LE']): { x: number; y
 /** How thick a fork or join bar is (the skill's pixels). */
 const BAR = 10;
 /** A flowchart, or a state machine drawn as one (corkboard-ui's diagrams/state.ts). */
-export type FlowKind = 'flowchart' | 'state';
+export type FlowKind = 'flowchart' | 'state' | 'bpmn';
+/** In a BPMN process: events are circles, activities rounded boxes, gateways diamonds, data documents and stores. */
+const BPMN_SHAPES: Record<string, ShapeKind> = { start: 'ellipse', end: 'ellipse', event: 'ellipse', task: 'rounded', subprocess: 'subprocess', decision: 'diamond', data: 'document', store: 'cylinder' };
+const BPMN_COLOURS: Partial<Record<string, NoteColor>> = { start: 'green', end: 'pink', event: 'yellow' };
 /** In a state machine, states are rounded boxes, and forks and joins bars. */
 const STATE_SHAPES: Record<string, ShapeKind> = { task: 'rounded', subprocess: 'rounded', fork: 'rect', join: 'rect' };
 /** A diagram's kind, from its outer frame. */
-const kindOf = (doc: Y.Doc, diagramId: string): FlowKind => (partOf(nodesOf(doc).get(diagramId)?.get('part'))?.type === 'state' ? 'state' : 'flowchart');
+const kindOf = (doc: Y.Doc, diagramId: string): FlowKind => {
+  const type = partOf(nodesOf(doc).get(diagramId)?.get('part'))?.type;
+  return type === 'state' || type === 'bpmn' ? type : 'flowchart';
+};
 
 /** Whether Mermaid text is a flowchart (its first line, after any front matter, is `flowchart` or `graph`). */
 export function isFlowchartSource(source: string): boolean {
@@ -191,7 +201,7 @@ export function layoutFlow(data: FlowData, type: FlowKind = 'flowchart'): Layout
   };
   frames.push({
     key: 'diagram',
-    title: data.title?.trim() || (type === 'state' ? 'State machine' : 'Flowchart'),
+    title: data.title?.trim() || (type === 'state' ? 'State machine' : type === 'bpmn' ? 'Process' : 'Flowchart'),
     x: 0,
     y: 0,
     ...diagram,
@@ -229,14 +239,15 @@ export function layoutFlow(data: FlowData, type: FlowKind = 'flowchart'): Layout
     const y = tb ? origin.y + laneTitle + b.y * s : origin.y + lane + laneTitle + b.y * s;
     shapes.push({
       key: n.id,
-      shape: (type === 'state' ? STATE_SHAPES[n.type] : undefined) ?? FLOW_SHAPES[n.type] ?? 'rect',
-      color: n.type === 'connector' || n.type === 'fork' || n.type === 'join' ? 'gray' : (colourOf.get(n.laneId ?? '') ?? 'blue'),
+      shape: (type === 'state' ? STATE_SHAPES[n.type] : type === 'bpmn' ? BPMN_SHAPES[n.type] : undefined) ?? FLOW_SHAPES[n.type] ?? 'rect',
+      color: n.type === 'connector' || n.type === 'fork' || n.type === 'join' || n.type === 'data' || n.type === 'store' ? 'gray' : ((type === 'bpmn' ? BPMN_COLOURS[n.type] : undefined) ?? colourOf.get(n.laneId ?? '') ?? 'blue'),
+      ...(type === 'bpmn' && typeof n.extra?.['marker'] === 'string' ? { icon: `bpmn-${n.extra['marker']}` } : {}),
       label: n.label.slice(0, 2000),
       x: Math.round(x),
       y: Math.round(y),
       w: Math.round(b.w * s),
       h: Math.round(b.h * s),
-      part: { role: 'step', key: n.id, type: n.type, ...(named && n.laneId ? { lane: n.laneId } : {}) },
+      part: { role: 'step', key: n.id, type: n.type, ...(named && n.laneId ? { lane: n.laneId } : {}), ...(n.extra && Object.keys(n.extra).length ? { extra: n.extra } : {}) },
     });
   }
   for (const e of data.edges) {
@@ -247,6 +258,7 @@ export function layoutFlow(data: FlowData, type: FlowKind = 'flowchart'): Layout
       route: 'elbow',
       ...(e.label ? { label: e.label.slice(0, MAX_ARROW_LABEL) } : {}),
       ...(e.feedback ? { weight: 4 } : {}),
+      ...(e.message ? { dash: 'dashed' as const } : {}),
     });
   }
   let nextX = 0;
@@ -477,7 +489,7 @@ const centreIn = (b: { x: number; y: number; w: number; h: number }, f: { x: num
 export function readFlowchart(doc: Y.Doc, diagramId: string): FlowData | null {
   const frame = nodesOf(doc).get(diagramId);
   const own = frame instanceof Y.Map ? partOf(frame.get('part')) : null;
-  if (!frame || own?.role !== 'diagram' || own.of !== diagramId || (own.type !== 'flowchart' && own.type !== 'state')) return null;
+  if (!frame || own?.role !== 'diagram' || own.of !== diagramId || (own.type !== 'flowchart' && own.type !== 'state' && own.type !== 'bpmn')) return null;
   const tb = own.dir === 'TB';
   const parts = partsOf(doc, diagramId);
   const lanes = parts.filter((p) => p.part.role === 'lane' && p.node.get('kind') === 'frame').sort((a, b) => (tb ? a.x - b.x : a.y - b.y));
@@ -493,6 +505,7 @@ export function readFlowchart(doc: Y.Doc, diagramId: string): FlowData | null {
     to: string;
     label: string;
     weight: number;
+    dash: string;
   }[] = [];
   nodesOf(doc).forEach((node, id) => {
     if (!(node instanceof Y.Map) || node.get('kind') !== 'connector') return;
@@ -506,6 +519,7 @@ export function readFlowchart(doc: Y.Doc, diagramId: string): FlowData | null {
         to,
         label: typeof label === 'string' ? label : '',
         weight: num(node.get('weight')),
+        dash: str(node.get('dash')),
       });
   });
   const remarks = parts.filter((p) => p.part.role === 'note' && p.node.get('kind') === 'note').sort((a, b) => a.part.key.localeCompare(b.part.key));
@@ -529,6 +543,7 @@ export function readFlowchart(doc: Y.Doc, diagramId: string): FlowData | null {
       laneId: (lanes.find((l) => centreIn(s, l)) ?? lanes[0])?.part.key ?? main.id,
       type: s.part.type ?? 'task',
       label: str(s.node.get('label')),
+      ...(s.part.extra ? { extra: s.part.extra } : {}),
     })),
     edges: connectors
       .filter((c) => keyOf.has(c.from) && keyOf.has(c.to))
@@ -539,6 +554,7 @@ export function readFlowchart(doc: Y.Doc, diagramId: string): FlowData | null {
         to: keyOf.get(c.to)!,
         label: c.label,
         ...(c.weight >= 4 ? { feedback: true } : {}),
+        ...(c.dash === 'dashed' ? { message: true } : {}),
       })),
     ...(notes.length ? { notes } : {}),
   };
@@ -643,6 +659,8 @@ export function rewriteLayout(doc: Y.Doc, diagramId: string, layout: Layout, aut
         n.set('shape', s.shape);
         if (!n.has('color')) n.set('color', s.color ?? 'blue');
         n.set('label', s.label ?? '');
+        if (s.icon) n.set('icon', s.icon);
+        else if (n.has('icon') && s.part?.type && ['start', 'end', 'event', 'task', 'decision'].includes(s.part.type) && String(n.get('icon')).startsWith('bpmn-')) n.delete('icon');
         place(n, s);
       });
     }

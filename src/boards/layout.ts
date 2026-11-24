@@ -130,7 +130,7 @@ export interface Layout {
   notes?: { key?: string; text: string; rich?: RichNode[]; color?: NoteColor; x: number; y: number; w?: number; h?: number; part?: LayoutPart }[];
   texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number; part?: LayoutPart }[];
   /** Tinted shapes go under the notes (above the frames); solid ones on top with the rest. */
-  shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; fill?: ShapeFill; label?: string; x: number; y: number; w: number; h: number; part?: LayoutPart }[];
+  shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; fill?: ShapeFill; label?: string; icon?: string; x: number; y: number; w: number; h: number; part?: LayoutPart }[];
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
   tables?: { key?: string; x: number; y: number; rows?: number; cols?: number; cells: string[][]; colWidth?: number }[];
   views?: { key?: string; view: BoardView; x: number; y: number }[];
@@ -269,6 +269,7 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
         n.set('color', s.color ?? 'blue');
         n.set('label', s.label ?? '');
         if (s.fill === 'tint') n.set('fill', 'tint');
+        if (s.icon && /^[a-z0-9-]{1,40}$/.test(s.icon)) n.set('icon', s.icon);
       });
       keep(s.key, id);
       tag(id, s.part);
