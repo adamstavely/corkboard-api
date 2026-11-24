@@ -174,6 +174,36 @@ export async function readPage(raw: string): Promise<{ url: string; title: strin
   return { url: url.href, title: readPreview(html, url).title, text: readableText(html) };
 }
 
+/** The most CSS read from a page for its look: its own <style>s, inline styles and up to four stylesheets. */
+const MAX_STYLES = 4;
+const STYLES: Want = { agent: 'CorkboardTheme/1.0', accept: 'text/css', type: /css/i, max: MAX_BYTES };
+
+/**
+ * A public web page's styles, for working out its look (colours, fonts, corners): fetched as unfurl fetches, never from
+ * a private address. Only text comes back; nothing in it runs.
+ */
+export async function readStyles(raw: string): Promise<{ url: string; html: string; css: string }> {
+  const { url, body } = await fetchPublic(raw, { ...PAGE, agent: 'CorkboardTheme/1.0' });
+  if (!body.length) throw new Error("That page isn't a web page whose look can be read.");
+  const html = body.toString('utf8');
+  const own = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)].map((m) => m[1]);
+  const inline = [...html.matchAll(/\sstyle\s*=\s*"([^"]*)"/gi)].map((m) => `x{${m[1]}}`);
+  const links = [...html.matchAll(/<link\b[^>]*>/gi)]
+    .map((m) => m[0])
+    .filter((tag) => /rel\s*=\s*["']?stylesheet/i.test(tag))
+    .flatMap((tag) => {
+      const href = /href\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
+      try {
+        return href ? [new URL(decode(href), url).href] : [];
+      } catch {
+        return [];
+      }
+    })
+    .slice(0, MAX_STYLES);
+  const sheets = await Promise.all(links.map((href) => fetchPublic(href, STYLES).then((r) => r.body.toString('utf8'), () => '')));
+  return { url: url.href, html, css: [...own, ...inline, ...sheets].join('\n') };
+}
+
 /** The most an image in a diagram may weigh. */
 export const MAX_IMAGE_BYTES = 1024 * 1024;
 
