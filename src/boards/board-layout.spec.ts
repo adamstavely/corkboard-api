@@ -17,7 +17,7 @@ describe('a board as a template', () => {
       { key: 'v', shape: 'ellipse', color: 'blue', fill: 'tint', label: '', x: 1200, y: 0, w: 300, h: 300 },
     ],
     tables: [{ x: 0, y: 420, cells: [['Owner', 'Due'], ['Ada', 'Friday']] }],
-    arrows: [{ from: 'a', to: 's', route: 'curve' }],
+    arrows: [{ from: 'a', to: 's', route: 'curve', start: 'one', end: 'zeroMany', label: 'holds' }],
   };
 
   it('keeps its structure and notes, moved to the origin, with its agenda naming frames by key', () => {
@@ -36,7 +36,7 @@ describe('a board as a template', () => {
     expect(saved.shapes?.find((x) => x.shape === 'ellipse')).toMatchObject({ fill: 'tint', x: 1200 });
     expect(saved.shapes?.find((x) => x.shape === 'star')?.fill).toBeUndefined();
     expect(saved.tables?.[0].cells).toEqual([['Owner', 'Due'], ['Ada', 'Friday']]);
-    expect(saved.arrows).toHaveLength(1);
+    expect(saved.arrows).toEqual([expect.objectContaining({ route: 'curve', start: 'one', end: 'zeroMany', label: 'holds' })]);
     const went = saved.frames!.find((f) => f.title === 'Went well')!;
     expect(agenda).toEqual([{ title: 'Write', minutes: 5, frame: went.key, activity: { kind: 'writing', anonymous: true } }]);
   });

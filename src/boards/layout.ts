@@ -15,6 +15,10 @@ export const TEXT_SIZES = { sm: 14, md: 20, lg: 32, xl: 48 } as const;
 export const ARROW_ROUTES = ['straight', 'elbow', 'curve'] as const;
 export const ARROW_DASHES = ['solid', 'dashed', 'dotted'] as const;
 export const ARROW_WEIGHTS = [1, 2, 4, 6] as const;
+/** An arrow's ends: nothing, an arrowhead, an open triangle ("is a"), or crow's-foot marks for data diagrams. */
+export const ARROW_HEADS = ['none', 'arrow', 'triangle', 'one', 'zeroOne', 'oneMany', 'zeroMany'] as const;
+/** The longest label an arrow takes. */
+export const MAX_ARROW_LABEL = 200;
 export const BOARD_VIEWS = ['matrix', 'kanban', 'timeline'] as const;
 export const VIEW_SIZE = { matrix: { w: 760, h: 620 }, kanban: { w: 1040, h: 620 }, timeline: { w: 1040, h: 520 } } as const;
 
@@ -26,6 +30,7 @@ export type ShapeFill = (typeof SHAPE_FILLS)[number];
 export type TextSize = keyof typeof TEXT_SIZES;
 export type ArrowRoute = (typeof ARROW_ROUTES)[number];
 export type ArrowDash = (typeof ARROW_DASHES)[number];
+export type ArrowHead = (typeof ARROW_HEADS)[number];
 export type BoardView = (typeof BOARD_VIEWS)[number];
 
 /**
@@ -45,7 +50,7 @@ export interface Layout {
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
   tables?: { key?: string; x: number; y: number; rows?: number; cols?: number; cells: string[][]; colWidth?: number }[];
   views?: { key?: string; view: BoardView; x: number; y: number }[];
-  arrows?: { from: string; to: string; route?: ArrowRoute; dash?: ArrowDash; weight?: number }[];
+  arrows?: { from: string; to: string; route?: ArrowRoute; dash?: ArrowDash; weight?: number; start?: ArrowHead; end?: ArrowHead; label?: string }[];
 }
 
 const ROW_HEIGHT = 40;
@@ -120,7 +125,9 @@ export function layoutProblem(layout: Layout): string | null {
   }
   for (const a of layout.arrows ?? []) {
     if (!keys.has(a.from) || !keys.has(a.to) || a.from === a.to) return 'an arrow joins things that are not in the layout';
-    if (!one(ARROW_ROUTES, a.route) || !one(ARROW_DASHES, a.dash) || !one(ARROW_WEIGHTS, a.weight)) return 'an arrow style the board does not have';
+    if (!one(ARROW_ROUTES, a.route) || !one(ARROW_DASHES, a.dash) || !one(ARROW_WEIGHTS, a.weight) || !one(ARROW_HEADS, a.start) || !one(ARROW_HEADS, a.end))
+      return 'an arrow style the board does not have';
+    if (a.label !== undefined && (typeof a.label !== 'string' || a.label.length > MAX_ARROW_LABEL)) return 'an arrow label that is too long';
   }
   return null;
 }
@@ -206,6 +213,9 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
       node.set('route', a.route ?? 'straight');
       node.set('dash', a.dash ?? 'solid');
       node.set('weight', a.weight ?? 2);
+      node.set('start', a.start ?? 'none');
+      node.set('end', a.end ?? 'arrow');
+      if (a.label?.trim()) node.set('label', a.label.trim());
       doc.getMap<Y.Map<unknown>>('nodes').set(randomUUID(), node);
     }
   });

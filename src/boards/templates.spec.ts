@@ -127,6 +127,10 @@ describe('board templates', () => {
     expect(layoutProblem({ notes: [{ text: 'x', x: -5, y: 0 }] })).toMatch(/position/);
     expect(layoutProblem({ frames: [{ title: 'x', x: 0, y: 0, w: 400, h: 300, look: 'polaroid' as never }] })).toMatch(/frame style/);
     expect(layoutProblem({ notes: [{ key: 'a', text: 'x', x: 0, y: 0 }], arrows: [{ from: 'a', to: 'b' }] })).toMatch(/arrow/);
+    const two = [{ key: 'a', text: 'x', x: 0, y: 0 }, { key: 'b', text: 'y', x: 400, y: 0 }];
+    expect(layoutProblem({ notes: two, arrows: [{ from: 'a', to: 'b', end: 'kite' as never }] })).toMatch(/arrow style/);
+    expect(layoutProblem({ notes: two, arrows: [{ from: 'a', to: 'b', label: 'x'.repeat(201) }] })).toMatch(/label/);
+    expect(layoutProblem({ notes: two, arrows: [{ from: 'a', to: 'b', start: 'triangle', label: 'is a' }] })).toBeNull();
     expect(layoutProblem({ notes: [{ key: 'a', text: 'x', x: 0, y: 0 }, { key: 'a', text: 'y', x: 0, y: 0 }] })).toMatch(/twice/);
     expect(layoutProblem({ notes: Array.from({ length: 201 }, () => ({ text: 'x', x: 0, y: 0 })) })).toMatch(/more than/);
   });
