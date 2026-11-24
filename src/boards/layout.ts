@@ -56,6 +56,36 @@ export interface Part {
   /** What else the diagram's text says about it, by kind of diagram. */
   extra?: Record<string, string | string[] | boolean>;
 }
+/** A column of a database table in an ER diagram. */
+export interface EntityColumn {
+  name: string;
+  type: string;
+  pk?: boolean;
+  fk?: boolean;
+  unique?: boolean;
+  nullable?: boolean;
+  note?: string;
+}
+/** A table's columns made safe to keep: at most 100, each with a name, short type and note. */
+export function entityColumns(value: unknown): EntityColumn[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 100).flatMap((c) => {
+    if (!c || typeof c !== 'object' || typeof (c as EntityColumn).name !== 'string') return [];
+    const col = c as EntityColumn;
+    return [
+      {
+        name: col.name.slice(0, 80),
+        type: typeof col.type === 'string' ? col.type.slice(0, 60) : '',
+        ...(col.pk === true ? { pk: true } : {}),
+        ...(col.fk === true ? { fk: true } : {}),
+        ...(col.unique === true ? { unique: true } : {}),
+        ...(col.nullable === true ? { nullable: true } : {}),
+        ...(typeof col.note === 'string' && col.note ? { note: col.note.slice(0, 120) } : {}),
+      },
+    ];
+  });
+}
+
 /** A thing's part in a layout's one diagram: the frame with role 'diagram' gets the diagram's id when it's placed. */
 export type LayoutPart = Omit<Part, 'of'>;
 
@@ -104,6 +134,8 @@ export interface Layout {
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
   tables?: { key?: string; x: number; y: number; rows?: number; cols?: number; cells: string[][]; colWidth?: number }[];
   views?: { key?: string; view: BoardView; x: number; y: number }[];
+  /** Database tables, for ER diagrams (corkboard-ui's entity items). */
+  entities?: { key?: string; name: string; columns: EntityColumn[]; color?: NoteColor; x: number; y: number; w: number; h: number; part?: LayoutPart }[];
   arrows?: { from: string; to: string; route?: ArrowRoute; dash?: ArrowDash; weight?: number; start?: ArrowHead; end?: ArrowHead; label?: string }[];
 }
 
@@ -133,6 +165,7 @@ function boxesOf(layout: Layout): [string | undefined, { x: number; y: number; w
       return [t.key, { x: t.x, y: t.y, w: cols * (t.colWidth ?? COL_WIDTH), h: rows * ROW_HEIGHT }] as const;
     }),
     ...(layout.views ?? []).map((v) => [v.key, { x: v.x, y: v.y, ...VIEW_SIZE[v.view] }] as const),
+    ...(layout.entities ?? []).map((e) => [e.key, e] as const),
   ].map(([key, b]) => [key, { x: b.x, y: b.y, w: b.w, h: b.h }]);
 }
 
@@ -173,6 +206,7 @@ export function layoutProblem(layout: Layout): string | null {
   if (!(layout.texts ?? []).every((t) => one(Object.keys(TEXT_SIZES), t.size))) return 'a text size the board does not have';
   if (!(layout.shapes ?? []).every((s) => SHAPES.includes(s.shape) && one(SHAPE_FILLS, s.fill))) return 'a shape the board does not have';
   if (!(layout.views ?? []).every((v) => BOARD_VIEWS.includes(v.view))) return 'a view the board does not have';
+  if (!(layout.entities ?? []).every((e) => typeof e.name === 'string' && Array.isArray(e.columns) && e.columns.length <= 100 && one(NOTE_COLORS, e.color))) return 'a table the board cannot show';
   for (const t of layout.tables ?? []) {
     const { rows, cols } = tableSize(t);
     if (rows > LIMITS.cells || cols > 20) return 'a table is too big';
@@ -184,7 +218,7 @@ export function layoutProblem(layout: Layout): string | null {
     if (a.label !== undefined && (typeof a.label !== 'string' || a.label.length > MAX_ARROW_LABEL)) return 'an arrow label that is too long';
   }
   // Parts: one diagram at most, and parts only with one.
-  const parts = [...(layout.frames ?? []), ...(layout.notes ?? []), ...(layout.shapes ?? []), ...(layout.texts ?? [])].flatMap((t) => (t.part ? [t.part] : []));
+  const parts = [...(layout.frames ?? []), ...(layout.notes ?? []), ...(layout.shapes ?? []), ...(layout.texts ?? []), ...(layout.entities ?? [])].flatMap((t) => (t.part ? [t.part] : []));
   if (parts.some((p) => !partOf({ ...p, of: 'diagram' }))) return 'a diagram part the board does not have';
   const diagrams = (layout.frames ?? []).filter((f) => f.part?.role === 'diagram').length;
   if (diagrams > 1 || (parts.length && !diagrams)) return 'a layout holds at most one diagram, and its parts need it';
@@ -274,6 +308,15 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
       }));
     }
     for (const v of layout.views ?? []) keep(v.key, newItem(doc, 'view', { ...pos(v), ...VIEW_SIZE[v.view] }, ++z, author, (n) => n.set('view', v.view)));
+    for (const e of layout.entities ?? []) {
+      const id = newItem(doc, 'entity', { ...pos(e), w: e.w, h: e.h }, ++z, author, (n) => {
+        n.set('name', e.name.slice(0, 80));
+        n.set('columns', entityColumns(e.columns));
+        n.set('color', e.color ?? 'blue');
+      });
+      keep(e.key, id);
+      tag(id, e.part);
+    }
     for (const a of layout.arrows ?? []) {
       const node = new Y.Map<unknown>();
       node.set('kind', 'connector');

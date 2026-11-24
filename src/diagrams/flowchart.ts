@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { newNote, paragraphs, topZ, type NoteColor } from '../assist/board-edit';
 import { fragmentText } from '../boards/board-text';
-import { applyLayout, MAX_ARROW_LABEL, partOf, TEXT_SIZES, type Layout, type Part, type ShapeKind } from '../boards/layout';
+import { applyLayout, entityColumns, MAX_ARROW_LABEL, partOf, TEXT_SIZES, type Layout, type Part, type ShapeKind } from '../boards/layout';
 import { flowchartEngine } from './vendor/flowchart';
 
 /**
@@ -610,6 +610,14 @@ export function rewriteLayout(doc: Y.Doc, diagramId: string, layout: Layout, aut
         n.set('look', f.look ?? 'lane');
         if (f.fill) n.set('fill', f.fill);
         place(n, f);
+      });
+    }
+    for (const e of layout.entities ?? []) {
+      make('entity', e.key!, e.part!, (n) => {
+        n.set('name', e.name.slice(0, 80));
+        n.set('columns', entityColumns(e.columns));
+        if (!n.has('color')) n.set('color', e.color ?? 'blue');
+        place(n, e);
       });
     }
     for (const t of layout.texts ?? []) {
