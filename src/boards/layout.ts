@@ -8,7 +8,7 @@ export const FRAME_FILLS = ['clear', 'solid', ...NOTE_COLORS] as const;
 export const FRAME_BORDERS = ['solid', 'dashed', 'none'] as const;
 /** A frame's shape: outlined (as frames always were), a card, a header band, a folder tab, a soft zone, a drop zone, a lane, a 16:9 slide or a browser window. */
 export const FRAME_LOOKS = ['outline', 'card', 'band', 'tab', 'zone', 'drop', 'lane', 'slide', 'browser'] as const;
-export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout', 'pill', 'parallelogram', 'document', 'delay', 'subprocess'] as const;
+export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout', 'pill', 'parallelogram', 'document', 'delay', 'subprocess', 'actor'] as const;
 /** A shape's fill: solid (as shapes always were), or a see-through tint that lies under notes, so overlapping shapes (a Venn diagram) show where they meet. */
 export const SHAPE_FILLS = ['solid', 'tint'] as const;
 export const TEXT_SIZES = { sm: 14, md: 20, lg: 32, xl: 48 } as const;
@@ -34,7 +34,7 @@ export type ArrowHead = (typeof ARROW_HEADS)[number];
 export type BoardView = (typeof BOARD_VIEWS)[number];
 
 /** The roles a thing plays in an editable diagram (corkboard-ui's board-doc.ts Part): the diagram's own frame, a lane, a step, a remark. */
-export const PART_ROLES = ['diagram', 'lane', 'step', 'note'] as const;
+export const PART_ROLES = ['diagram', 'lane', 'group', 'step', 'note', 'legend'] as const;
 export type PartRole = (typeof PART_ROLES)[number];
 /**
  * A thing's place in an editable diagram: the diagram (its outer frame's id), its role, its id in the diagram's text, and
@@ -53,6 +53,8 @@ export interface Part {
   /** On a sub-process step: its flowchart's id. On a sub-process flowchart: the flowchart it belongs to. */
   sub?: string;
   parent?: string;
+  /** What else the diagram's text says about it, by kind of diagram. */
+  extra?: Record<string, string | string[] | boolean>;
 }
 /** A thing's part in a layout's one diagram: the frame with role 'diagram' gets the diagram's id when it's placed. */
 export type LayoutPart = Omit<Part, 'of'>;
@@ -72,7 +74,17 @@ export function partOf(value: unknown): Part | null {
     ...(typeof p['lane'] === 'string' && p['lane'].length <= 200 ? { lane: p['lane'] } : {}),
     ...(typeof p['sub'] === 'string' && p['sub'].length <= 64 ? { sub: p['sub'] } : {}),
     ...(typeof p['parent'] === 'string' && p['parent'].length <= 64 ? { parent: p['parent'] } : {}),
+    ...(extraOf(p['extra']) ? { extra: extraOf(p['extra'])! } : {}),
   };
+}
+
+/** A part's extra facts (a use case's requirement ids, say): a small object of strings, lists of strings and yes/no values. */
+function extraOf(value: unknown): Record<string, string | string[] | boolean> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const entries = Object.entries(value as Record<string, unknown>).filter(
+    ([k, v]) => k.length <= 40 && (typeof v === 'boolean' || (typeof v === 'string' && v.length <= 200) || (Array.isArray(v) && v.length <= 20 && v.every((x) => typeof x === 'string' && x.length <= 200))),
+  );
+  return entries.length && entries.length <= 20 ? (Object.fromEntries(entries) as Record<string, string | string[] | boolean>) : null;
 }
 
 /**
@@ -86,7 +98,7 @@ export interface Layout {
    * text (lists, code, maths, marks), used instead of `text` when given, and their size, else the usual size.
    */
   notes?: { key?: string; text: string; rich?: RichNode[]; color?: NoteColor; x: number; y: number; w?: number; h?: number; part?: LayoutPart }[];
-  texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number }[];
+  texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number; part?: LayoutPart }[];
   /** Tinted shapes go under the notes (above the frames); solid ones on top with the rest. */
   shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; fill?: ShapeFill; label?: string; x: number; y: number; w: number; h: number; part?: LayoutPart }[];
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
@@ -172,7 +184,7 @@ export function layoutProblem(layout: Layout): string | null {
     if (a.label !== undefined && (typeof a.label !== 'string' || a.label.length > MAX_ARROW_LABEL)) return 'an arrow label that is too long';
   }
   // Parts: one diagram at most, and parts only with one.
-  const parts = [...(layout.frames ?? []), ...(layout.notes ?? []), ...(layout.shapes ?? [])].flatMap((t) => (t.part ? [t.part] : []));
+  const parts = [...(layout.frames ?? []), ...(layout.notes ?? []), ...(layout.shapes ?? []), ...(layout.texts ?? [])].flatMap((t) => (t.part ? [t.part] : []));
   if (parts.some((p) => !partOf({ ...p, of: 'diagram' }))) return 'a diagram part the board does not have';
   const diagrams = (layout.frames ?? []).filter((f) => f.part?.role === 'diagram').length;
   if (diagrams > 1 || (parts.length && !diagrams)) return 'a layout holds at most one diagram, and its parts need it';
@@ -243,10 +255,12 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
     }
     for (const t of layout.texts ?? []) {
       const size = t.size ?? 'md';
-      keep(t.key, newItem(doc, 'text', { ...pos(t), w: t.w ?? 240, h: TEXT_SIZES[size] * 1.6 }, ++z, author, (n) => {
+      const id = newItem(doc, 'text', { ...pos(t), w: t.w ?? 240, h: TEXT_SIZES[size] * 1.6 }, ++z, author, (n) => {
         n.set('text', t.text);
         n.set('size', size);
-      }));
+      });
+      keep(t.key, id);
+      tag(id, t.part);
     }
     for (const s of layout.shapes ?? []) if (s.fill !== 'tint') shape(s);
     for (const t of layout.tables ?? []) {

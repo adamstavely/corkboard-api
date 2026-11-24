@@ -413,6 +413,35 @@ describe('Model connections and the assistant', () => {
     expect(after.some(([, n]) => (n.get('part') as { key?: string } | undefined)?.key === 'no')).toBe(true);
   });
 
+  it('draws use case diagrams people can edit, and lists them for the model as Mermaid', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Shop' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const source = '%% @type usecase\nflowchart LR\n  customer["Customer"]\n  subgraph shop["Storefront"]\n    browse(["Browse Catalogue"])\n    checkout(["Check Out"])\n  end\n  customer --- browse\n  customer --- checkout';
+    let result = '';
+    script = async (req) => {
+      result = await req.execute('make_diagram', { source });
+      return 'Drew it.';
+    };
+    await ask('Draw the use cases');
+    const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+    const frame = [...doc.getMap<Y.Map<unknown>>('nodes').entries()].find(([, n]) => (n.get('part') as { type?: string } | undefined)?.type === 'usecase');
+    expect(frame).toBeDefined();
+    expect(result).toBe(`Drew the use case diagram (id ${frame![0]}) beside the board, as actors and use cases people can drag and edit.`);
+    let prompt = '';
+    script = async (req) => {
+      prompt = req.prompt;
+      return 'Looked.';
+    };
+    await ask('What is on the board?');
+    expect(prompt).toContain(`"diagrams":[{"id":"${frame![0]}","source":"`);
+    expect(prompt).toContain('@type usecase');
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
