@@ -1,4 +1,5 @@
 import * as Y from 'yjs';
+import { sequenceWords } from '../diagrams/sequence-model';
 
 /** What search sees of one note. */
 export interface NoteText {
@@ -48,6 +49,10 @@ export function boardText(doc: Y.Doc): NoteText[] {
     if (node.get('kind') === 'app' && typeof title === 'string' && title.trim()) notes.push({ id, text: title.trim() });
     const source = node.get('source');
     if (node.get('kind') === 'diagram' && typeof source === 'string' && source.trim()) notes.push({ id, text: source.trim().slice(0, 4000) });
+    if (node.get('kind') === 'sequence') {
+      const words = sequenceWords(node.get('sequence'));
+      if (words) notes.push({ id, text: words.slice(0, 4000) });
+    }
     if (node.get('kind') !== 'note') return;
     const fragment = node.get('text');
     const text = fragment instanceof Y.XmlFragment ? fragmentText(fragment) : '';

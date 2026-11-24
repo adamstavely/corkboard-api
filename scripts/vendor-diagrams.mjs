@@ -32,6 +32,10 @@ const TYPES = {
     files: ['assets/shell/ortho-router.js', 'assets/types/erd/engine.js', 'assets/shell/mermaid-flow.js', 'assets/types/erd/mermaid.js'],
     exports: ['layoutDiagram', 'routeDiagram', 'fromMermaid', 'toMermaid', 'erVisibleColumns', 'ER', 'mmdErDerive'],
   },
+  sequence: {
+    files: ['assets/types/sequence/engine.js', 'assets/shell/mermaid-flow.js', 'assets/types/sequence/mermaid.js'],
+    exports: ['layoutDiagram', 'fromMermaid', 'toMermaid', 'SQ'],
+  },
   c4: {
     files: ['assets/shell/ortho-router.js', 'assets/types/c4/route.js', 'assets/types/c4/engine.js', 'assets/shell/mermaid-flow.js', 'assets/types/c4/mermaid.js'],
     exports: ['layoutDiagram', 'routeDiagram', 'fromMermaid', 'toMermaid'],
