@@ -24,6 +24,10 @@ import { diagramProblem, diagramsOn, placeDiagram, setDiagramSource } from './di
 import { flowchartMermaid, flowchartsOn, hasPicturesOrLinks, isFlowchartSource, layoutFlow, mainFlow, placeSubprocesses, rewriteFlowchartTree } from '../diagrams/flowchart';
 import { checkNote, readFlowchartSource } from '../diagrams/flowchart-checks';
 import { isUsecaseSource, layoutUsecase, readUsecaseSource, rewriteUsecase, usecaseMermaid, usecasesOn } from '../diagrams/usecase';
+import { c4Json, c4sOn, isC4Source, layoutC4, readC4Source, rewriteC4 } from '../diagrams/c4';
+
+/** The longest a C4 model (JSON) may be. */
+const MAX_C4_CHARS = 20_000;
 import { AppsService, htmlProblem } from '../apps/apps.service';
 import {
   addNotes,
@@ -193,7 +197,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'make_diagram',
     description:
-      'Draws a diagram beside the board from Mermaid text, which starts with its kind: "flowchart TD" (or LR) for a process or decision, "sequenceDiagram" for who sends what to whom, "stateDiagram-v2" for states and what moves between them, "classDiagram" for types and how they relate, "erDiagram" for data and its relationships, "gantt" for a schedule with dates, "pie" for shares of a whole, "journey" for a user journey with scores, "timeline" for events by period, "mindmap" for a topic and its branches, or "quadrantChart", "xychart", "gitGraph", "kanban", "requirementDiagram", "sankey", "block" or "packet". Keep labels short; quote any with punctuation, as A["Ship it?"]. A node can link to a web page with a line like click A href "https://example.com" (https, http or mailto only). A flowchart node can show an image: A@{ img: "https://example.com/logo.png", label: "Logo", pos: "t", w: 60, h: 60 } (https, or corkboard-file:<file id> for a file on the board). No %%{init}%% settings; front matter may only hold a title. A flowchart is drawn as an editable swimlane diagram people can drag and tidy: write a bare "flowchart" (or "flowchart TB" for top to bottom), one subgraph lane_<slug>["Actor"] per role, team or system that does steps (none for a one-actor flow), step ids as short slugs of the label (verify_income), every label quoted and at most 5 words (a task is verb + object, "Approve Loan"), decisions as id{"Question?"} with every branch labelled ("Yes"/"No"), a start pill start(["Trigger"]) and an end pill for each outcome, [/"…"/] for data sent or received, [("…")] for a system of record, [["…"]] for a process documented elsewhere, id@{ shape: doc, label: "…" } for a document produced, id@{ shape: delay, label: "…" } for a wait, ==> for the one arrow that loops back, and detail in notes joined to their steps: n1>"Fact"] -.- step (at most 140 characters). A flowchart with pictures or links on its steps is drawn as a picture instead. A use case diagram (who wants what from a system) is an editable flowchart starting with "%% @type usecase" on its own line: one subgraph id["System name"] per system boundary with its use cases inside as id(["FR-1: Verb object"]) (the requirement id when the source gives one, at most 5 words), actors outside as id["Role"] (1 to 3 words; :::system for an outside system), actor --- usecase for who takes part, base -.->|«include»| used for what always happens, ext -.->|"«extend»: condition"| base for what sometimes happens, child -->|is a| parent, :::c1 to :::c8 for feature areas named by %% @colorKey 1 Name lines, and notes as n1>"Rule"] -.- usecase. Never model steps in order in one: that is a flowchart. The result lists anything to fix.',
+      'Draws a diagram beside the board from Mermaid text, which starts with its kind: "flowchart TD" (or LR) for a process or decision, "sequenceDiagram" for who sends what to whom, "stateDiagram-v2" for states and what moves between them, "classDiagram" for types and how they relate, "erDiagram" for data and its relationships, "gantt" for a schedule with dates, "pie" for shares of a whole, "journey" for a user journey with scores, "timeline" for events by period, "mindmap" for a topic and its branches, or "quadrantChart", "xychart", "gitGraph", "kanban", "requirementDiagram", "sankey", "block" or "packet". Keep labels short; quote any with punctuation, as A["Ship it?"]. A node can link to a web page with a line like click A href "https://example.com" (https, http or mailto only). A flowchart node can show an image: A@{ img: "https://example.com/logo.png", label: "Logo", pos: "t", w: 60, h: 60 } (https, or corkboard-file:<file id> for a file on the board). No %%{init}%% settings; front matter may only hold a title. A flowchart is drawn as an editable swimlane diagram people can drag and tidy: write a bare "flowchart" (or "flowchart TB" for top to bottom), one subgraph lane_<slug>["Actor"] per role, team or system that does steps (none for a one-actor flow), step ids as short slugs of the label (verify_income), every label quoted and at most 5 words (a task is verb + object, "Approve Loan"), decisions as id{"Question?"} with every branch labelled ("Yes"/"No"), a start pill start(["Trigger"]) and an end pill for each outcome, [/"…"/] for data sent or received, [("…")] for a system of record, [["…"]] for a process documented elsewhere, id@{ shape: doc, label: "…" } for a document produced, id@{ shape: delay, label: "…" } for a wait, ==> for the one arrow that loops back, and detail in notes joined to their steps: n1>"Fact"] -.- step (at most 140 characters). A flowchart with pictures or links on its steps is drawn as a picture instead. A use case diagram (who wants what from a system) is an editable flowchart starting with "%% @type usecase" on its own line: one subgraph id["System name"] per system boundary with its use cases inside as id(["FR-1: Verb object"]) (the requirement id when the source gives one, at most 5 words), actors outside as id["Role"] (1 to 3 words; :::system for an outside system), actor --- usecase for who takes part, base -.->|«include»| used for what always happens, ext -.->|"«extend»: condition"| base for what sometimes happens, child -->|is a| parent, :::c1 to :::c8 for feature areas named by %% @colorKey 1 Name lines, and notes as n1>"Rule"] -.- usecase. Never model steps in order in one: that is a flowchart. A C4 system landscape is written as JSON instead of Mermaid: {"diagramType":"c4","title":…,"groups":[{"id","name","kind":"boundary" (who owns it) or "system" (a software system whose inside is its containers),"parent"?,"collapsed"?}],"elements":[{"id","kind":"person"|"system"|"container"|"database"|"queue"|"external","name","description"? (one short line),"tech"? (for containers),"group"?}],"relations":[{"from","to","label" (a verb phrase of at most 40 characters),"tech"?,"async"?}],"colorKey"?}. People are roles; systems you do not own are external, outside your system groups; open one system (collapsed false) and leave the rest collapsed; every container-to-container relation has a tech; everything has a relation. The result lists anything to fix.',
     parameters: obj({ source: { type: 'string', description: 'The diagram in Mermaid, starting with its kind.' } }),
   },
   {
@@ -697,6 +701,17 @@ export class AssistService {
           return `Saved version ${version} of the app${shown ? '' : ', though it is not on the board any more'}.`;
         }
         if (name === 'make_diagram') {
+          // A C4 model (the skill's JSON, or Mermaid C4) is drawn as an editable C4 diagram.
+          if (typeof args['source'] === 'string' && args['source'].length <= MAX_C4_CHARS && isC4Source(args['source'])) {
+            const { data, checks } = readC4Source(args['source']);
+            const layout = layoutC4(data);
+            const trouble = layoutProblem(layout);
+            if (trouble) throw new Error(`The C4 diagram can't go on the board: ${trouble}.`);
+            let id = '';
+            await edit((d) => (id = placeBeside(d, layout).ids.get('diagram') ?? ''));
+            diagramsMade++;
+            return `Drew the C4 diagram (id ${id}) beside the board, as people, systems and containers people can drag, open and close.${checkNote(checks)}`;
+          }
           const problem = diagramProblem(args['source']);
           if (problem) throw new Error(problem);
           // A use case diagram is drawn as one people can edit: actors, the system's boundary and its use cases.
@@ -731,9 +746,17 @@ export class AssistService {
           return `Drew the diagram (id ${id}) beside the board.`;
         }
         if (name === 'change_diagram') {
+          const id = typeof args['diagram_id'] === 'string' ? args['diagram_id'] : '';
+          // An editable C4 diagram is rewritten in place from its new model.
+          if (c4sOn(doc).includes(id)) {
+            if (typeof args['source'] !== 'string' || args['source'].length > MAX_C4_CHARS || !isC4Source(args['source'])) throw new Error('That diagram is an editable C4 diagram: rewrite it as its C4 JSON model.');
+            const { data, checks } = readC4Source(args['source']);
+            await edit((d) => rewriteC4(d, id, data));
+            diagramsChanged++;
+            return `Rewrote the C4 diagram.${checkNote(checks)}`;
+          }
           const problem = diagramProblem(args['source']);
           if (problem) throw new Error(problem);
-          const id = typeof args['diagram_id'] === 'string' ? args['diagram_id'] : '';
           // An editable use case diagram is rewritten in place too.
           if (usecasesOn(doc).includes(id)) {
             if (!isUsecaseSource(args['source'] as string)) throw new Error('That diagram is an editable use case diagram: rewrite it as one (%% @type usecase).');
@@ -822,7 +845,7 @@ export class AssistService {
 
       const { text } = await model.chat({
         system: !canEdit ? `${SYSTEM}\n\n${READ_ONLY}` : proposing ? `${SYSTEM}\n\n${PROPOSING}` : SYSTEM,
-        prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? [], appsOn(doc), [...diagramsOn(doc), ...flowchartsOn(doc, true).map((id) => ({ id, source: flowchartMermaid(doc, id) ?? '' })), ...usecasesOn(doc).map((id) => ({ id, source: usecaseMermaid(doc, id) ?? '' }))]),
+        prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? [], appsOn(doc), [...diagramsOn(doc), ...flowchartsOn(doc, true).map((id) => ({ id, source: flowchartMermaid(doc, id) ?? '' })), ...usecasesOn(doc).map((id) => ({ id, source: usecaseMermaid(doc, id) ?? '' })), ...c4sOn(doc).map((id) => ({ id, source: c4Json(doc, id) ?? '' }))]),
         tools,
         execute,
         maxSteps: 8,
