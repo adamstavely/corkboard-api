@@ -9108,15 +9108,8 @@
       "TemplateShapeDto": {
         "type": "object",
         "properties": {
-          "key": {
-            "type": "string"
-          },
           "shape": {
-            "type": "string",
             "enum": [
-              "actor",
-              "queue",
-              "document",
               "rect",
               "ellipse",
               "diamond",
@@ -9129,11 +9122,18 @@
               "callout",
               "pill",
               "parallelogram",
+              "document",
               "delay",
               "subprocess",
+              "actor",
               "person",
+              "queue",
               "rounded"
-            ]
+            ],
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
           },
           "color": {
             "type": "string",

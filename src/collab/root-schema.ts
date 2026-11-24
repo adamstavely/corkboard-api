@@ -1,9 +1,10 @@
 import * as Y from 'yjs';
 import { decoded } from './decoded';
 import { alreadyHas, existing, SERVER_OWNED, type ID } from './server-owned';
+import { themeProblems } from '../themes/diagram-theme';
 
-/** The parts of a board clients write: its items, its tasks and the task counter. Everything else is the API's. */
-export const CLIENT_ROOTS: ReadonlySet<string> = new Set(['nodes', 'tasks', 'meta']);
+/** The parts of a board clients write: its items, its tasks, the task counter and its diagrams' look. Everything else is the API's. */
+export const CLIENT_ROOTS: ReadonlySet<string> = new Set(['nodes', 'tasks', 'meta', 'look']);
 /** Written by the API for one reader (a feedback participant's own view), never by a client. */
 const PROJECTED_ROOTS: ReadonlySet<string> = new Set(['you']);
 
@@ -56,6 +57,15 @@ function metaProblem(key: string, value: unknown): string | null {
   return jsonLength(value) <= MAX_META_JSON ? null : 'a value that is too large';
 }
 
+/** What's wrong with the board's look for its diagrams (corkboard-ui's BoardDoc.setLook), or null if it's fine: Trench Coat's, or a look that passes AA. */
+export function lookProblem(key: string, value: unknown): string | null {
+  if (key !== 'theme') return 'not the look';
+  if (value === 'trenchcoat') return null;
+  if (jsonLength(value) > MAX_META_JSON) return 'too large';
+  const problems = themeProblems(value);
+  return problems.length ? `not a look that can be used (${problems[0]})` : null;
+}
+
 /**
  * Why an update would write somewhere a board has no use for (a top-level type no one reads), or put a malformed task
  * or counter in `tasks` or `meta`, or null if it wouldn't. `nodes` has its own guard (nodeProblem), and the API's own
@@ -98,7 +108,7 @@ export function rootProblem(doc: Y.Doc, update: Uint8Array): string | null {
     if (key === null) return `${root}: not a map`;
     if (!(s.content instanceof Y.ContentAny) || s.content.getContent().length !== 1) return `${root}.${key}: not a plain value`;
     const [value] = s.content.getContent() as unknown[];
-    const problem = root === 'tasks' ? taskProblem(key, value) : metaProblem(key, value);
+    const problem = root === 'tasks' ? taskProblem(key, value) : root === 'look' ? lookProblem(key, value) : metaProblem(key, value);
     if (problem) return `${root}.${key}: ${problem}`;
   }
   return null;

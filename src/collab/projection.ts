@@ -34,7 +34,7 @@ const teamKey = (userId: string) => `t${createHash('sha256').update(userId).dige
 /** Fields that say who made something; none reach a projection. */
 const IDENTITY = new Set(['author', 'authorName', 'createdBy', 'participant']);
 /** The parts of the board copied as they are (none carry anyone's id). */
-const AS_THEY_ARE = ['timer', 'agenda', 'poll', 'poker', 'privacy', 'spotlight'];
+const AS_THEY_ARE = ['timer', 'agenda', 'poll', 'poker', 'privacy', 'spotlight', 'look'];
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const plain = (v: unknown) => (v instanceof Y.AbstractType ? (v.toJSON() as unknown) : v);
