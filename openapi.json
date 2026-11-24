@@ -8765,9 +8765,9 @@
             "type": "string",
             "enum": [
               "note",
+              "group",
               "diagram",
               "lane",
-              "group",
               "step",
               "legend"
             ]
@@ -8961,6 +8961,8 @@
           "shape": {
             "type": "string",
             "enum": [
+              "actor",
+              "queue",
               "document",
               "rect",
               "ellipse",
@@ -8976,9 +8978,7 @@
               "parallelogram",
               "delay",
               "subprocess",
-              "actor",
-              "person",
-              "queue"
+              "person"
             ]
           },
           "color": {

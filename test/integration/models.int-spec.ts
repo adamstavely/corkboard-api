@@ -471,6 +471,41 @@ describe('Model connections and the assistant', () => {
     expect(prompt).toContain('customer ||..o{ order');
   });
 
+  it('draws sequence diagrams people can change in place, rewrites them, and lists them for the model as Mermaid', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Checkout' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const source = 'sequenceDiagram\n  actor customer as Customer\n  participant shop as Shop\n  customer->>shop: Place order\n  shop-->>customer: Order confirmed';
+    let result = '';
+    script = async (req) => {
+      result = await req.execute('make_diagram', { source });
+      return 'Drew it.';
+    };
+    await ask('Draw the checkout');
+    const read = async () => {
+      const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+      return [...doc.getMap<Y.Map<unknown>>('nodes').entries()].filter(([, n]) => n.get('kind') === 'sequence');
+    };
+    const [[id, node]] = await read();
+    expect(result).toBe(`Drew the sequence diagram (id ${id}) beside the board, as participants and messages people can change in place.`);
+    expect((node.get('sequence') as { messages: unknown[] }).messages).toHaveLength(2);
+    let prompt = '';
+    script = async (req) => {
+      prompt = req.prompt;
+      result = await req.execute('change_diagram', { diagram_id: id, source: source + '\n  customer->>shop: Track order' });
+      return 'Changed it.';
+    };
+    await ask('Add tracking');
+    expect(prompt).toContain('customer->>shop: Place order');
+    expect(result).toBe('Rewrote the sequence diagram.');
+    const [[, after]] = await read();
+    expect((after.get('sequence') as { messages: unknown[] }).messages).toHaveLength(3);
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
