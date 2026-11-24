@@ -36,26 +36,35 @@ describe('Web search for the assistant', () => {
     const orgId = me.orgs[0].id as string;
     const reader = randomUUID();
     const readerAuth = { Authorization: `Bearer ${await t.token(reader)}` };
-    const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${reader}@corkboard.test`, role: 'reader' });
+    const { body: invite } = await request(server)
+      .post(`/orgs/${orgId}/invites`)
+      .set(auth)
+      .send({ email: `${reader}@corkboard.test`, role: 'reader' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(readerAuth).expect(201);
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Pilot' });
-    const { body: model } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const model = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     return { server, auth, readerAuth, orgId, board, model };
   }
 
-  it('is off until an owner picks a service and gives its key, which nobody sees again', async () => {
+  it('is off until a site admin sets the search service and an owner switches it on; nobody sees the key again', async () => {
     const { server, auth, readerAuth, orgId } = await setup();
+    const admin = await t.siteAdmin();
     const tools = `/orgs/${orgId}/assistant-tools`;
-    expect((await request(server).get(tools).set(readerAuth).expect(200)).body).toEqual({ webSearch: false, searchProvider: null, hasSearchKey: false, miniApps: true });
+    await request(server).put('/site/search').set(admin).send({ provider: 'tavily', key: '' }).expect(200);
+    expect((await request(server).get(tools).set(readerAuth).expect(200)).body).toEqual({ webSearch: false, searchAvailable: false, miniApps: true });
     await request(server).put(tools).set(auth).send({ webSearch: true }).expect(400);
     await request(server).put(tools).set(readerAuth).send({ webSearch: false }).expect(403);
-    await request(server).put(tools).set(auth).send({ searchProvider: 'bing' }).expect(400);
-    const on = await request(server).put(tools).set(auth).send({ webSearch: true, searchProvider: 'tavily', searchKey: 'test-search-key' }).expect(200);
-    expect(on.body).toEqual({ webSearch: true, searchProvider: 'tavily', hasSearchKey: true, miniApps: true });
+    // The search service is the site admins' to set, not a workspace's.
+    await request(server).put('/site/search').set(auth).send({ provider: 'tavily', key: 'k' }).expect(403);
+    await request(server).put('/site/search').set(admin).send({ provider: 'bing', key: 'k' }).expect(400);
+    expect((await request(server).put('/site/search').set(admin).send({ provider: 'tavily', key: 'test-search-key' }).expect(200)).body).toEqual({ provider: 'tavily', hasKey: true });
+    const on = await request(server).put(tools).set(auth).send({ webSearch: true }).expect(200);
+    expect(on.body).toEqual({ webSearch: true, searchAvailable: true, miniApps: true });
     expect(JSON.stringify((await request(server).get(tools).set(readerAuth)).body)).not.toContain('test-search-key');
-    // Taking the key away while it's on isn't allowed; turning it off and then removing the key is.
-    await request(server).put(tools).set(auth).send({ searchKey: '' }).expect(400);
-    expect((await request(server).put(tools).set(auth).send({ webSearch: false, searchKey: '' }).expect(200)).body).toEqual({ webSearch: false, searchProvider: 'tavily', hasSearchKey: false, miniApps: true });
+    expect(JSON.stringify((await request(server).get('/site/search').set(admin)).body)).not.toContain('test-search-key');
+    // Without the site's key, web search is off everywhere.
+    await request(server).put('/site/search').set(admin).send({ provider: 'tavily', key: '' }).expect(200);
+    expect((await request(server).get(tools).set(readerAuth).expect(200)).body).toEqual({ webSearch: false, searchAvailable: false, miniApps: true });
   });
 
   it("lets the assistant search and read the web once it's on, for readers too, citing the pages it read", async () => {
@@ -67,7 +76,12 @@ describe('Web search for the assistant', () => {
     const off = await request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: model.id, instruction: 'Any news?' }).expect(200);
     expect(off.body.citedPages).toEqual([]);
 
-    await request(server).put(`/orgs/${orgId}/assistant-tools`).set(auth).send({ webSearch: true, searchProvider: 'brave', searchKey: 'test-search-key' }).expect(200);
+    await request(server)
+      .put('/site/search')
+      .set(await t.siteAdmin())
+      .send({ provider: 'brave', key: 'test-search-key' })
+      .expect(200);
+    await request(server).put(`/orgs/${orgId}/assistant-tools`).set(auth).send({ webSearch: true }).expect(200);
     const said: string[] = [];
     script = async (req) => {
       expect(req.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['web_search', 'fetch_page']));

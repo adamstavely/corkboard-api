@@ -48,41 +48,60 @@ describe('Model connections and the assistant', () => {
     return p;
   }
 
-  it('lets owners connect models, keeps keys to itself, and shows members the list', async () => {
+  it('lets only site admins connect models; owners switch them on; members see the list; keys never leave', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
     const grace = await memberOf(ada);
+    const admin = await t.siteAdmin();
 
-    const { body: claude } = await request(server)
-      .post(`/orgs/${ada.orgId}/models`)
-      .set(ada.auth)
-      .send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'sk-ant-secret' })
-      .expect(201);
+    // Nobody in a workspace, owner or not, connects a model: that's the site admins'.
+    await request(server).post('/site/models').set(ada.auth).send({ label: 'x', kind: 'anthropic', model: 'm' }).expect(403);
+    await request(server).get('/site/models').set(ada.auth).expect(403);
+    await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'x', kind: 'anthropic', model: 'm' }).expect(404);
+
+    const { body: claude } = await request(server).post('/site/models').set(admin).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'sk-ant-secret' }).expect(201);
     expect(claude).toMatchObject({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', baseUrl: null, hasKey: true });
     expect(JSON.stringify(claude)).not.toContain('sk-ant');
 
+    // Not on until the workspace's owner switches it on; only owners see the choices and switch them.
+    expect((await request(server).get(`/orgs/${ada.orgId}/models`).set(grace.auth).expect(200)).body).toEqual([]);
+    await request(server).get(`/orgs/${ada.orgId}/models/choices`).set(grace.auth).expect(403);
+    await request(server).put(`/orgs/${ada.orgId}/models/${claude.id}/enabled`).set(grace.auth).send({ enabled: true }).expect(403);
+    const choices = await request(server).get(`/orgs/${ada.orgId}/models/choices`).set(ada.auth).expect(200);
+    // Every site connection is offered (other tests' too: the site is shared); this one starts off.
+    expect(choices.body).toContainEqual(expect.objectContaining({ id: claude.id, enabled: false }));
+    await request(server).put(`/orgs/${ada.orgId}/models/${claude.id}/enabled`).set(ada.auth).send({ enabled: true }).expect(204);
     const listed = await request(server).get(`/orgs/${ada.orgId}/models`).set(grace.auth).expect(200);
     expect(listed.body.map((m: { label: string }) => m.label)).toEqual(['Claude']);
     expect(JSON.stringify(listed.body)).not.toContain('sk-ant');
 
-    await request(server).post(`/orgs/${ada.orgId}/models`).set(grace.auth).send({ label: 'x', kind: 'anthropic', model: 'm' }).expect(403);
-    await request(server).delete(`/orgs/${ada.orgId}/models/${claude.id}`).set(grace.auth).expect(403);
+    // The site admin isn't in the workspace, and being a site admin doesn't let them in, or even tell them it's there.
+    await request(server).get(`/orgs/${ada.orgId}/models`).set(admin).expect(404);
+    await request(server).get(`/orgs/${ada.orgId}/boards`).set(admin).expect(404);
+    await request(server).put(`/orgs/${ada.orgId}/models/${claude.id}/enabled`).set(admin).send({ enabled: false }).expect(404);
 
     // The key it decrypts for the model is the one entered.
     script = () => Promise.resolve('OK');
-    const test = await request(server).post(`/orgs/${ada.orgId}/models/${claude.id}/test`).set(ada.auth).expect(200);
+    const test = await request(server).post(`/site/models/${claude.id}/test`).set(admin).expect(200);
     expect(test.body).toMatchObject({ ok: true, status: 'healthy', message: 'OK' });
     expect(seen[0].apiKey).toBe('sk-ant-secret');
 
-    const updated = await request(server).patch(`/orgs/${ada.orgId}/models/${claude.id}`).set(ada.auth).send({ apiKey: '' }).expect(200);
+    const updated = await request(server).patch(`/site/models/${claude.id}`).set(admin).send({ apiKey: '' }).expect(200);
     expect(updated.body.hasKey).toBe(false);
-    await request(server).delete(`/orgs/${ada.orgId}/models/${claude.id}`).set(ada.auth).expect(204);
+    // Switched off, the workspace can't use it.
+    await request(server).put(`/orgs/${ada.orgId}/models/${claude.id}/enabled`).set(ada.auth).send({ enabled: false }).expect(204);
+    expect((await request(server).get(`/orgs/${ada.orgId}/models`).set(grace.auth).expect(200)).body).toEqual([]);
+    await request(server).delete(`/site/models/${claude.id}`).set(admin).expect(204);
   });
 
   it('checks the address of OpenAI-compatible servers', async () => {
     const server = t.app.getHttpServer();
-    const ada = await person();
-    const add = (body: object) => request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'L', kind: 'openai', model: 'llama3.3', ...body });
+    const admin = await t.siteAdmin();
+    const add = (body: object) =>
+      request(server)
+        .post('/site/models')
+        .set(admin)
+        .send({ label: 'L', kind: 'openai', model: 'llama3.3', ...body });
     await add({}).expect(400);
     await add({ baseUrl: 'not a url' }).expect(400);
     await add({ baseUrl: 'http://169.254.169.254/v1' }).expect(400);
@@ -93,16 +112,19 @@ describe('Model connections and the assistant', () => {
   it('reports a failing connection test in plain words', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'C', kind: 'anthropic', model: 'm', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'C', kind: 'anthropic', model: 'm', apiKey: 'k' });
     script = () => Promise.reject(new ModelError('C refused the API key.', 'auth'));
-    const test = await request(server).post(`/orgs/${ada.orgId}/models/${m.id}/test`).set(ada.auth).expect(200);
+    const test = await request(server)
+      .post(`/site/models/${m.id}/test`)
+      .set(await t.siteAdmin())
+      .expect(200);
     expect(test.body).toMatchObject({ ok: false, status: 'auth-failed', message: 'C refused the API key.' });
   });
 
   it('lets the model place notes on the value-vs-effort matrix', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Ideas' });
     const doc = new Y.Doc();
     const provider = await new Promise<HocuspocusProvider>((resolve) => {
@@ -125,7 +147,7 @@ describe('Model connections and the assistant', () => {
     const server = t.app.getHttpServer();
     const ada = await person();
     const grace = await memberOf(ada);
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Retro' });
 
     // Ada has the board open, with two notes on it.
@@ -149,7 +171,17 @@ describe('Model connections and the assistant', () => {
       .set(grace.auth)
       .send({ modelId: m.id, instruction: 'What should we do?', noteIds: [slow] })
       .expect(200);
-    expect(res.body).toEqual({ reply: 'Added an action and marked the slow deploys.', notesAdded: 1, notesChanged: 1, framesAdded: 0, notesMoved: 0, citedNoteIds: [], citedFiles: [], citedPages: [], suggestionId: null });
+    expect(res.body).toEqual({
+      reply: 'Added an action and marked the slow deploys.',
+      notesAdded: 1,
+      notesChanged: 1,
+      framesAdded: 0,
+      notesMoved: 0,
+      citedNoteIds: [],
+      citedFiles: [],
+      citedPages: [],
+      suggestionId: null,
+    });
 
     // The prompt had only the selection, as data, and the system prompt says it's data.
     const { req } = seen[0];
@@ -170,26 +202,48 @@ describe('Model connections and the assistant', () => {
   it('groups a retro into frames and writes action items in one, live on the open board', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Retro' });
 
     const doc = new Y.Doc();
     const ada$ = await new Promise<HocuspocusProvider>((resolve) => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: doc, onSynced: (): void => resolve(p) });
     });
-    const [slow, flaky, pairing] = addNotes(doc, ['Deploys are slow', 'Tests are flaky', 'Pairing went well'].map((text) => ({ text, color: 'yellow' as const })));
+    const [slow, flaky, pairing] = addNotes(
+      doc,
+      ['Deploys are slow', 'Tests are flaky', 'Pairing went well'].map((text) => ({ text, color: 'yellow' as const })),
+    );
 
     script = async (req) => {
-      await req.execute('group_into_frames', { groups: [{ title: 'Delivery', note_ids: [slow, flaky] }, { title: 'Team', note_ids: [pairing] }] });
+      await req.execute('group_into_frames', {
+        groups: [
+          { title: 'Delivery', note_ids: [slow, flaky] },
+          { title: 'Team', note_ids: [pairing] },
+        ],
+      });
       await req.execute('add_action_items', { items: [{ owner: 'Ada', action: 'Cache the build' }] });
       return 'Grouped into two themes and added one action.';
     };
     const res = await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Group this retro' }).expect(200);
-    expect(res.body).toEqual({ reply: 'Grouped into two themes and added one action.', notesAdded: 1, notesChanged: 0, framesAdded: 3, notesMoved: 3, citedNoteIds: [], citedFiles: [], citedPages: [], suggestionId: null });
+    expect(res.body).toEqual({
+      reply: 'Grouped into two themes and added one action.',
+      notesAdded: 1,
+      notesChanged: 0,
+      framesAdded: 3,
+      notesMoved: 3,
+      citedNoteIds: [],
+      citedFiles: [],
+      citedPages: [],
+      suggestionId: null,
+    });
     expect(seen[0].req.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(['group_into_frames', 'add_action_items']));
 
     for (let i = 0; i < 50 && framesOf(doc).length < 3; i++) await new Promise((r) => setTimeout(r, 50));
-    expect(framesOf(doc).map((f) => f.title).sort()).toEqual(['Action items', 'Delivery', 'Team']);
+    expect(
+      framesOf(doc)
+        .map((f) => f.title)
+        .sort(),
+    ).toEqual(['Action items', 'Delivery', 'Team']);
     const notes = notesOf(doc);
     expect(notes.find((n) => n.id === slow)!.frame).toBe('Delivery');
     expect(notes.find((n) => n.id === pairing)!.frame).toBe('Team');
@@ -206,21 +260,30 @@ describe('Model connections and the assistant', () => {
   it('lays a plan out as a timeline on the open board', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Plan' });
 
     const doc = new Y.Doc();
     const ada$ = await new Promise<HocuspocusProvider>((resolve) => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: doc, onSynced: (): void => resolve(p) });
     });
-    const [design, launch] = addNotes(doc, ['Design the beta', 'Launch'].map((text) => ({ text, color: 'yellow' as const })));
+    const [design, launch] = addNotes(
+      doc,
+      ['Design the beta', 'Launch'].map((text) => ({ text, color: 'yellow' as const })),
+    );
 
     script = async (req) => {
       expect(req.tools.map((tool) => tool.name)).toContain('make_timeline');
       await req.execute('make_timeline', {
         title: 'Beta plan',
         periods: [
-          { label: 'Week 1', items: [{ note_id: design, text: '' }, { note_id: '', text: 'Recruit testers' }] },
+          {
+            label: 'Week 1',
+            items: [
+              { note_id: design, text: '' },
+              { note_id: '', text: 'Recruit testers' },
+            ],
+          },
           { label: 'Week 2', items: [{ note_id: launch, text: '' }] },
         ],
       });
@@ -230,7 +293,11 @@ describe('Model connections and the assistant', () => {
     expect(res.body).toMatchObject({ notesAdded: 1, framesAdded: 3, notesMoved: 2 });
 
     for (let i = 0; i < 50 && framesOf(doc).length < 3; i++) await new Promise((r) => setTimeout(r, 50));
-    expect(framesOf(doc).map((f) => f.title).sort()).toEqual(['Beta plan', 'Week 1', 'Week 2']);
+    expect(
+      framesOf(doc)
+        .map((f) => f.title)
+        .sort(),
+    ).toEqual(['Beta plan', 'Week 1', 'Week 2']);
     const notes = notesOf(doc);
     expect(notes.find((n) => n.id === design)!.frame).toBe('Week 1');
     expect(notes.find((n) => n.text === 'Recruit testers')).toMatchObject({ frame: 'Week 1', color: 'blue' });
@@ -241,7 +308,7 @@ describe('Model connections and the assistant', () => {
   it('sets a board up from a prompt beside what is there, and puts work on the task board', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Launch' });
     const doc = new Y.Doc();
     const ada$ = await new Promise<HocuspocusProvider>((resolve) => {
@@ -267,7 +334,12 @@ describe('Model connections and the assistant', () => {
           arrows: [{ from: 'why', to: 'now' }],
         },
       });
-      await req.execute('add_tasks', { tasks: [{ title: 'Write release notes', owner: me.name.toUpperCase(), due: '2026-11-20', priority: 3, note_id: ship }, { title: 'Book the demo', owner: 'Zed' }] });
+      await req.execute('add_tasks', {
+        tasks: [
+          { title: 'Write release notes', owner: me.name.toUpperCase(), due: '2026-11-20', priority: 3, note_id: ship },
+          { title: 'Book the demo', owner: 'Zed' },
+        ],
+      });
       return 'Set up a pre-mortem and added two tasks.';
     };
     const res = await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Set up a pre-mortem for the launch' }).expect(200);
@@ -288,13 +360,13 @@ describe('Model connections and the assistant', () => {
     ada$.destroy();
   });
 
-  it("catches someone up on what others did while they were away, and says so when nothing happened", async () => {
+  it('catches someone up on what others did while they were away, and says so when nothing happened', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
     const grace = await person();
     const { body: invite } = await request(server).post(`/orgs/${ada.orgId}/invites`).set(ada.auth).send({ email: grace.email, role: 'updater' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(grace.auth).expect(201);
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Review' });
     const since = Date.now();
     const catchUp = () => request(server).post(`/boards/${board.id}/summary/catch-up`).set(ada.auth).send({ modelId: m.id, since });
@@ -320,10 +392,16 @@ describe('Model connections and the assistant', () => {
   it('maps a topic out as a mind map the board can grow', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Map' });
     script = async (req) => {
-      await req.execute('make_mind_map', { root: 'Launch', branches: [{ text: 'Marketing', children: [] }, { text: 'Engineering', children: [{ text: 'API', children: [] }] }] });
+      await req.execute('make_mind_map', {
+        root: 'Launch',
+        branches: [
+          { text: 'Marketing', children: [] },
+          { text: 'Engineering', children: [{ text: 'API', children: [] }] },
+        ],
+      });
       return 'Mapped it.';
     };
     const res = await request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction: 'Map out the launch' }).expect(200);
@@ -339,7 +417,7 @@ describe('Model connections and the assistant', () => {
   it('draws a diagram from Mermaid, sees it on the board, and rewrites it', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Flow' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
     const diagrams = async () => {
@@ -374,7 +452,7 @@ describe('Model connections and the assistant', () => {
   it('draws flowcharts as lanes and steps people can edit, says what to fix, and rewrites them in place', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Flow' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
     const nodes = async () => {
@@ -383,7 +461,8 @@ describe('Model connections and the assistant', () => {
       Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
       return [...doc.getMap<Y.Map<unknown>>('nodes').entries()];
     };
-    const flow = 'flowchart\n  subgraph lane_ada["Requester"]\n    ask(["Ask"])\n    done(["Approved"])\n  end\n  subgraph lane_bo["Approver"]\n    ok{"Approve"}\n  end\n  ask --> ok\n  ok -->|"Yes"| done';
+    const flow =
+      'flowchart\n  subgraph lane_ada["Requester"]\n    ask(["Ask"])\n    done(["Approved"])\n  end\n  subgraph lane_bo["Approver"]\n    ok{"Approve"}\n  end\n  ask --> ok\n  ok -->|"Yes"| done';
 
     let result = '';
     script = async (req) => {
@@ -402,7 +481,10 @@ describe('Model connections and the assistant', () => {
     let prompt = '';
     script = async (req) => {
       prompt = req.prompt;
-      result = await req.execute('change_diagram', { diagram_id: id, source: flow.replace('{"Approve"}', '{"Request OK?"}\n    no(["Declined"])').replace('ok -->|"Yes"| done', 'ok -->|"Yes"| done\n  ok -->|"No"| no') });
+      result = await req.execute('change_diagram', {
+        diagram_id: id,
+        source: flow.replace('{"Approve"}', '{"Request OK?"}\n    no(["Declined"])').replace('ok -->|"Yes"| done', 'ok -->|"Yes"| done\n  ok -->|"No"| no'),
+      });
       return 'Fixed it.';
     };
     await ask('Fix the flowchart');
@@ -417,10 +499,11 @@ describe('Model connections and the assistant', () => {
   it('draws use case diagrams people can edit, and lists them for the model as Mermaid', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Shop' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
-    const source = '%% @type usecase\nflowchart LR\n  customer["Customer"]\n  subgraph shop["Storefront"]\n    browse(["Browse Catalogue"])\n    checkout(["Check Out"])\n  end\n  customer --- browse\n  customer --- checkout';
+    const source =
+      '%% @type usecase\nflowchart LR\n  customer["Customer"]\n  subgraph shop["Storefront"]\n    browse(["Browse Catalogue"])\n    checkout(["Check Out"])\n  end\n  customer --- browse\n  customer --- checkout';
     let result = '';
     script = async (req) => {
       result = await req.execute('make_diagram', { source });
@@ -446,7 +529,7 @@ describe('Model connections and the assistant', () => {
   it('draws ER diagrams as tables people can edit, and lists them for the model as Mermaid', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Schema' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
     const source = 'erDiagram\n  customer {\n    uuid id PK\n  }\n  order {\n    uuid id PK\n    uuid customer_id FK\n  }\n  customer ||..o{ order : "places"';
@@ -475,7 +558,7 @@ describe('Model connections and the assistant', () => {
   it('draws sequence diagrams people can change in place, rewrites them, and lists them for the model as Mermaid', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Checkout' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
     const source = 'sequenceDiagram\n  actor customer as Customer\n  participant shop as Shop\n  customer->>shop: Place order\n  shop-->>customer: Order confirmed';
@@ -510,7 +593,7 @@ describe('Model connections and the assistant', () => {
   it('draws state machines people can edit, says what to fix, and rewrites them in place', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Order' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
     const source = 'stateDiagram-v2\n  [*] --> Placed\n  Placed --> Paid : payment received\n  Paid --> [*]\n  Lost';
@@ -546,7 +629,7 @@ describe('Model connections and the assistant', () => {
   it('draws BPMN processes people can edit from BPMN XML, and lists them for the model as BPMN', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Orders' });
     const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
     const source =
@@ -576,7 +659,7 @@ describe('Model connections and the assistant', () => {
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Plan' });
 
     // Ada writes a note and leaves.
@@ -600,7 +683,11 @@ describe('Model connections and the assistant', () => {
     const back$ = await new Promise<HocuspocusProvider>((resolve) => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: again, onSynced: (): void => resolve(p) });
     });
-    expect(framesOf(again).map((f) => f.title).sort()).toEqual(['Beta plan', 'Week 1']);
+    expect(
+      framesOf(again)
+        .map((f) => f.title)
+        .sort(),
+    ).toEqual(['Beta plan', 'Week 1']);
     expect(notesOf(again).find((n) => n.id === design)!.frame).toBe('Week 1');
     back$.destroy();
   });
@@ -608,14 +695,17 @@ describe('Model connections and the assistant', () => {
   it('answers about a region, points to the notes it means, and remembers the conversation', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Risks' });
 
     const doc = new Y.Doc();
     const ada$ = await new Promise<HocuspocusProvider>((resolve) => {
       const p: HocuspocusProvider = new HocuspocusProvider({ url: t.collabUrl, name: board.id, token: ada.auth.Authorization.slice(7), document: doc, onSynced: (): void => resolve(p) });
     });
-    const [vendor, budget, other] = addNotes(doc, ['Vendor may slip', 'Budget is tight', 'Lunch on Friday'].map((text) => ({ text, color: 'yellow' as const })));
+    const [vendor, budget, other] = addNotes(
+      doc,
+      ['Vendor may slip', 'Budget is tight', 'Lunch on Friday'].map((text) => ({ text, color: 'yellow' as const })),
+    );
 
     script = async (req) => {
       await req.execute('point_to_notes', { note_ids: [vendor, 'missing', vendor, budget] });
@@ -656,8 +746,8 @@ describe('Model connections and the assistant', () => {
     const server = t.app.getHttpServer();
     const ada = await person();
     const stranger = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'C', kind: 'anthropic', model: 'm', apiKey: 'k' });
-    const { body: theirs } = await request(server).post(`/orgs/${stranger.orgId}/models`).set(stranger.auth).send({ label: 'S', kind: 'anthropic', model: 'm', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'C', kind: 'anthropic', model: 'm', apiKey: 'k' });
+    const theirs = await t.model(stranger.orgId, stranger.auth, { label: 'S', kind: 'anthropic', model: 'm', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'B' });
 
     script = () => Promise.reject(new ModelError('C is rate-limiting requests. Try again in a minute.'));

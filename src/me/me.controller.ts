@@ -5,6 +5,7 @@ import { CurrentUser } from '../auth/current-user';
 import { InjectDb, type Db } from '../db/db.module';
 import { users, type User } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
+import { SiteAdmins } from '../site/site-admins';
 import { MeDto, UpdateMeDto } from './me.dto';
 
 @ApiTags('me')
@@ -14,6 +15,7 @@ export class MeController {
   constructor(
     private readonly orgs: OrgsService,
     @InjectDb() private readonly db: Db,
+    private readonly siteAdmins: SiteAdmins,
   ) {}
 
   @Get()
@@ -29,6 +31,6 @@ export class MeController {
   }
 
   async #dto(user: User): Promise<MeDto> {
-    return { id: user.id, name: user.name, email: user.email, orgs: await this.orgs.forUser(user.id), assistantAsksFirst: user.assistantAsksFirst };
+    return { id: user.id, name: user.name, email: user.email, orgs: await this.orgs.forUser(user.id), assistantAsksFirst: user.assistantAsksFirst, siteAdmin: this.siteAdmins.is(user) };
   }
 }

@@ -71,6 +71,8 @@ import { DbModule } from './db/db.module';
 import { HealthController } from './health/health.controller';
 import { MeController } from './me/me.controller';
 import { CHAT_MODELS, chatModelFor } from './models/chat-models';
+import { SiteModelsController } from './models/site-models.controller';
+import { SiteSearchController } from './web/site-search.controller';
 import { ProvidersController } from './models/providers.controller';
 import { ProvidersService } from './models/providers.service';
 import { SecretBox } from './models/secret-box';
@@ -88,8 +90,10 @@ import { SearchController } from './search/search.controller';
 import { SearchIndex } from './search/search-index';
 import { PoliciesController } from './policies/policies.controller';
 import { LogosController } from './logos/logos.controller';
+import { SiteLogosController } from './logos/site-logos.controller';
 import { ThemesController } from './themes/themes.controller';
 import { ThemesService } from './themes/themes.service';
+import { SiteAdmins } from './site/site-admins';
 import { LogosService } from './logos/logos.service';
 import { OembedController } from './embed/oembed.controller';
 import { noFraming } from './embed/no-framing';
@@ -129,6 +133,8 @@ import { RetentionService } from './policies/retention.service';
     SearchController,
     MembersController,
     ProvidersController,
+    SiteModelsController,
+    SiteSearchController,
     ToolsController,
     SuggestionsController,
     AppsController,
@@ -138,6 +144,7 @@ import { RetentionService } from './policies/retention.service';
     McpController,
     PoliciesController,
     LogosController,
+    SiteLogosController,
     ThemesController,
     OembedController,
   ],
@@ -190,6 +197,7 @@ import { RetentionService } from './policies/retention.service';
     PoliciesService,
     LogosService,
     ThemesService,
+    SiteAdmins,
     RetentionService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_PIPE, useValue: new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }) },

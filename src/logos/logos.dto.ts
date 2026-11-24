@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** A logo: its viewBox and its drawing, as plain SVG markup. */
 export class LogoDto {
@@ -15,6 +15,9 @@ export class LogoPackDto {
   licence?: string | null;
   @ApiProperty({ type: 'object', additionalProperties: { $ref: '#/components/schemas/LogoDto' } })
   logos!: Record<string, LogoDto>;
+  /** From the site's library (kept by Corkboard's site admins), rather than the workspace's own. */
+  site!: boolean;
+  updatedAt!: Date;
 }
 
 /** Logos to add to a pack (made if it's new), up to 2 MB a request: send a big pack in batches. */
@@ -27,6 +30,11 @@ export class AddLogosDto {
   @IsString()
   @MaxLength(20_000)
   licence?: string;
+  /** Start the pack afresh from this batch (a vendor's new download): send the first batch with it, the rest without. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  replace?: boolean;
 }
 
 /** A logo that wasn't kept, and why. */
