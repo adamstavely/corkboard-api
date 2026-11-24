@@ -442,6 +442,35 @@ describe('Model connections and the assistant', () => {
     expect(prompt).toContain('@type usecase');
   });
 
+  it('draws ER diagrams as tables people can edit, and lists them for the model as Mermaid', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Schema' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const source = 'erDiagram\n  customer {\n    uuid id PK\n  }\n  order {\n    uuid id PK\n    uuid customer_id FK\n  }\n  customer ||..o{ order : "places"';
+    let result = '';
+    script = async (req) => {
+      result = await req.execute('make_diagram', { source });
+      return 'Drew it.';
+    };
+    await ask('Draw the schema');
+    const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+    const nodes = [...doc.getMap<Y.Map<unknown>>('nodes').entries()];
+    const frame = nodes.find(([, n]) => (n.get('part') as { type?: string } | undefined)?.type === 'erd')!;
+    expect(result).toBe(`Drew the ER diagram (id ${frame[0]}) beside the board, as tables people can drag and edit.`);
+    expect(nodes.filter(([, n]) => n.get('kind') === 'entity')).toHaveLength(2);
+    let prompt = '';
+    script = (req) => {
+      prompt = req.prompt;
+      return Promise.resolve('Looked.');
+    };
+    await ask('What is on the board?');
+    expect(prompt).toContain('customer ||..o{ order');
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
