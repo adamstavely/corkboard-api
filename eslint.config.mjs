@@ -4,7 +4,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'coverage/', 'seed/data.js', 'openapi.json', '*.config.js', 'eslint.config.mjs', 'drizzle/', 'drizzle.config.ts'] },
+  { ignores: ['dist/', 'coverage/', 'seed/data.js', 'openapi.json', '*.config.js', 'eslint.config.mjs', 'drizzle/', 'drizzle.config.ts', 'src/diagrams/vendor/', 'scripts/vendor-diagrams.mjs'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
