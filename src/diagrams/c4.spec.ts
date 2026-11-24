@@ -68,7 +68,10 @@ describe('editable C4 diagrams (API)', () => {
     const checks = readC4Source(
       JSON.stringify({
         diagramType: 'c4',
-        groups: [{ id: 'a', name: 'A', kind: 'container' }, { id: 'sys', name: 'Sys', kind: 'system' }],
+        groups: [
+          { id: 'a', name: 'A', kind: 'container' },
+          { id: 'sys', name: 'Sys', kind: 'system' },
+        ],
         elements: [
           { id: 'x', kind: 'container', name: 'X', group: 'sys' },
           { id: 'y', kind: 'container', name: 'Y', group: 'sys' },
@@ -84,12 +87,53 @@ describe('editable C4 diagrams (API)', () => {
       }),
     ).checks.join('\n');
     expect(checks).toMatch(/"sys" is used twice/);
-    expect(checks).toMatch(/Group "a" is a container/);
+    expect(checks).toMatch(/The container "a" opens to components, so it sits in a system group/);
     expect(checks).toMatch(/External "z" is inside the system "sys"/);
     expect(checks).toMatch(/"lonely" has no relation/);
     expect(checks).toMatch(/no tech/);
     expect(checks).toMatch(/over 40 characters/);
     expect(checks).toMatch(/isn't an element/);
     expect(checks).toMatch(/has no label/);
+  });
+
+  it('takes all four levels: containers opened to components, components to their code, each where it belongs', () => {
+    const model = {
+      diagramType: 'c4',
+      groups: [
+        { id: 'platform', name: 'Platform', kind: 'system', collapsed: false },
+        { id: 'api', name: 'API', kind: 'container', parent: 'platform', collapsed: false },
+        { id: 'ordering', name: 'Ordering', kind: 'component', parent: 'api', collapsed: false },
+      ],
+      elements: [
+        { id: 'web', kind: 'container', name: 'Web App', tech: 'React', group: 'platform' },
+        { id: 'ctl', kind: 'component', name: 'Orders Controller', tech: 'REST', group: 'api' },
+        { id: 'svc', kind: 'code', name: 'OrderService', tech: 'class', description: '+place(cart): Order', group: 'ordering' },
+      ],
+      relations: [
+        { from: 'web', to: 'ctl', label: 'Calls', tech: 'JSON/HTTPS' },
+        { from: 'ctl', to: 'svc', label: 'Places orders' },
+      ],
+    };
+    expect(readC4Source(JSON.stringify(model)).checks).toEqual([]);
+    const misplaced = readC4Source(
+      JSON.stringify({
+        ...model,
+        elements: [
+          ...model.elements.slice(0, 1),
+          { id: 'ctl', kind: 'component', name: 'Orders Controller', group: 'platform' },
+          { id: 'svc', kind: 'code', name: 'OrderService', tech: 'thing', group: 'api' },
+        ],
+      }),
+    ).checks.join('\n');
+    expect(misplaced).toMatch(/component "ctl" belongs in a container group/);
+    expect(misplaced).toMatch(/code "svc" belongs in a component group/);
+    expect(misplaced).toMatch(/code "svc" says what it is/);
+    // Placed on the board, every level reads back, members a line each.
+    const doc = new Y.Doc();
+    const layout = layoutC4(readC4Source(JSON.stringify(model)).data);
+    const id = applyLayout(doc, layout, { x: 0, y: 0 }, 'assistant').get('diagram')!;
+    const back = readC4(doc, id)!;
+    expect(back.groups.map((g) => g.kind)).toEqual(expect.arrayContaining(['system', 'container', 'component']));
+    expect(back.elements.find((e) => e.id === 'svc')).toMatchObject({ kind: 'code', tech: 'class', description: '+place(cart): Order', group: 'ordering' });
   });
 });

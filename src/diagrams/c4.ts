@@ -19,7 +19,11 @@ const TOKENS = {
   },
 };
 
-export const C4_KINDS = ['person', 'system', 'container', 'database', 'queue', 'external'] as const;
+export const C4_KINDS = ['person', 'system', 'container', 'database', 'queue', 'external', 'component', 'code'] as const;
+/** A group's kind: who owns what (boundary), or a system, container or component opened to what's inside it (levels 2 to 4). */
+export const C4_GROUP_KINDS = ['boundary', 'system', 'container', 'component'] as const;
+/** What a piece of code is, at level 4. */
+const CODE_KINDS = ['class', 'interface', 'enum', 'record', 'function'];
 export interface C4Element {
   id: string;
   kind: string;
@@ -83,9 +87,9 @@ const PAD = 24;
 const TITLE = 56;
 const NOTE = { w: 220, h: 140, gap: 24 };
 const SLOT_COLOURS: NoteColor[] = ['blue', 'green', 'yellow', 'purple', 'pink', 'gray', 'blue', 'green', 'gray'];
-const KIND_COLOUR: Record<string, NoteColor> = { person: 'purple', system: 'blue', container: 'blue', component: 'blue', database: 'blue', queue: 'blue', external: 'gray' };
+const KIND_COLOUR: Record<string, NoteColor> = { person: 'purple', system: 'blue', container: 'blue', component: 'blue', database: 'blue', queue: 'blue', external: 'gray', code: 'green' };
 const KIND_SHAPE: Record<string, 'person' | 'rect' | 'cylinder' | 'queue'> = { person: 'person', database: 'cylinder', queue: 'queue' };
-const KIND_NAMES: Record<string, string> = { person: 'Person', system: 'Software System', container: 'Container', component: 'Component', database: 'Database', queue: 'Queue', external: 'External System' };
+const KIND_NAMES: Record<string, string> = { person: 'Person', system: 'Software System', container: 'Container', component: 'Component', database: 'Database', queue: 'Queue', external: 'External System', code: 'Code' };
 const colourOf = (e: { kind: string; color?: string }): NoteColor => (e.color && /^[1-9]$/.test(e.color) ? SLOT_COLOURS[Number(e.color) - 1] : (KIND_COLOUR[e.kind] ?? 'blue'));
 
 /** Whether text is a C4 diagram: the skill's JSON (diagramType "c4") or Mermaid C4. */
@@ -121,7 +125,8 @@ function readLabel(label: string): { name: string; tech?: string; description?: 
   const [name = '', ...rest] = label.split('\n');
   const bracket = rest.findIndex((l) => /^\[.*\]$/.test(l.trim()));
   const tech = bracket >= 0 ? /^\[[^:\]]*(?::\s*(.*))?\]$/.exec(rest[bracket].trim())?.[1] : undefined;
-  const description = rest.filter((_, i) => i !== bracket).join(' ').trim();
+  // A code element's members are a line each; other descriptions are one line.
+  const description = rest.filter((_, i) => i !== bracket).join('\n').trim();
   return { name: name.trim(), ...(tech ? { tech } : {}), ...(description ? { description } : {}) };
 }
 const relationLabel = (r: C4Relation) => `${r.label}${r.tech ? ` [${r.tech}]` : ''}`.slice(0, 200);
@@ -153,7 +158,7 @@ export function layoutC4(data: C4Data): Layout {
   for (const g of [...data.groups].sort((a, b) => depth(a) - depth(b))) {
     const box = { ...at(g.x, g.y), ...size(g.w, g.h) };
     groupBox.set(g.id, box);
-    const extra: Record<string, string | boolean> = { kind: g.kind === 'system' ? 'system' : 'boundary' };
+    const extra: Record<string, string | boolean> = { kind: (C4_GROUP_KINDS as readonly string[]).includes(g.kind) ? g.kind : 'boundary' };
     if (g._collapsed) extra['collapsed'] = true;
     if (g._hidden) extra['hidden'] = true;
     if (g.parent) extra['parent'] = g.parent;
@@ -247,7 +252,7 @@ export function readC4(doc: Y.Doc, diagramId: string): C4Data | null {
     return {
       id: g.part.key,
       name: str(g.node.get('title')),
-      kind: x['kind'] === 'system' ? 'system' : 'boundary',
+      kind: (C4_GROUP_KINDS as readonly unknown[]).includes(x['kind']) ? (x['kind'] as string) : 'boundary',
       ...(xs(x['parent']) ? { parent: xs(x['parent']) } : {}),
       collapsed: x['collapsed'] === true,
       ...(xs(x['color']) ? { color: xs(x['color']) } : {}),
@@ -326,7 +331,7 @@ export function rewriteC4(doc: Y.Doc, diagramId: string, data: C4Data, author = 
 
 // ── Checks ──────────────────────────────────────────────────────────────────
 
-const LIMITS = { label: 40, children: 12, visible: 80, depth: 2 };
+const LIMITS = { label: 40, children: 12, visible: 80, depth: 4 };
 
 /**
  * What's wrong with a C4 model, for the assistant to fix: the Ultimate Diagram skill's C4 audit and the checkable parts
@@ -339,7 +344,10 @@ export function c4Checks(data: C4Data): string[] {
   const groups = new Map(data.groups.map((g) => [g.id, g]));
   const elements = new Map(data.elements.map((e) => [e.id, e]));
   for (const g of data.groups) {
-    if (g.kind !== 'boundary' && g.kind !== 'system') out.push(`Group "${g.id}" is a ${g.kind}: use boundary or system (containers inside containers aren't drawn).`);
+    if (!(C4_GROUP_KINDS as readonly string[]).includes(g.kind)) out.push(`Group "${g.id}" is a ${g.kind}: use boundary, system, container or component.`);
+    const parentKind = g.parent ? groups.get(g.parent)?.kind : undefined;
+    if (g.kind === 'container' && parentKind !== 'system') out.push(`The container "${g.id}" opens to components, so it sits in a system group: give it "parent" the system's id.`);
+    if (g.kind === 'component' && parentKind !== 'container') out.push(`The component "${g.id}" opens to its code, so it sits in a container group: give it "parent" the container's id.`);
     if (g.parent && !groups.has(g.parent)) out.push(`Group "${g.id}" is inside "${g.parent}", which isn't a group.`);
     let depth = 0;
     for (let p = g.parent, seen = new Set([g.id]); p; p = groups.get(p)?.parent) {
@@ -355,7 +363,11 @@ export function c4Checks(data: C4Data): string[] {
     if (!g.collapsed && children > LIMITS.children) out.push(`Group "${g.id}" has ${children} things in it (at most ${LIMITS.children}): split it into smaller groups.`);
   }
   for (const e of data.elements) {
-    if (!(C4_KINDS as readonly string[]).includes(e.kind)) out.push(`Element "${e.id}" is a ${e.kind}: use person, system, container, database, queue or external.`);
+    if (!(C4_KINDS as readonly string[]).includes(e.kind)) out.push(`Element "${e.id}" is a ${e.kind}: use person, system, container, database, queue, external, component or code.`);
+    const home = e.group ? groups.get(e.group)?.kind : undefined;
+    if (e.kind === 'component' && home !== 'container') out.push(`The component "${e.id}" belongs in a container group (level 3): set its "group" to one.`);
+    if (e.kind === 'code' && home !== 'component') out.push(`The code "${e.id}" belongs in a component group (level 4): set its "group" to one.`);
+    if (e.kind === 'code' && !CODE_KINDS.includes((e.tech ?? '').toLowerCase())) out.push(`The code "${e.id}" says what it is in "tech": ${CODE_KINDS.join(', ')}.`);
     if (e.group && !groups.has(e.group)) out.push(`Element "${e.id}" is in group "${e.group}", which doesn't exist.`);
     if (e.kind === 'external' && e.group && groups.get(e.group)?.kind === 'system') out.push(`External "${e.id}" is inside the system "${e.group}": outside systems live outside it.`);
     if (!data.relations.some((r) => r.from === e.id || r.to === e.id)) out.push(`${e.kind === 'person' ? 'Person' : 'Element'} "${e.id}" has no relation: connect it or remove it.`);
