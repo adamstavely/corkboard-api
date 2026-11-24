@@ -4,6 +4,9 @@ import { agendaOf } from '../facilitation/facilitation-doc';
 import { nodeProblem } from '../collab/node-schema';
 import { applyLayout, layoutProblem, type Layout } from './layout';
 import { TEMPLATES, TEMPLATE_CATEGORIES, applyTemplate, previewOf } from './templates';
+import { FLOWCHART_TEMPLATES, LIBRARY_TEMPLATES } from './templates-library';
+import { flowchartMermaid, flowchartsOn } from '../diagrams/flowchart';
+import { readFlowchartSource } from '../diagrams/flowchart-checks';
 
 describe('board templates', () => {
   it.each(TEMPLATES.map((t) => [t.id, t] as const))('%s lays out cleanly', (_, template) => {
@@ -119,6 +122,20 @@ describe('board templates', () => {
       const [a, b] = shapes;
       expect(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h).toBe(true);
     }
+  });
+
+  it('draws its flowchart templates as editable flowcharts that keep to the diagram rules', () => {
+    for (const [name, source] of Object.entries(FLOWCHART_TEMPLATES)) {
+      const { data, checks } = readFlowchartSource(source);
+      expect([name, checks]).toEqual([name, []]);
+      expect(data.lanes.length).toBeGreaterThan(1);
+    }
+    const approval = LIBRARY_TEMPLATES.find((t) => t.id === 'approval-flow')!;
+    expect(layoutProblem(approval.layout)).toBeNull();
+    const doc = new Y.Doc();
+    const ids = applyLayout(doc, approval.layout, { x: 0, y: 0 });
+    expect(flowchartsOn(doc)).toEqual([ids.get('diagram')]);
+    expect(flowchartMermaid(doc, ids.get('diagram')!)).toContain('subgraph lane_finance');
   });
 
   it('refuses layouts the board cannot show', () => {

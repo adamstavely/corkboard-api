@@ -1,6 +1,6 @@
 import type { NoteColor } from '../assist/board-edit';
 import type { StepActivityDto } from '../facilitation/facilitation.dto';
-import type { ArrowDash, ArrowHead, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeFill, ShapeKind, TextSize } from './layout';
+import type { ArrowDash, ArrowHead, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, PartRole, ShapeFill, ShapeKind, TextSize } from './layout';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { type TemplateCategory } from './templates';
@@ -49,6 +49,19 @@ export class CreateBoardDto {
   template?: string;
 }
 
+/** A thing's part in the layout's editable diagram: the diagram's own frame, a lane, a step or a remark. */
+export class TemplatePartDto {
+  role!: PartRole;
+  /** Its id in the diagram's text (a Mermaid id). */
+  key!: string;
+  /** On the diagram: its kind (flowchart). On a step: its kind of step (task, decision, start…). */
+  type?: string;
+  /** On the diagram: which way it runs. */
+  dir?: 'LR' | 'TB';
+  /** On a step: the key of its lane. */
+  lane?: string;
+}
+
 export class TemplateFrameDto {
   key?: string;
   title!: string;
@@ -59,6 +72,7 @@ export class TemplateFrameDto {
   fill?: FrameFill;
   border?: FrameBorder;
   look?: FrameLook;
+  part?: TemplatePartDto;
 }
 
 export class TemplateNoteDto {
@@ -77,6 +91,7 @@ export class TemplateNoteDto {
   /** Its size, when not the usual one. */
   w?: number;
   h?: number;
+  part?: TemplatePartDto;
 }
 
 export class TemplateTextDto {
@@ -99,6 +114,7 @@ export class TemplateShapeDto {
   y!: number;
   w!: number;
   h!: number;
+  part?: TemplatePartDto;
 }
 
 export class TemplateTableDto {

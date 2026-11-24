@@ -2,6 +2,144 @@ import { type NoteColor } from '../assist/board-edit';
 import type { FrameFill, FrameLook, Layout } from './layout';
 import { area, columns, grid, headed, merge, shift } from './template-kit';
 import type { BoardTemplate } from './templates';
+import { layoutFlow, mainFlow, parseFlowchart } from '../diagrams/flowchart';
+
+/** An editable flowchart, laid out from Mermaid by the same engine the assistant uses. */
+function flowchart(source: string): Layout {
+  const parsed = parseFlowchart(source);
+  if ('error' in parsed) throw new Error(`A flowchart template can't be read: ${parsed.error}`);
+  return layoutFlow(mainFlow(parsed.data));
+}
+
+/** The flowchart templates' text, kept to the diagram skill's writing rules (and checked against them in tests). */
+export const FLOWCHART_TEMPLATES = {
+  approval: `---
+title: Approval flow
+---
+flowchart LR
+  subgraph lane_requester["Requester"]
+    need(["Need Identified"])
+    raise["Raise Request"]
+    revise["Revise Request"]
+    approved(["Request Approved"])
+    rejected(["Request Rejected"])
+  end
+  subgraph lane_manager["Manager"]
+    manager_ok{"Manager Approves?"}
+  end
+  subgraph lane_finance["Finance"]
+    over_limit{"Over Spending Limit?"}
+    finance_ok{"Finance Approves?"}
+  end
+  need --> raise --> manager_ok
+  manager_ok -->|"No"| revise
+  revise ==>|"Resubmit"| manager_ok
+  manager_ok -->|"Yes"| over_limit
+  over_limit -->|"No"| approved
+  over_limit -->|"Yes"| finance_ok
+  finance_ok -->|"Yes"| approved
+  finance_ok -->|"No"| rejected
+  n1>"Write your team's spending limit here"] -.- over_limit
+`,
+  order: `---
+title: Order to delivery
+---
+flowchart LR
+  subgraph lane_customer["Customer"]
+    ordered(["Order Placed"])
+    received(["Order Received"])
+    told(["Customer Notified"])
+  end
+  subgraph lane_shop["Shop"]
+    take_payment["Take Payment"]
+    paid{"Payment Cleared?"}
+    cancel["Cancel Order"]
+  end
+  subgraph lane_warehouse["Warehouse"]
+    in_stock{"In Stock?"}
+    pick["Pick Items"]
+    pack["Pack Parcel"]
+    backorder["Raise Backorder"]
+  end
+  subgraph lane_carrier["Carrier"]
+    collect["Collect Parcel"]
+    deliver["Deliver Parcel"]
+  end
+  ordered --> take_payment --> paid
+  paid -->|"No"| cancel --> told
+  paid -->|"Yes"| in_stock
+  in_stock -->|"Yes"| pick --> pack --> collect --> deliver --> received
+  in_stock -->|"No"| backorder --> told
+`,
+  incident: `---
+title: Incident response
+---
+flowchart LR
+  subgraph lane_monitoring["Monitoring"]
+    alert(["Alert Fires"])
+  end
+  subgraph lane_oncall["On-Call Engineer"]
+    ack["Acknowledge Alert"]
+    real{"Real Incident?"}
+    dismissed(["Alert Closed"])
+    mitigate["Apply Mitigation"]
+    restored{"Service Restored?"}
+  end
+  subgraph lane_lead["Incident Lead"]
+    declare["Declare Incident"]
+    escalate["Escalate To Specialists"]
+    review["Run Incident Review"]
+    resolved(["Incident Resolved"])
+  end
+  subgraph lane_comms["Communications"]
+    status["Post Status Update"]
+    informed(["Customers Informed"])
+  end
+  alert --> ack --> real
+  real -->|"No"| dismissed
+  real -->|"Yes"| declare
+  declare --> status --> informed
+  declare --> mitigate --> restored
+  restored -->|"No"| escalate
+  escalate ==>|"Try again"| mitigate
+  restored -->|"Yes"| review --> resolved
+  n1>"Within 15 minutes of the alert"] -.- ack
+`,
+  hiring: `---
+title: Hiring process
+---
+flowchart LR
+  subgraph lane_manager["Hiring Manager"]
+    role(["Role Approved"])
+    write_spec["Write Job Description"]
+    decide{"Make An Offer?"}
+  end
+  subgraph lane_recruiter["Recruiter"]
+    advertise["Advertise Role"]
+    screen{"Passes Screening?"}
+    offer["Send Offer"]
+    decline["Send Decline"]
+  end
+  subgraph lane_candidate["Candidate"]
+    apply["Submit Application"]
+    accept{"Accepts Offer?"}
+    hired(["Candidate Hired"])
+    not_hired(["Not Hired"])
+  end
+  subgraph lane_panel["Interview Panel"]
+    interview["Hold Interviews"]
+    scorecards["Write Scorecards"]
+  end
+  role --> write_spec --> advertise --> apply --> screen
+  screen -->|"Yes"| interview --> scorecards --> decide
+  screen -->|"No"| decline
+  decide -->|"Yes"| offer --> accept
+  decide -->|"No"| decline
+  accept -->|"Yes"| hired
+  accept -->|"No"| not_hired
+  decline --> not_hired
+`,
+};
 
 type Hinted = { title: string; hint: string; color?: NoteColor; fill?: FrameFill; look?: FrameLook };
 
@@ -463,6 +601,30 @@ const IDEATE: BoardTemplate[] = [
 ];
 
 const PLAN: BoardTemplate[] = [
+  {
+    id: 'approval-flow',
+    name: 'Approval flow',
+    description: 'A swimlane flowchart of who approves what: drag steps between lanes and it tidies itself.',
+    category: 'plan',
+    agenda: [
+      { title: 'Walk through the flow', minutes: 5 },
+      { title: 'Fix the steps and who does them', minutes: 10 },
+      { title: 'Agree the thresholds', minutes: 5 },
+    ],
+    layout: flowchart(FLOWCHART_TEMPLATES.approval),
+  },
+  {
+    id: 'incident-response-flow',
+    name: 'Incident response flow',
+    description: 'From alert to review: an editable swimlane flowchart of who does what when something breaks.',
+    category: 'plan',
+    agenda: [
+      { title: 'Walk through the last incident', minutes: 10 },
+      { title: 'Change the flow to match', minutes: 10 },
+      { title: 'Agree the response times', minutes: 5 },
+    ],
+    layout: flowchart(FLOWCHART_TEMPLATES.incident),
+  },
   {
     id: 'sprint-planning',
     name: 'Sprint planning',
@@ -1022,6 +1184,18 @@ function venn3(names: [string, string, string], regions: string[]): Layout {
 
 const ANALYSE: BoardTemplate[] = [
   {
+    id: 'order-to-delivery',
+    name: 'Process map: order to delivery',
+    description: 'Map a process across teams as an editable swimlane flowchart, then mark where it slows down.',
+    category: 'analyse',
+    agenda: [
+      { title: 'Map the steps as they happen today', minutes: 15 },
+      { title: 'Mark the delays and hand-offs', minutes: 10, activity: { kind: 'writing', anonymous: false } },
+      { title: 'Pick what to change', minutes: 10 },
+    ],
+    layout: flowchart(FLOWCHART_TEMPLATES.order),
+  },
+  {
     id: 'venn-two',
     name: 'Venn diagram: two sets',
     description: 'Compare two things: what only each has, and what they share in the middle.',
@@ -1241,6 +1415,18 @@ const ANALYSE: BoardTemplate[] = [
 ];
 
 const TEAM: BoardTemplate[] = [
+  {
+    id: 'hiring-process',
+    name: 'Hiring process',
+    description: 'Who does what from approved role to hire, as an editable swimlane flowchart.',
+    category: 'team',
+    agenda: [
+      { title: 'Walk through the process', minutes: 5 },
+      { title: 'Fix the steps and owners', minutes: 10 },
+      { title: 'Agree how long each step takes', minutes: 5 },
+    ],
+    layout: flowchart(FLOWCHART_TEMPLATES.hiring),
+  },
   {
     id: 'ikigai',
     name: 'Ikigai',

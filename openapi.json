@@ -8628,6 +8628,44 @@
           "h"
         ]
       },
+      "TemplatePartDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "note",
+              "diagram",
+              "lane",
+              "step"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "description": "Its id in the diagram's text (a Mermaid id)."
+          },
+          "type": {
+            "type": "string",
+            "description": "On the diagram: its kind (flowchart). On a step: its kind of step (task, decision, start…)."
+          },
+          "dir": {
+            "type": "string",
+            "description": "On the diagram: which way it runs.",
+            "enum": [
+              "LR",
+              "TB"
+            ]
+          },
+          "lane": {
+            "type": "string",
+            "description": "On a step: the key of its lane."
+          }
+        },
+        "required": [
+          "role",
+          "key"
+        ]
+      },
       "TemplateFrameDto": {
         "type": "object",
         "properties": {
@@ -8683,6 +8721,9 @@
               "slide",
               "browser"
             ]
+          },
+          "part": {
+            "$ref": "#/components/schemas/TemplatePartDto"
           }
         },
         "required": [
@@ -8734,6 +8775,9 @@
           },
           "h": {
             "type": "number"
+          },
+          "part": {
+            "$ref": "#/components/schemas/TemplatePartDto"
           }
         },
         "required": [
@@ -8835,6 +8879,9 @@
           },
           "h": {
             "type": "number"
+          },
+          "part": {
+            "$ref": "#/components/schemas/TemplatePartDto"
           }
         },
         "required": [
