@@ -543,6 +543,36 @@ describe('Model connections and the assistant', () => {
     expect((await frames()).nodes.filter(([, n]) => n.get('shape') === 'rounded')).toHaveLength(2);
   });
 
+  it('draws BPMN processes people can edit from BPMN XML, and lists them for the model as BPMN', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Orders' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const source =
+      '<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p"><startEvent id="s" /><userTask id="t" name="Check order" /><endEvent id="e" /><sequenceFlow id="f1" sourceRef="s" targetRef="t" /><sequenceFlow id="f2" sourceRef="t" targetRef="e" /></process></definitions>';
+    let result = '';
+    script = async (req) => {
+      result = await req.execute('make_diagram', { source });
+      return 'Drew it.';
+    };
+    await ask('Draw the order process');
+    const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+    const doc = new Y.Doc();
+    Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+    const nodes = [...doc.getMap<Y.Map<unknown>>('nodes').entries()];
+    const diagram = nodes.find(([, n]) => (n.get('part') as { type?: string } | undefined)?.type === 'bpmn')!;
+    expect(result).toBe(`Drew the BPMN process (id ${diagram[0]}) beside the board, as events, activities and gateways people can drag and edit.`);
+    expect(nodes.find(([, n]) => n.get('label') === 'Check order')?.[1].get('icon')).toBe('bpmn-user');
+    let prompt = '';
+    script = (req) => {
+      prompt = req.prompt;
+      return Promise.resolve('Looked.');
+    };
+    await ask('What is on the board?');
+    expect(prompt).toContain('userTask id=\\"t\\" name=\\"Check order\\"');
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
