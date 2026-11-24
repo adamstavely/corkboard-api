@@ -239,6 +239,13 @@
       "when": 1795322352820,
       "tag": "0033_board_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795547175858,
+      "tag": "0034_logo_packs",
+      "breakpoints": true
     }
   ]
 }

@@ -6392,6 +6392,136 @@
         ]
       }
     },
+    "/orgs/{orgId}/logo-packs": {
+      "get": {
+        "operationId": "LogosController_list",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LogoPackDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone in the workspace: its logo packs, for diagrams.",
+        "tags": [
+          "logos"
+        ]
+      }
+    },
+    "/orgs/{orgId}/logo-packs/{name}/logos": {
+      "post": {
+        "operationId": "LogosController_add",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLogosDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddedLogosDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: add logos to a pack (made if it's new), from a vendor's own icon download. Each logo is checked\nand kept as plain SVG drawing; any that isn't is refused, with why. Send a big pack in batches of up to 2 MB.",
+        "tags": [
+          "logos"
+        ]
+      }
+    },
+    "/orgs/{orgId}/logo-packs/{name}": {
+      "delete": {
+        "operationId": "LogosController_remove",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: remove a logo pack. Shapes using its logos show none.",
+        "tags": [
+          "logos"
+        ]
+      }
+    },
     "/oembed": {
       "get": {
         "operationId": "OembedController_oembed",
@@ -11682,6 +11812,104 @@
           "feedback",
           "embeds",
           "linkPassword"
+        ]
+      },
+      "LogoDto": {
+        "type": "object",
+        "properties": {
+          "vb": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vb",
+          "body"
+        ]
+      },
+      "LogoPackDto": {
+        "type": "object",
+        "properties": {
+          "logos": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LogoDto"
+            }
+          },
+          "name": {
+            "type": "string",
+            "description": "The `<pack>` in `logo:<pack>/<logo>`."
+          },
+          "licence": {
+            "type": "string",
+            "nullable": true,
+            "description": "The vendor's terms, as given with its download."
+          }
+        },
+        "required": [
+          "logos",
+          "name"
+        ]
+      },
+      "AddLogosDto": {
+        "type": "object",
+        "properties": {
+          "logos": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LogoDto"
+            }
+          },
+          "licence": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "required": [
+          "logos"
+        ]
+      },
+      "RefusedLogoDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reason"
+        ]
+      },
+      "AddedLogosDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "added": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "refused": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefusedLogoDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "added",
+          "total",
+          "refused"
         ]
       },
       "OembedDto": {

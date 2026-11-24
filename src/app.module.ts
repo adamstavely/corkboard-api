@@ -87,6 +87,8 @@ import { OrgsService } from './orgs/orgs.service';
 import { SearchController } from './search/search.controller';
 import { SearchIndex } from './search/search-index';
 import { PoliciesController } from './policies/policies.controller';
+import { LogosController } from './logos/logos.controller';
+import { LogosService } from './logos/logos.service';
 import { OembedController } from './embed/oembed.controller';
 import { noFraming } from './embed/no-framing';
 import { PoliciesService } from './policies/policies.service';
@@ -133,6 +135,7 @@ import { RetentionService } from './policies/retention.service';
     AgentsController,
     McpController,
     PoliciesController,
+    LogosController,
     OembedController,
   ],
   providers: [
@@ -182,6 +185,7 @@ import { RetentionService } from './policies/retention.service';
     TokensService,
     AgentsService,
     PoliciesService,
+    LogosService,
     RetentionService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_PIPE, useValue: new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }) },
