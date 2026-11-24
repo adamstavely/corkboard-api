@@ -21,7 +21,7 @@ import { WEB, type Web } from '../web/web';
 import { Draft, propose, suggestionFrom } from '../suggestions/suggestions-doc';
 import { appNodes, appsOn, placeApp, showAppVersion } from '../apps/app-node';
 import { diagramProblem, diagramsOn, placeDiagram, setDiagramSource } from './diagram-node';
-import { flowchartMermaid, flowchartsOn, hasPicturesOrLinks, isFlowchartSource, layoutFlow, rewriteFlowchart } from '../diagrams/flowchart';
+import { flowchartMermaid, flowchartsOn, hasPicturesOrLinks, isFlowchartSource, layoutFlow, mainFlow, placeSubprocesses, rewriteFlowchartTree } from '../diagrams/flowchart';
 import { checkNote, readFlowchartSource } from '../diagrams/flowchart-checks';
 import { AppsService, htmlProblem } from '../apps/apps.service';
 import {
@@ -702,11 +702,14 @@ export class AssistService {
           // on its steps stays a drawing, which shows them.
           if (isFlowchartSource(args['source'] as string) && !hasPicturesOrLinks(args['source'] as string)) {
             const { data, checks } = readFlowchartSource(args['source'] as string);
-            const layout = layoutFlow(data);
+            const layout = layoutFlow(mainFlow(data));
             const layoutTrouble = layoutProblem(layout);
             if (layoutTrouble) throw new Error(`The flowchart can't go on the board: ${layoutTrouble}.`);
             let id = '';
-            await edit((d) => (id = placeBeside(d, layout).ids.get('diagram') ?? ''));
+            await edit((d) => {
+              id = placeBeside(d, layout).ids.get('diagram') ?? '';
+              if (id) placeSubprocesses(d, id, data);
+            });
             diagramsMade++;
             return `Drew the flowchart (id ${id}) beside the board, as lanes and steps people can drag and edit.${checkNote(checks)}`;
           }
@@ -723,7 +726,7 @@ export class AssistService {
           if (flowchartsOn(doc).includes(id)) {
             if (!isFlowchartSource(args['source'] as string)) throw new Error('That diagram is an editable flowchart: rewrite it as a flowchart.');
             const { data, checks } = readFlowchartSource(args['source'] as string);
-            await edit((d) => rewriteFlowchart(d, id, data));
+            await edit((d) => rewriteFlowchartTree(d, id, data));
             diagramsChanged++;
             return `Rewrote the flowchart.${checkNote(checks)}`;
           }
@@ -799,7 +802,7 @@ export class AssistService {
 
       const { text } = await model.chat({
         system: !canEdit ? `${SYSTEM}\n\n${READ_ONLY}` : proposing ? `${SYSTEM}\n\n${PROPOSING}` : SYSTEM,
-        prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? [], appsOn(doc), [...diagramsOn(doc), ...flowchartsOn(doc).map((id) => ({ id, source: flowchartMermaid(doc, id) ?? '' }))]),
+        prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? [], appsOn(doc), [...diagramsOn(doc), ...flowchartsOn(doc, true).map((id) => ({ id, source: flowchartMermaid(doc, id) ?? '' }))]),
         tools,
         execute,
         maxSteps: 8,

@@ -46,6 +46,13 @@ export interface Part {
   key: string;
   type?: string;
   dir?: 'LR' | 'TB';
+  /** On the diagram: false when Auto-Tidy is off. */
+  auto?: boolean;
+  /** On a step: the key of its lane. */
+  lane?: string;
+  /** On a sub-process step: its flowchart's id. On a sub-process flowchart: the flowchart it belongs to. */
+  sub?: string;
+  parent?: string;
 }
 /** A thing's part in a layout's one diagram: the frame with role 'diagram' gets the diagram's id when it's placed. */
 export type LayoutPart = Omit<Part, 'of'>;
@@ -61,6 +68,10 @@ export function partOf(value: unknown): Part | null {
     key: p['key'],
     ...(typeof p['type'] === 'string' && p['type'].length <= 40 ? { type: p['type'] } : {}),
     ...(p['dir'] === 'LR' || p['dir'] === 'TB' ? { dir: p['dir'] } : {}),
+    ...(p['auto'] === false ? { auto: false } : {}),
+    ...(typeof p['lane'] === 'string' && p['lane'].length <= 200 ? { lane: p['lane'] } : {}),
+    ...(typeof p['sub'] === 'string' && p['sub'].length <= 64 ? { sub: p['sub'] } : {}),
+    ...(typeof p['parent'] === 'string' && p['parent'].length <= 64 ? { parent: p['parent'] } : {}),
   };
 }
 
