@@ -8,6 +8,8 @@ import { buildOpenApi } from './openapi';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
+  // Up to 2 MB of JSON: a workspace's logo pack goes up in batches that size.
+  app.useBodyParser('json', { limit: '2mb' });
   app.enableShutdownHooks();
   SwaggerModule.setup('docs', app, buildOpenApi(app), { jsonDocumentUrl: 'docs/openapi.json' });
   await app.listen(config.getOrThrow<number>('port'));

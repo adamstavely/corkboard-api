@@ -747,3 +747,27 @@ export const workspacePolicies = pgTable('workspace_policies', {
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * A workspace's own logo pack for diagrams, made from a vendor's icon download (AWS, Azure, Google Cloud…) and kept as
+ * plain, checked SVG drawings by name. Shapes show them as `logo:<pack>/<logo>`.
+ */
+export const logoPacks = pgTable(
+  'logo_packs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    /** Lower case and hyphens: the `<pack>` in `logo:<pack>/<logo>`. */
+    name: text('name').notNull(),
+    /** Logo name → its viewBox and drawing. */
+    logos: jsonb('logos').$type<Record<string, { vb: string; body: string }>>().notNull().default({}),
+    /** The vendor's terms, as given with its download, kept with the pack. */
+    licence: text('licence'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('logo_packs_org_name').on(t.orgId, t.name)],
+);
+export type LogoPack = typeof logoPacks.$inferSelect;
