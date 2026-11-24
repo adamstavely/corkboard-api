@@ -433,9 +433,9 @@ describe('Model connections and the assistant', () => {
     expect(frame).toBeDefined();
     expect(result).toBe(`Drew the use case diagram (id ${frame![0]}) beside the board, as actors and use cases people can drag and edit.`);
     let prompt = '';
-    script = async (req) => {
+    script = (req) => {
       prompt = req.prompt;
-      return 'Looked.';
+      return Promise.resolve('Looked.');
     };
     await ask('What is on the board?');
     expect(prompt).toContain(`"diagrams":[{"id":"${frame![0]}","source":"`);

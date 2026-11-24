@@ -8846,7 +8846,9 @@
               "parallelogram",
               "delay",
               "subprocess",
-              "actor"
+              "actor",
+              "person",
+              "queue"
             ]
           },
           "color": {
