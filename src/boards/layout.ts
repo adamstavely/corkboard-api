@@ -8,7 +8,7 @@ export const FRAME_FILLS = ['clear', 'solid', ...NOTE_COLORS] as const;
 export const FRAME_BORDERS = ['solid', 'dashed', 'none'] as const;
 /** A frame's shape: outlined (as frames always were), a card, a header band, a folder tab, a soft zone, a drop zone, a lane, a 16:9 slide or a browser window. */
 export const FRAME_LOOKS = ['outline', 'card', 'band', 'tab', 'zone', 'drop', 'lane', 'slide', 'browser'] as const;
-export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout'] as const;
+export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout', 'pill', 'parallelogram', 'document', 'delay', 'subprocess'] as const;
 /** A shape's fill: solid (as shapes always were), or a see-through tint that lies under notes, so overlapping shapes (a Venn diagram) show where they meet. */
 export const SHAPE_FILLS = ['solid', 'tint'] as const;
 export const TEXT_SIZES = { sm: 14, md: 20, lg: 32, xl: 48 } as const;
@@ -33,20 +33,51 @@ export type ArrowDash = (typeof ARROW_DASHES)[number];
 export type ArrowHead = (typeof ARROW_HEADS)[number];
 export type BoardView = (typeof BOARD_VIEWS)[number];
 
+/** The roles a thing plays in an editable diagram (corkboard-ui's board-doc.ts Part): the diagram's own frame, a lane, a step, a remark. */
+export const PART_ROLES = ['diagram', 'lane', 'step', 'note'] as const;
+export type PartRole = (typeof PART_ROLES)[number];
+/**
+ * A thing's place in an editable diagram: the diagram (its outer frame's id), its role, its id in the diagram's text, and
+ * on the diagram its kind and direction, on a step its kind of step.
+ */
+export interface Part {
+  of: string;
+  role: PartRole;
+  key: string;
+  type?: string;
+  dir?: 'LR' | 'TB';
+}
+/** A thing's part in a layout's one diagram: the frame with role 'diagram' gets the diagram's id when it's placed. */
+export type LayoutPart = Omit<Part, 'of'>;
+
+/** A part as stored, or null if it's malformed. */
+export function partOf(value: unknown): Part | null {
+  if (!value || typeof value !== 'object') return null;
+  const p = value as Record<string, unknown>;
+  if (typeof p['of'] !== 'string' || !p['of'] || typeof p['key'] !== 'string' || p['key'].length > 200 || !(PART_ROLES as readonly unknown[]).includes(p['role'])) return null;
+  return {
+    of: p['of'],
+    role: p['role'] as PartRole,
+    key: p['key'],
+    ...(typeof p['type'] === 'string' && p['type'].length <= 40 ? { type: p['type'] } : {}),
+    ...(p['dir'] === 'LR' || p['dir'] === 'TB' ? { dir: p['dir'] } : {}),
+  };
+}
+
 /**
  * A board's worth of things to lay out, in board pixels from the layout's top-left corner. Anything with a `key` can be
  * an arrow's end. Frames go under everything else, in the order given; the rest goes on top in the order of the lists.
  */
 export interface Layout {
-  frames?: { key?: string; title: string; x: number; y: number; w: number; h: number; fill?: FrameFill; border?: FrameBorder; look?: FrameLook }[];
+  frames?: { key?: string; title: string; x: number; y: number; w: number; h: number; fill?: FrameFill; border?: FrameBorder; look?: FrameLook; part?: LayoutPart }[];
   /**
    * A line of text is a paragraph, and `**Bold:**` at a line's start is bold. A saved board's notes also keep their rich
    * text (lists, code, maths, marks), used instead of `text` when given, and their size, else the usual size.
    */
-  notes?: { key?: string; text: string; rich?: RichNode[]; color?: NoteColor; x: number; y: number; w?: number; h?: number }[];
+  notes?: { key?: string; text: string; rich?: RichNode[]; color?: NoteColor; x: number; y: number; w?: number; h?: number; part?: LayoutPart }[];
   texts?: { key?: string; text: string; size?: TextSize; x: number; y: number; w?: number }[];
   /** Tinted shapes go under the notes (above the frames); solid ones on top with the rest. */
-  shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; fill?: ShapeFill; label?: string; x: number; y: number; w: number; h: number }[];
+  shapes?: { key?: string; shape: ShapeKind; color?: NoteColor; fill?: ShapeFill; label?: string; x: number; y: number; w: number; h: number; part?: LayoutPart }[];
   /** `cells[row][col]`; a table's rows and columns are as many as its cells say, or `rows`/`cols` if more. */
   tables?: { key?: string; x: number; y: number; rows?: number; cols?: number; cells: string[][]; colWidth?: number }[];
   views?: { key?: string; view: BoardView; x: number; y: number }[];
@@ -129,6 +160,11 @@ export function layoutProblem(layout: Layout): string | null {
       return 'an arrow style the board does not have';
     if (a.label !== undefined && (typeof a.label !== 'string' || a.label.length > MAX_ARROW_LABEL)) return 'an arrow label that is too long';
   }
+  // Parts: one diagram at most, and parts only with one.
+  const parts = [...(layout.frames ?? []), ...(layout.notes ?? []), ...(layout.shapes ?? [])].flatMap((t) => (t.part ? [t.part] : []));
+  if (parts.some((p) => !partOf({ ...p, of: 'diagram' }))) return 'a diagram part the board does not have';
+  const diagrams = (layout.frames ?? []).filter((f) => f.part?.role === 'diagram').length;
+  if (diagrams > 1 || (parts.length && !diagrams)) return 'a layout holds at most one diagram, and its parts need it';
   return null;
 }
 
@@ -157,6 +193,9 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
   const pos = (p: { x: number; y: number }) => ({ x: Math.round(at.x + p.x), y: Math.round(at.y + p.y) });
   doc.transact(() => {
     let z = topZ(doc);
+    // A diagram's parts name its frame, once everything is placed.
+    const parts: { id: string; part: LayoutPart }[] = [];
+    const tag = (id: string, part: LayoutPart | undefined) => part && parts.push({ id, part });
     for (const f of layout.frames ?? []) {
       // A slide is always 16:9.
       const id = newFrame(doc, f.title, { ...pos(f), w: f.w, h: f.look === 'slide' ? (f.w * 9) / 16 : f.h }, ++z, author);
@@ -165,14 +204,18 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
       if (f.border) node.set('border', f.border);
       if (f.look) node.set('look', f.look);
       keep(f.key, id);
+      tag(id, f.part);
     }
-    const shape = (s: NonNullable<Layout['shapes']>[number]) =>
-      keep(s.key, newItem(doc, 'shape', { ...pos(s), w: s.w, h: s.h }, ++z, author, (n) => {
+    const shape = (s: NonNullable<Layout['shapes']>[number]) => {
+      const id = newItem(doc, 'shape', { ...pos(s), w: s.w, h: s.h }, ++z, author, (n) => {
         n.set('shape', s.shape);
         n.set('color', s.color ?? 'blue');
         n.set('label', s.label ?? '');
         if (s.fill === 'tint') n.set('fill', 'tint');
-      }));
+      });
+      keep(s.key, id);
+      tag(id, s.part);
+    };
     for (const s of layout.shapes ?? []) if (s.fill === 'tint') shape(s);
     for (const n of layout.notes ?? []) {
       const id = newNote(doc, { text: n.rich ? '' : n.text, color: n.color ?? 'yellow' }, pos(n), ++z, author);
@@ -185,6 +228,7 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
         fragment.insert(0, richNodes(n.rich));
       }
       keep(n.key, id);
+      tag(id, n.part);
     }
     for (const t of layout.texts ?? []) {
       const size = t.size ?? 'md';
@@ -218,6 +262,8 @@ export function applyLayout(doc: Y.Doc, layout: Layout, at: { x: number; y: numb
       if (a.label?.trim()) node.set('label', a.label.trim());
       doc.getMap<Y.Map<unknown>>('nodes').set(randomUUID(), node);
     }
+    const diagram = parts.find((p) => p.part.role === 'diagram')?.id;
+    if (diagram) for (const { id, part } of parts) doc.getMap<Y.Map<unknown>>('nodes').get(id)?.set('part', { ...part, of: diagram });
   });
   return ids;
 }

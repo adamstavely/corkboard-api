@@ -8785,6 +8785,7 @@
           "shape": {
             "type": "string",
             "enum": [
+              "document",
               "rect",
               "ellipse",
               "diamond",
@@ -8794,7 +8795,11 @@
               "arrow",
               "cylinder",
               "cloud",
-              "callout"
+              "callout",
+              "pill",
+              "parallelogram",
+              "delay",
+              "subprocess"
             ]
           },
           "color": {

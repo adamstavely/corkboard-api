@@ -351,23 +351,66 @@ describe('Model connections and the assistant', () => {
     let refused = '';
     script = async (req) => {
       refused = await req.execute('make_diagram', { source: 'architecture-beta\n  service db(database)[DB]' }).catch((e: Error) => e.message);
-      await req.execute('make_diagram', { source: 'flowchart TD\n  a[Ask] --> b{Approve?}' });
+      await req.execute('make_diagram', { source: 'sequenceDiagram\n  Ada->>Bo: Approve?' });
       return 'Drew it.';
     };
     await ask('Draw the approval flow');
     expect(refused).toMatch(/Start the text/);
     const [drawn] = await diagrams();
-    expect(drawn.source).toBe('flowchart TD\n  a[Ask] --> b{Approve?}');
+    expect(drawn.source).toBe('sequenceDiagram\n  Ada->>Bo: Approve?');
 
     let prompt = '';
     script = async (req) => {
       prompt = req.prompt;
-      await req.execute('change_diagram', { diagram_id: drawn.id, source: 'flowchart LR\n  a[Ask] --> b{Approve?} --> c[Ship]' });
-      return 'Added shipping.';
+      await req.execute('change_diagram', { diagram_id: drawn.id, source: 'sequenceDiagram\n  Ada->>Bo: Approve?\n  Bo-->>Ada: Yes' });
+      return 'Added the answer.';
     };
-    await ask('Add shipping to the diagram');
+    await ask('Add the answer to the diagram');
     expect(prompt).toContain('"diagrams":[{"id":"' + drawn.id);
-    expect((await diagrams())[0].source).toContain('c[Ship]');
+    expect((await diagrams())[0].source).toContain('Bo-->>Ada: Yes');
+  });
+
+  it('draws flowcharts as lanes and steps people can edit, says what to fix, and rewrites them in place', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Flow' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const nodes = async () => {
+      const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+      return [...doc.getMap<Y.Map<unknown>>('nodes').entries()];
+    };
+    const flow = 'flowchart\n  subgraph lane_ada["Requester"]\n    ask(["Ask"])\n    done(["Approved"])\n  end\n  subgraph lane_bo["Approver"]\n    ok{"Approve"}\n  end\n  ask --> ok\n  ok -->|"Yes"| done';
+
+    let result = '';
+    script = async (req) => {
+      result = await req.execute('make_diagram', { source: flow });
+      return 'Drew it.';
+    };
+    await ask('Draw the approval flow');
+    const frame = (await nodes()).find(([, n]) => (n.get('part') as { role?: string } | undefined)?.role === 'diagram');
+    expect(frame).toBeDefined();
+    const [id] = frame!;
+    expect(result).toContain(`Drew the flowchart (id ${id})`);
+    expect(result).toMatch(/should end with "\?"/);
+    expect(result).toMatch(/1 way out/);
+    const step = (await nodes()).find(([, n]) => (n.get('part') as { key?: string } | undefined)?.key === 'ok')![0];
+
+    let prompt = '';
+    script = async (req) => {
+      prompt = req.prompt;
+      result = await req.execute('change_diagram', { diagram_id: id, source: flow.replace('{"Approve"}', '{"Request OK?"}\n    no(["Declined"])').replace('ok -->|"Yes"| done', 'ok -->|"Yes"| done\n  ok -->|"No"| no') });
+      return 'Fixed it.';
+    };
+    await ask('Fix the flowchart');
+    expect(prompt).toContain(`"diagrams":[{"id":"${id}","source":"`);
+    expect(prompt).toContain('subgraph lane_bo');
+    expect(result).toBe('Rewrote the flowchart.');
+    const after = await nodes();
+    expect(after.find(([nid]) => nid === step)?.[1].get('label')).toBe('Request OK?');
+    expect(after.some(([, n]) => (n.get('part') as { key?: string } | undefined)?.key === 'no')).toBe(true);
   });
 
   it('saves what the model did when nobody has the board open', async () => {

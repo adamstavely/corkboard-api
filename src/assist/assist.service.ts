@@ -21,6 +21,8 @@ import { WEB, type Web } from '../web/web';
 import { Draft, propose, suggestionFrom } from '../suggestions/suggestions-doc';
 import { appNodes, appsOn, placeApp, showAppVersion } from '../apps/app-node';
 import { diagramProblem, diagramsOn, placeDiagram, setDiagramSource } from './diagram-node';
+import { flowchartMermaid, flowchartsOn, hasPicturesOrLinks, isFlowchartSource, layoutFlow, rewriteFlowchart } from '../diagrams/flowchart';
+import { checkNote, readFlowchartSource } from '../diagrams/flowchart-checks';
 import { AppsService, htmlProblem } from '../apps/apps.service';
 import {
   addNotes,
@@ -190,7 +192,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'make_diagram',
     description:
-      'Draws a diagram beside the board from Mermaid text, which starts with its kind: "flowchart TD" (or LR) for a process or decision, "sequenceDiagram" for who sends what to whom, "stateDiagram-v2" for states and what moves between them, "classDiagram" for types and how they relate, "erDiagram" for data and its relationships, "gantt" for a schedule with dates, "pie" for shares of a whole, "journey" for a user journey with scores, "timeline" for events by period, "mindmap" for a topic and its branches, or "quadrantChart", "xychart", "gitGraph", "kanban", "requirementDiagram", "sankey", "block" or "packet". Keep labels short; quote any with punctuation, as A["Ship it?"]. A node can link to a web page with a line like click A href "https://example.com" (https, http or mailto only). A flowchart node can show an image: A@{ img: "https://example.com/logo.png", label: "Logo", pos: "t", w: 60, h: 60 } (https, or corkboard-file:<file id> for a file on the board). No %%{init}%% settings; front matter may only hold a title.',
+      'Draws a diagram beside the board from Mermaid text, which starts with its kind: "flowchart TD" (or LR) for a process or decision, "sequenceDiagram" for who sends what to whom, "stateDiagram-v2" for states and what moves between them, "classDiagram" for types and how they relate, "erDiagram" for data and its relationships, "gantt" for a schedule with dates, "pie" for shares of a whole, "journey" for a user journey with scores, "timeline" for events by period, "mindmap" for a topic and its branches, or "quadrantChart", "xychart", "gitGraph", "kanban", "requirementDiagram", "sankey", "block" or "packet". Keep labels short; quote any with punctuation, as A["Ship it?"]. A node can link to a web page with a line like click A href "https://example.com" (https, http or mailto only). A flowchart node can show an image: A@{ img: "https://example.com/logo.png", label: "Logo", pos: "t", w: 60, h: 60 } (https, or corkboard-file:<file id> for a file on the board). No %%{init}%% settings; front matter may only hold a title. A flowchart is drawn as an editable swimlane diagram people can drag and tidy: write a bare "flowchart" (or "flowchart TB" for top to bottom), one subgraph lane_<slug>["Actor"] per role, team or system that does steps (none for a one-actor flow), step ids as short slugs of the label (verify_income), every label quoted and at most 5 words (a task is verb + object, "Approve Loan"), decisions as id{"Question?"} with every branch labelled ("Yes"/"No"), a start pill start(["Trigger"]) and an end pill for each outcome, [/"…"/] for data sent or received, [("…")] for a system of record, [["…"]] for a process documented elsewhere, id@{ shape: doc, label: "…" } for a document produced, id@{ shape: delay, label: "…" } for a wait, ==> for the one arrow that loops back, and detail in notes joined to their steps: n1>"Fact"] -.- step (at most 140 characters). A flowchart with pictures or links on its steps is drawn as a picture instead. The result lists anything to fix.',
     parameters: obj({ source: { type: 'string', description: 'The diagram in Mermaid, starting with its kind.' } }),
   },
   {
@@ -412,7 +414,7 @@ function boardPrompt(
     notes: notes.slice(0, MAX_NOTES).map((n) => ({ ...n, text: n.text.slice(0, MAX_NOTE_CHARS) })),
     frames: frames.map((f) => ({ id: f.id, title: f.title.slice(0, MAX_NOTE_CHARS) })),
     ...(apps.length ? { apps: apps.map((a) => ({ id: a.appId, title: a.title.slice(0, MAX_NOTE_CHARS), version: a.version })) } : {}),
-    ...(diagrams.length ? { diagrams: diagrams.slice(0, 20).map((d) => ({ id: d.id, source: d.source.slice(0, 2000) })) } : {}),
+    ...(diagrams.length ? { diagrams: diagrams.slice(0, 20).map((d) => ({ id: d.id, source: d.source.slice(0, 4000) })) } : {}),
   };
   const scope = scoped
     ? `These are the ${notes.length} notes the person selected, out of ${total} on the board.`
@@ -696,6 +698,18 @@ export class AssistService {
         if (name === 'make_diagram') {
           const problem = diagramProblem(args['source']);
           if (problem) throw new Error(problem);
+          // A flowchart is drawn as one people can edit: lanes, steps and arrows on the board. One with pictures or links
+          // on its steps stays a drawing, which shows them.
+          if (isFlowchartSource(args['source'] as string) && !hasPicturesOrLinks(args['source'] as string)) {
+            const { data, checks } = readFlowchartSource(args['source'] as string);
+            const layout = layoutFlow(data);
+            const layoutTrouble = layoutProblem(layout);
+            if (layoutTrouble) throw new Error(`The flowchart can't go on the board: ${layoutTrouble}.`);
+            let id = '';
+            await edit((d) => (id = placeBeside(d, layout).ids.get('diagram') ?? ''));
+            diagramsMade++;
+            return `Drew the flowchart (id ${id}) beside the board, as lanes and steps people can drag and edit.${checkNote(checks)}`;
+          }
           let id = '';
           await edit((d) => (id = placeDiagram(d, args['source'] as string)));
           diagramsMade++;
@@ -705,6 +719,14 @@ export class AssistService {
           const problem = diagramProblem(args['source']);
           if (problem) throw new Error(problem);
           const id = typeof args['diagram_id'] === 'string' ? args['diagram_id'] : '';
+          // An editable flowchart is rewritten in place: steps kept by id keep their comments and votes.
+          if (flowchartsOn(doc).includes(id)) {
+            if (!isFlowchartSource(args['source'] as string)) throw new Error('That diagram is an editable flowchart: rewrite it as a flowchart.');
+            const { data, checks } = readFlowchartSource(args['source'] as string);
+            await edit((d) => rewriteFlowchart(d, id, data));
+            diagramsChanged++;
+            return `Rewrote the flowchart.${checkNote(checks)}`;
+          }
           let found = false;
           await edit((d) => (found = setDiagramSource(d, id, args['source'] as string)));
           if (!found) throw new Error('There is no diagram with that id on this board.');
@@ -777,7 +799,7 @@ export class AssistService {
 
       const { text } = await model.chat({
         system: !canEdit ? `${SYSTEM}\n\n${READ_ONLY}` : proposing ? `${SYSTEM}\n\n${PROPOSING}` : SYSTEM,
-        prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? [], appsOn(doc), diagramsOn(doc)),
+        prompt: boardPrompt(request.instruction.trim(), focus, framesOf(doc), all.length, focusIds.size > 0, request.history ?? [], appsOn(doc), [...diagramsOn(doc), ...flowchartsOn(doc).map((id) => ({ id, source: flowchartMermaid(doc, id) ?? '' }))]),
         tools,
         execute,
         maxSteps: 8,
