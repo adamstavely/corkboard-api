@@ -19,6 +19,8 @@ export const users = pgTable('users', {
 export const orgs = pgTable('orgs', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  /** The workspace's look for diagrams (themes/diagram-theme.ts); none: Trench Coat's. */
+  diagramTheme: jsonb('diagram_theme').$type<Record<string, unknown>>(),
   createdAt: createdAt(),
 });
 

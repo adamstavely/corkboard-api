@@ -6522,6 +6522,159 @@
         ]
       }
     },
+    "/orgs/{orgId}/diagram-theme": {
+      "get": {
+        "operationId": "ThemesController_get",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagramLookDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone in the workspace: its look for diagrams (Trench Coat's when it has none of its own).",
+        "tags": [
+          "themes"
+        ]
+      },
+      "put": {
+        "operationId": "ThemesController_set",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiagramThemeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagramLookDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: set its look. Refused, with why, unless text on every fill meets WCAG 2.2 AA in light and dark.",
+        "tags": [
+          "themes"
+        ]
+      },
+      "delete": {
+        "operationId": "ThemesController_reset",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: go back to Trench Coat's look.",
+        "tags": [
+          "themes"
+        ]
+      }
+    },
+    "/orgs/{orgId}/diagram-theme/suggest": {
+      "post": {
+        "operationId": "ThemesController_suggest",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestThemeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemeSuggestionDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Workspace owners: a look to start from, read off a website or built from brand colours; nothing is saved.",
+        "tags": [
+          "themes"
+        ]
+      }
+    },
     "/oembed": {
       "get": {
         "operationId": "OembedController_oembed",
@@ -11911,6 +12064,128 @@
           "added",
           "total",
           "refused"
+        ]
+      },
+      "ThemeInkDto": {
+        "type": "object",
+        "properties": {
+          "light": {
+            "type": "string"
+          },
+          "dark": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "light",
+          "dark"
+        ]
+      },
+      "DiagramThemeDto": {
+        "type": "object",
+        "properties": {
+          "light": {
+            "maxItems": 6,
+            "minItems": 6,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dark": {
+            "maxItems": 6,
+            "minItems": 6,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "font": {
+            "enum": [
+              "inter",
+              "system",
+              "serif",
+              "rounded",
+              "mono"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "ink": {
+            "$ref": "#/components/schemas/ThemeInkDto"
+          },
+          "radius": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 24
+          }
+        },
+        "required": [
+          "light",
+          "dark",
+          "font",
+          "name",
+          "ink",
+          "radius"
+        ]
+      },
+      "DiagramLookDto": {
+        "type": "object",
+        "properties": {
+          "custom": {
+            "type": "boolean",
+            "description": "Whether the workspace set its own (else this is Trench Coat's)."
+          },
+          "theme": {
+            "$ref": "#/components/schemas/DiagramThemeDto"
+          }
+        },
+        "required": [
+          "custom",
+          "theme"
+        ]
+      },
+      "SuggestThemeDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "A public web page whose styles give the colours, font and corners."
+          },
+          "colours": {
+            "maxItems": 8,
+            "description": "Brand colours, as #rrggbb, most important first.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 60
+          }
+        }
+      },
+      "ThemeSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "$ref": "#/components/schemas/DiagramThemeDto"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "theme",
+          "notes"
         ]
       },
       "OembedDto": {
