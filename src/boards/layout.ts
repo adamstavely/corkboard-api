@@ -8,7 +8,7 @@ export const FRAME_FILLS = ['clear', 'solid', ...NOTE_COLORS] as const;
 export const FRAME_BORDERS = ['solid', 'dashed', 'none'] as const;
 /** A frame's shape: outlined (as frames always were), a card, a header band, a folder tab, a soft zone, a drop zone, a lane, a 16:9 slide or a browser window. */
 export const FRAME_LOOKS = ['outline', 'card', 'band', 'tab', 'zone', 'drop', 'lane', 'slide', 'browser'] as const;
-export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout', 'pill', 'parallelogram', 'document', 'delay', 'subprocess', 'actor', 'person', 'queue'] as const;
+export const SHAPES = ['rect', 'ellipse', 'diamond', 'triangle', 'hexagon', 'star', 'arrow', 'cylinder', 'cloud', 'callout', 'pill', 'parallelogram', 'document', 'delay', 'subprocess', 'actor', 'person', 'queue', 'rounded'] as const;
 /** A shape's fill: solid (as shapes always were), or a see-through tint that lies under notes, so overlapping shapes (a Venn diagram) show where they meet. */
 export const SHAPE_FILLS = ['solid', 'tint'] as const;
 export const TEXT_SIZES = { sm: 14, md: 20, lg: 32, xl: 48 } as const;

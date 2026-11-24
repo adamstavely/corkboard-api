@@ -111,8 +111,18 @@ function stepBox(n: FlowNode, tb: boolean, LE: FlowEngine['LE']): { x: number; y
       w: DOT,
       h: DOT,
     };
+  // A state machine's fork or join: a bar across the flow.
+  if (n.type === 'fork' || n.type === 'join') return tb ? { x: slot.x, y: slot.y + (slot.h - BAR) / 2, w: slot.w, h: BAR } : { x: slot.x + (slot.w - BAR) / 2, y: slot.y, w: BAR, h: slot.h };
   return slot;
 }
+/** How thick a fork or join bar is (the skill's pixels). */
+const BAR = 10;
+/** A flowchart, or a state machine drawn as one (corkboard-ui's diagrams/state.ts). */
+export type FlowKind = 'flowchart' | 'state';
+/** In a state machine, states are rounded boxes, and forks and joins bars. */
+const STATE_SHAPES: Record<string, ShapeKind> = { task: 'rounded', subprocess: 'rounded', fork: 'rect', join: 'rect' };
+/** A diagram's kind, from its outer frame. */
+const kindOf = (doc: Y.Doc, diagramId: string): FlowKind => (partOf(nodesOf(doc).get(diagramId)?.get('part'))?.type === 'state' ? 'state' : 'flowchart');
 
 /** Whether Mermaid text is a flowchart (its first line, after any front matter, is `flowchart` or `graph`). */
 export function isFlowchartSource(source: string): boolean {
@@ -151,7 +161,7 @@ export function parseFlowchart(source: string): { data: FlowData; warnings: stri
  * A flowchart's model laid out as board things, from the layout's top-left: the diagram's frame, a frame per lane,
  * a shape per step, a note per remark, right-angled arrows between steps and dotted lines to remarks.
  */
-export function layoutFlow(data: FlowData): Layout {
+export function layoutFlow(data: FlowData, type: FlowKind = 'flowchart'): Layout {
   const eng = flowEngine();
   const named = data.swimlanes !== false && data.lanes.length > 0;
   eng.layoutDiagram(data);
@@ -181,7 +191,7 @@ export function layoutFlow(data: FlowData): Layout {
   };
   frames.push({
     key: 'diagram',
-    title: data.title?.trim() || 'Flowchart',
+    title: data.title?.trim() || (type === 'state' ? 'State machine' : 'Flowchart'),
     x: 0,
     y: 0,
     ...diagram,
@@ -189,7 +199,7 @@ export function layoutFlow(data: FlowData): Layout {
     part: {
       role: 'diagram',
       key: 'diagram',
-      type: 'flowchart',
+      type,
       dir: tb ? 'TB' : 'LR',
     },
   });
@@ -219,8 +229,8 @@ export function layoutFlow(data: FlowData): Layout {
     const y = tb ? origin.y + laneTitle + b.y * s : origin.y + lane + laneTitle + b.y * s;
     shapes.push({
       key: n.id,
-      shape: FLOW_SHAPES[n.type] ?? 'rect',
-      color: n.type === 'connector' ? 'gray' : (colourOf.get(n.laneId ?? '') ?? 'blue'),
+      shape: (type === 'state' ? STATE_SHAPES[n.type] : undefined) ?? FLOW_SHAPES[n.type] ?? 'rect',
+      color: n.type === 'connector' || n.type === 'fork' || n.type === 'join' ? 'gray' : (colourOf.get(n.laneId ?? '') ?? 'blue'),
       label: n.label.slice(0, 2000),
       x: Math.round(x),
       y: Math.round(y),
@@ -307,11 +317,11 @@ export function partsOf(doc: Y.Doc, diagramId: string): Placed[] {
 }
 
 /** The flowcharts on the board: their outer frames' ids. Only the top ones (not sub-processes) when asked. */
-export function flowchartsOn(doc: Y.Doc, topOnly = false): string[] {
+export function flowchartsOn(doc: Y.Doc, topOnly = false, kind: FlowKind = 'flowchart'): string[] {
   const ids: string[] = [];
   nodesOf(doc).forEach((node, id) => {
     const part = node instanceof Y.Map ? partOf(node.get('part')) : null;
-    if (!part || part.role !== 'diagram' || part.of !== id || part.type !== 'flowchart' || node.get('kind') !== 'frame') return;
+    if (!part || part.role !== 'diagram' || part.of !== id || part.type !== kind || node.get('kind') !== 'frame') return;
     if (topOnly && part.parent && nodesOf(doc).has(part.parent)) return;
     ids.push(id);
   });
@@ -415,7 +425,7 @@ export function placeSubprocesses(doc: Y.Doc, diagramId: string, data: FlowData,
     if (!flow?.nodes.length) continue;
     const owner = family.flatMap((f) => partsOf(doc, f)).find((p) => p.part.role === 'step' && p.part.key === slug);
     const at = familyBottom(doc, diagramId);
-    const id = applyLayout(doc, layoutFlow(flow), at, author).get('diagram');
+    const id = applyLayout(doc, layoutFlow(flow, kindOf(doc, diagramId)), at, author).get('diagram');
     if (!id) continue;
     doc.transact(() => {
       const frame = nodesOf(doc).get(id)!;
@@ -467,7 +477,7 @@ const centreIn = (b: { x: number; y: number; w: number; h: number }, f: { x: num
 export function readFlowchart(doc: Y.Doc, diagramId: string): FlowData | null {
   const frame = nodesOf(doc).get(diagramId);
   const own = frame instanceof Y.Map ? partOf(frame.get('part')) : null;
-  if (!frame || own?.role !== 'diagram' || own.of !== diagramId || own.type !== 'flowchart') return null;
+  if (!frame || own?.role !== 'diagram' || own.of !== diagramId || (own.type !== 'flowchart' && own.type !== 'state')) return null;
   const tb = own.dir === 'TB';
   const parts = partsOf(doc, diagramId);
   const lanes = parts.filter((p) => p.part.role === 'lane' && p.node.get('kind') === 'frame').sort((a, b) => (tb ? a.x - b.x : a.y - b.y));
@@ -546,7 +556,7 @@ export function flowchartMermaid(doc: Y.Doc, diagramId: string): string | null {
  * ones no longer written are removed, with their arrows. The arrows between steps and to remarks are drawn afresh.
  */
 export function rewriteFlowchart(doc: Y.Doc, diagramId: string, data: FlowData, author = 'assistant'): void {
-  rewriteLayout(doc, diagramId, layoutFlow(data), author);
+  rewriteLayout(doc, diagramId, layoutFlow(data, kindOf(doc, diagramId)), author);
 }
 
 /** A part's key in its diagram's layout: lanes, groups and remarks are prefixed, the diagram is 'diagram'. */

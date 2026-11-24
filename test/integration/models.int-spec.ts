@@ -507,6 +507,42 @@ describe('Model connections and the assistant', () => {
     expect((after.get('sequence') as { messages: unknown[] }).messages).toHaveLength(3);
   });
 
+  it('draws state machines people can edit, says what to fix, and rewrites them in place', async () => {
+    const server = t.app.getHttpServer();
+    const ada = await person();
+    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Order' });
+    const ask = (instruction: string) => request(server).post(`/boards/${board.id}/assist`).set(ada.auth).send({ modelId: m.id, instruction }).expect(200);
+    const source = 'stateDiagram-v2\n  [*] --> Placed\n  Placed --> Paid : payment received\n  Paid --> [*]\n  Lost';
+    let result = '';
+    script = async (req) => {
+      result = await req.execute('make_diagram', { source });
+      return 'Drew it.';
+    };
+    await ask('Draw the order states');
+    const frames = async () => {
+      const { body: saved } = await request(server).get(`/boards/${board.id}/document`).set(ada.auth).expect(200);
+      const doc = new Y.Doc();
+      Y.applyUpdate(doc, Buffer.from(saved.state, 'base64'));
+      const nodes = [...doc.getMap<Y.Map<unknown>>('nodes').entries()];
+      return { nodes, diagram: nodes.find(([, n]) => (n.get('part') as { type?: string; role?: string } | undefined)?.type === 'state')! };
+    };
+    const { nodes, diagram } = await frames();
+    expect(result).toContain(`Drew the state machine (id ${diagram[0]}) beside the board`);
+    expect(result).toContain('"Lost" has no way out');
+    expect(nodes.filter(([, n]) => n.get('shape') === 'rounded')).toHaveLength(3);
+    let prompt = '';
+    script = async (req) => {
+      prompt = req.prompt;
+      result = await req.execute('change_diagram', { diagram_id: diagram[0], source: source.replace('\n  Lost', '') });
+      return 'Changed it.';
+    };
+    await ask('Remove Lost');
+    expect(prompt).toContain('Placed --> Paid : payment received');
+    expect(result).toBe('Rewrote the state machine.');
+    expect((await frames()).nodes.filter(([, n]) => n.get('shape') === 'rounded')).toHaveLength(2);
+  });
+
   it('saves what the model did when nobody has the board open', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
