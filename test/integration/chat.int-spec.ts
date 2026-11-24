@@ -72,7 +72,7 @@ describe('Board chat', () => {
     const server = t.app.getHttpServer();
     const ada = await person('Ada');
     const grace = await joined(ada, 'commenter', 'Grace');
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'Retro' });
     const adas = await open(board.id, ada);
     const [slow] = addNotes(adas.doc, [{ text: 'Deploys are slow', color: 'yellow' }]);
@@ -113,7 +113,7 @@ describe('Board chat', () => {
     const ada = await person('Ada');
     const reader = await joined(ada, 'reader');
     const stranger = await person();
-    const { body: m } = await request(server).post(`/orgs/${ada.orgId}/models`).set(ada.auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(ada.orgId, ada.auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${ada.orgId}/boards`).set(ada.auth).send({ title: 'B' });
     const adas = await open(board.id, ada);
 

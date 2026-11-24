@@ -9,6 +9,8 @@ export class MeDto {
   orgs!: OrgDto[];
   /** The assistant puts its changes to them as suggestions to accept, instead of making them. */
   assistantAsksFirst!: boolean;
+  /** One of Corkboard's site admins: they run the AI connections and the cloud icon library (and nothing else). */
+  siteAdmin!: boolean;
 }
 
 export class UpdateMeDto {

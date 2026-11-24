@@ -35,7 +35,7 @@ describe('Mini-apps', () => {
     const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${reader}@corkboard.test`, role: 'reader' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(readerAuth).expect(201);
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Retro' });
-    const { body: model } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const model = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const doc = new Y.Doc();
     await new Promise<void>((resolve) => {
       providers.push(new HocuspocusProvider({ url: t.collabUrl, name: board.id, token, document: doc, onSynced: () => resolve() }));

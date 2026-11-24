@@ -253,6 +253,13 @@
       "when": 1795551943651,
       "tag": "0035_diagram_themes",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795561428596,
+      "tag": "0036_site_admins",
+      "breakpoints": true
     }
   ]
 }

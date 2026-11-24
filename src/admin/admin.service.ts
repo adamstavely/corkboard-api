@@ -16,6 +16,7 @@ import {
   orgMembers,
   orgs,
   users,
+  workspaceModels,
   type User,
 } from '../db/schema';
 import { OrgsService } from '../orgs/orgs.service';
@@ -148,7 +149,11 @@ export class AdminService {
       });
       doc.destroy();
     }
-    const models = await this.db.select({ label: modelProviders.label, kind: modelProviders.kind, model: modelProviders.model }).from(modelProviders).where(eq(modelProviders.orgId, orgId));
+    const models = await this.db
+      .select({ label: modelProviders.label, kind: modelProviders.kind, model: modelProviders.model })
+      .from(workspaceModels)
+      .innerJoin(modelProviders, eq(workspaceModels.providerId, modelProviders.id))
+      .where(eq(workspaceModels.orgId, orgId));
     const trackers = await this.db.select({ label: integrations.label, kind: integrations.kind, config: integrations.config }).from(integrations).where(eq(integrations.orgId, orgId));
     return {
       workspace: { id: org.id, name: org.name },

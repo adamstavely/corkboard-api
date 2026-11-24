@@ -36,7 +36,7 @@ describe('Workspace admin', () => {
     const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${reader}@corkboard.test`, role: 'reader' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(readerAuth).expect(201);
 
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'sk-very-secret' });
+    const m = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'sk-very-secret' });
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Retro' });
     const doc = new Y.Doc();
     const provider = await new Promise<HocuspocusProvider>((resolve) => {
@@ -52,8 +52,8 @@ describe('Workspace admin', () => {
     expect(usage.boards[0].events).toBeGreaterThan(0);
     expect(usage.models).toEqual([{ providerId: m.id, label: 'Claude', calls: 1, inputTokens: 1500, outputTokens: 300, cost: null }]);
 
-    // With prices set, there's a cost.
-    await request(server).patch(`/orgs/${orgId}/models/${m.id}`).set(auth).send({ priceInPerMillion: 10, priceOutPerMillion: 50 }).expect(200);
+    // With prices set (by a site admin), there's a cost.
+    await request(server).patch(`/site/models/${m.id}`).set(await t.siteAdmin()).send({ priceInPerMillion: 10, priceOutPerMillion: 50 }).expect(200);
     const { body: priced } = await request(server).get(`/orgs/${orgId}/admin/usage`).set(auth).expect(200);
     expect(priced.models[0].cost).toBe(0.03);
     expect(priced.totals).toMatchObject({ boards: 1, inputTokens: 1500, outputTokens: 300, cost: 0.03 });

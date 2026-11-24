@@ -126,7 +126,7 @@ describe('Images and files on boards', () => {
 
   it("asks a model about an image and the places marked on it, showing it the picture", async () => {
     const { server, auth, orgId, board } = await setup();
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: file } = await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', PNG, { filename: 'dot.png', contentType: 'image/png' });
 
     script = async (req) => {
@@ -146,7 +146,7 @@ describe('Images and files on boards', () => {
 
   it("lets the assistant search and read the board's PDFs, Word documents and text, for anyone on the board", async () => {
     const { server, auth, token, readerAuth, orgId, board } = await setup();
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const fixture = (name: string) => readFileSync(join(__dirname, 'fixtures', name));
     const upload = async (data: Buffer, filename: string, contentType: string) =>
       (await request(server).post(`/boards/${board.id}/files`).set(auth).attach('file', data, { filename, contentType }).expect(201)).body as { id: string };

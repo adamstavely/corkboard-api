@@ -61,7 +61,7 @@ describe('Shutting down', () => {
     const auth = { Authorization: `Bearer ${token}` };
     const orgId = (await request(server).get('/me').set(auth)).body.orgs[0].id as string;
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Busy' }).expect(201);
-    const { body: model } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const model = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
 
     const answer = request(server).post(`/boards/${board.id}/assist`).set(auth).send({ modelId: model.id, instruction: 'Think hard' }).then((r) => r);
     await askedYet;

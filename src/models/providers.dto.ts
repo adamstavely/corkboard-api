@@ -1,10 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import type { ProviderKind } from '../db/schema';
 
 const KINDS = ['anthropic', 'openai'] as const;
 
-/** A workspace's model connection, as anyone in it sees it: never the key itself, only whether there is one. */
+/** One of the site's AI connections, as people see it: never the key itself, only whether there is one. */
 export class ProviderDto {
   id!: string;
   label!: string;
@@ -13,10 +13,21 @@ export class ProviderDto {
   model!: string;
   baseUrl!: string | null;
   hasKey!: boolean;
-  /** What the workspace pays per million input and output tokens, if an owner has said. */
+  /** What the site pays per million input and output tokens, if a site admin has said. */
   priceInPerMillion!: number | null;
   priceOutPerMillion!: number | null;
   createdAt!: Date;
+}
+
+/** A site connection as a workspace's owners choose: whether the workspace has it switched on for its people. */
+export class WorkspaceModelDto extends ProviderDto {
+  enabled!: boolean;
+}
+
+/** Switch a site connection on or off for a workspace. */
+export class EnableModelDto {
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class CreateProviderDto {

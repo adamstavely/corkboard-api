@@ -1,4 +1,5 @@
 import type { SyncedState } from '../integrations/tracker-sync';
+import { sql } from 'drizzle-orm';
 import { type AnyPgColumn, boolean, customType, integer, index, jsonb, pgEnum, pgTable, primaryKey, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /** Raw bytes; Yjs state is stored as-is. */
@@ -81,17 +82,18 @@ export const providerKind = pgEnum('provider_kind', ['anthropic', 'openai']);
  * A model a workspace's admins connected: its API, model id and, for OpenAI-compatible servers, where it lives. The
  * key is encrypted at rest (see SecretBox) and never leaves the API.
  */
+/**
+ * The site's connections to AI providers, kept by its site admins (site/site-admins.ts). Workspaces don't make their own:
+ * each switches on the ones its people may use (workspaceModels).
+ */
 export const modelProviders = pgTable('model_providers', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id')
-    .notNull()
-    .references(() => orgs.id, { onDelete: 'cascade' }),
   label: text('label').notNull(),
   kind: providerKind('kind').notNull(),
   model: text('model').notNull(),
   baseUrl: text('base_url'),
   apiKeyEncrypted: text('api_key_encrypted'),
-  /** What the workspace pays per million input and output tokens, if an owner has said, for estimating spend. */
+  /** What the site pays per million input and output tokens, if a site admin has said, for estimating spend. */
   priceInPerMillion: real('price_in_per_million'),
   priceOutPerMillion: real('price_out_per_million'),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
@@ -686,13 +688,35 @@ export const issueExports = pgTable(
 export const searchProvider = pgEnum('search_provider', ['brave', 'tavily']);
 
 /** What a workspace's assistant may use beyond the board: web search, through a search service with the workspace's key. */
+/** The site connections a workspace has switched on for its people. */
+export const workspaceModels = pgTable(
+  'workspace_models',
+  {
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    providerId: uuid('provider_id')
+      .notNull()
+      .references(() => modelProviders.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.providerId] })],
+);
+
+/** What the site's admins set for everyone: the search service the assistant's web search uses (one row, id 'site'). */
+export const siteSettings = pgTable('site_settings', {
+  id: text('id').primaryKey(),
+  searchProvider: searchProvider('search_provider'),
+  searchKeyEncrypted: text('search_key_encrypted'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A workspace's switches for the assistant's tools; the search service itself is the site's (siteSettings). */
 export const workspaceTools = pgTable('workspace_tools', {
   orgId: uuid('org_id')
     .primaryKey()
     .references(() => orgs.id, { onDelete: 'cascade' }),
   webSearch: boolean('web_search').notNull().default(false),
-  searchProvider: searchProvider('search_provider'),
-  searchKeyEncrypted: text('search_key_encrypted'),
   /** The assistant may make mini-apps on the workspace's boards. */
   miniApps: boolean('mini_apps').notNull().default(true),
   updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
@@ -758,9 +782,8 @@ export const logoPacks = pgTable(
   'logo_packs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id')
-      .notNull()
-      .references(() => orgs.id, { onDelete: 'cascade' }),
+    /** The workspace whose own pack it is; none: the site's library, kept by its site admins for everyone. */
+    orgId: uuid('org_id').references(() => orgs.id, { onDelete: 'cascade' }),
     /** Lower case and hyphens: the `<pack>` in `logo:<pack>/<logo>`. */
     name: text('name').notNull(),
     /** Logo name → its viewBox and drawing. */
@@ -770,6 +793,6 @@ export const logoPacks = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('logo_packs_org_name').on(t.orgId, t.name)],
+  (t) => [uniqueIndex('logo_packs_org_name').on(t.orgId, t.name), uniqueIndex('logo_packs_site_name').on(t.name).where(sql`${t.orgId} is null`)],
 );
 export type LogoPack = typeof logoPacks.$inferSelect;

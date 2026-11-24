@@ -30,7 +30,7 @@ describe("The model's change history", () => {
     const readerAuth = { Authorization: `Bearer ${await t.token(reader)}` };
     const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${reader}@corkboard.test`, role: 'reader' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(readerAuth).expect(201);
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Retro' });
 
     const doc = new Y.Doc();
@@ -91,7 +91,7 @@ describe("The model's change history", () => {
     const { body: invite } = await request(server).post(`/orgs/${orgId}/invites`).set(auth).send({ email: `${grace}@corkboard.test`, role: 'updater' });
     await request(server).post(`/me/invites/${invite.id}/accept`).set(graceAuth).expect(201);
     const { body: graceMe } = await request(server).get('/me').set(graceAuth);
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Retro' });
 
     const doc = new Y.Doc();

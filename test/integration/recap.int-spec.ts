@@ -25,7 +25,7 @@ describe('Session recap', () => {
     const auth = { Authorization: `Bearer ${token}` };
     const { body: me } = await request(server).get('/me').set(auth);
     const orgId = me.orgs[0].id as string;
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(auth).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(orgId, auth, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(auth).send({ title: 'Sprint 12 retro' });
 
     const doc = new Y.Doc();
@@ -86,7 +86,7 @@ describe('Session recap', () => {
     };
     const grace = await join('Grace Hopper');
     const linus = await join('Linus Torvalds');
-    const { body: m } = await request(server).post(`/orgs/${orgId}/models`).set(ada).send({ label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
+    const m = await t.model(orgId, ada, { label: 'Claude', kind: 'anthropic', model: 'claude-opus-5-5', apiKey: 'k' });
     const { body: board } = await request(server).post(`/orgs/${orgId}/boards`).set(ada).send({ title: 'Planning' });
     const at = (path: string) => `/boards/${board.id}${path}`;
 
