@@ -1,6 +1,6 @@
 import type { NoteColor } from '../assist/board-edit';
 import type { StepActivityDto } from '../facilitation/facilitation.dto';
-import type { ArrowDash, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeFill, ShapeKind, TextSize } from './layout';
+import type { ArrowDash, ArrowHead, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, ShapeFill, ShapeKind, TextSize } from './layout';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { type TemplateCategory } from './templates';
@@ -126,6 +126,12 @@ export class TemplateArrowDto {
   route?: ArrowRoute;
   dash?: ArrowDash;
   weight?: number;
+  /** The end it leaves from: none unless given. */
+  start?: ArrowHead;
+  /** The end it points at: an arrowhead unless given. */
+  end?: ArrowHead;
+  /** Words on the line, up to 200 characters. */
+  label?: string;
 }
 
 /** Things to lay out, in board pixels from the layout's top-left corner (corkboard-api's boards/layout.ts). */

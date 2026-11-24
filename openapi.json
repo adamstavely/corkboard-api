@@ -8934,6 +8934,36 @@
           },
           "weight": {
             "type": "number"
+          },
+          "start": {
+            "type": "string",
+            "description": "The end it leaves from: none unless given.",
+            "enum": [
+              "none",
+              "triangle",
+              "arrow",
+              "one",
+              "zeroOne",
+              "oneMany",
+              "zeroMany"
+            ]
+          },
+          "end": {
+            "type": "string",
+            "description": "The end it points at: an arrowhead unless given.",
+            "enum": [
+              "none",
+              "triangle",
+              "arrow",
+              "one",
+              "zeroOne",
+              "oneMany",
+              "zeroMany"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Words on the line, up to 200 characters."
           }
         },
         "required": [

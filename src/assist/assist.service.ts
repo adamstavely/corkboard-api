@@ -11,7 +11,7 @@ import type { User } from '../db/schema';
 import { ModelError, type ToolDef } from '../models/adapters/types';
 import { ProvidersService } from '../models/providers.service';
 import type { AssistRequestDto, AssistResultDto, AssistTurnDto } from './assist.dto';
-import { FRAME_LOOKS, layoutProblem, placeBeside, type Layout, SHAPE_FILLS, SHAPES } from '../boards/layout';
+import { ARROW_HEADS, FRAME_LOOKS, layoutProblem, placeBeside, type Layout, SHAPE_FILLS, SHAPES } from '../boards/layout';
 import { addTasks, type StoredTask } from './tasks-doc';
 import { placeMindMap, type MindTree } from '../boards/mindmap';
 import { SearchIndex } from '../search/search-index';
@@ -104,7 +104,16 @@ const LAYOUT = obj({
   texts: list(obj({ key: KEY, text: str, size: opt({ type: 'string', enum: ['sm', 'md', 'lg', 'xl'] }), x: num, y: num, w: opt(num) })),
   shapes: list(obj({ key: KEY, shape: { type: 'string', enum: [...SHAPES], description: 'callout is a speech bubble; arrow is a block arrow pointing right.' }, color: opt(COLOR), fill: opt({ type: 'string', enum: [...SHAPE_FILLS], description: 'tint: see-through and under the notes, for overlapping circles such as a Venn diagram.' }), label: opt(str), x: num, y: num, w: num, h: num })),
   tables: list(obj({ key: KEY, x: num, y: num, cells: { type: 'array', items: { type: 'array', items: str }, description: 'cells[row][col]' } })),
-  arrows: list(obj({ from: str, to: str, route: opt({ type: 'string', enum: ['straight', 'elbow', 'curve'] }) })),
+  arrows: list(
+    obj({
+      from: str,
+      to: str,
+      route: opt({ type: 'string', enum: ['straight', 'elbow', 'curve'] }),
+      start: opt({ type: 'string', enum: [...ARROW_HEADS], description: 'The mark where the arrow leaves: none (the default), arrow, triangle (an open "is a" triangle), or the crow\'s-foot marks one, zeroOne, oneMany, zeroMany.' }),
+      end: opt({ type: 'string', enum: [...ARROW_HEADS], description: 'The mark where the arrow arrives; arrow unless given.' }),
+      label: opt({ type: 'string', description: 'A few words on the line, such as "Yes" or "places".' }),
+    }),
+  ),
 });
 
 /** What a model sent, with its nulls (strict tool calling's "not given") left out. */

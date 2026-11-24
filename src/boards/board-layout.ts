@@ -14,6 +14,9 @@ import {
   SHAPES,
   TEXT_SIZES,
   type ArrowDash,
+  type ArrowHead,
+  ARROW_HEADS,
+  MAX_ARROW_LABEL,
   type ArrowRoute,
   type BoardView,
   type FrameBorder,
@@ -112,7 +115,20 @@ export function layoutFromBoard(doc: Y.Doc, keepNotes: boolean): { layout: Layou
     const route = pick<ArrowRoute>(ARROW_ROUTES, c.get('route'));
     const dash = pick<ArrowDash>(ARROW_DASHES, c.get('dash'));
     const weight = pick<number>(ARROW_WEIGHTS, c.get('weight'));
-    layout.arrows.push({ from, to, ...(route ? { route } : {}), ...(dash ? { dash } : {}), ...(weight ? { weight } : {}) });
+    const start = pick<ArrowHead>(ARROW_HEADS, c.get('start'));
+    const end = pick<ArrowHead>(ARROW_HEADS, c.get('end'));
+    const label = typeof c.get('label') === 'string' ? str(c.get('label')).slice(0, MAX_ARROW_LABEL) : '';
+    layout.arrows.push({
+      from,
+      to,
+      ...(route ? { route } : {}),
+      ...(dash ? { dash } : {}),
+      ...(weight ? { weight } : {}),
+      // The defaults (no start, an arrowhead at the end) are left out, as the other styles are.
+      ...(start && start !== 'none' ? { start } : {}),
+      ...(end && end !== 'arrow' ? { end } : {}),
+      ...(label ? { label } : {}),
+    });
   }
 
   // Everything moved so the layout starts at the origin.
