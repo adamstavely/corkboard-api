@@ -1,6 +1,7 @@
 import type { NoteColor } from '../assist/board-edit';
 import type { StepActivityDto } from '../facilitation/facilitation.dto';
 import type { ArrowDash, ArrowHead, ArrowRoute, BoardView, FrameBorder, FrameFill, FrameLook, PartRole, ShapeFill, ShapeKind, TextSize } from './layout';
+import { SHAPES } from './layout';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { type TemplateCategory } from './templates';
@@ -105,6 +106,8 @@ export class TemplateTextDto {
 
 export class TemplateShapeDto {
   key?: string;
+  // Listed in SHAPES' order: the union type's order depends on how the build met it, which made the spec flap.
+  @ApiProperty({ enum: SHAPES })
   shape!: ShapeKind;
   color?: NoteColor;
   /** tint: see-through, under the notes (for Venn diagrams). */
