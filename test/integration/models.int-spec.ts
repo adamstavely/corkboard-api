@@ -335,6 +335,7 @@ describe('Model connections and the assistant', () => {
     expect(minds).toHaveLength(4);
   });
 
+  // A kind the board has no editable form of (sequence, ER, flowchart and C4 diagrams have their own tests) stays a picture.
   it('draws a diagram from Mermaid, sees it on the board, and rewrites it', async () => {
     const server = t.app.getHttpServer();
     const ada = await person();
@@ -351,23 +352,23 @@ describe('Model connections and the assistant', () => {
     let refused = '';
     script = async (req) => {
       refused = await req.execute('make_diagram', { source: 'architecture-beta\n  service db(database)[DB]' }).catch((e: Error) => e.message);
-      await req.execute('make_diagram', { source: 'sequenceDiagram\n  Ada->>Bo: Approve?' });
+      await req.execute('make_diagram', { source: 'classDiagram\n  Ada --> Bo : approves' });
       return 'Drew it.';
     };
     await ask('Draw the approval flow');
     expect(refused).toMatch(/Start the text/);
     const [drawn] = await diagrams();
-    expect(drawn.source).toBe('sequenceDiagram\n  Ada->>Bo: Approve?');
+    expect(drawn.source).toBe('classDiagram\n  Ada --> Bo : approves');
 
     let prompt = '';
     script = async (req) => {
       prompt = req.prompt;
-      await req.execute('change_diagram', { diagram_id: drawn.id, source: 'sequenceDiagram\n  Ada->>Bo: Approve?\n  Bo-->>Ada: Yes' });
+      await req.execute('change_diagram', { diagram_id: drawn.id, source: 'classDiagram\n  Ada --> Bo : approves\n  Bo --> Ada : answers' });
       return 'Added the answer.';
     };
     await ask('Add the answer to the diagram');
     expect(prompt).toContain('"diagrams":[{"id":"' + drawn.id);
-    expect((await diagrams())[0].source).toContain('Bo-->>Ada: Yes');
+    expect((await diagrams())[0].source).toContain('Bo --> Ada : answers');
   });
 
   it('draws flowcharts as lanes and steps people can edit, says what to fix, and rewrites them in place', async () => {
