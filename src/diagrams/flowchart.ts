@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as Y from 'yjs';
 import { newNote, paragraphs, topZ, type NoteColor } from '../assist/board-edit';
 import { fragmentText } from '../boards/board-text';
-import { applyLayout, MAX_ARROW_LABEL, partOf, type Layout, type Part, type ShapeKind } from '../boards/layout';
+import { applyLayout, MAX_ARROW_LABEL, partOf, TEXT_SIZES, type Layout, type Part, type ShapeKind } from '../boards/layout';
 import { flowchartEngine } from './vendor/flowchart';
 
 /**
@@ -273,7 +273,7 @@ export function layoutFlow(data: FlowData): Layout {
 
 // ── On the board ────────────────────────────────────────────────────────────
 
-type Placed = {
+export type Placed = {
   id: string;
   node: Y.Map<unknown>;
   part: Part;
@@ -282,12 +282,12 @@ type Placed = {
   w: number;
   h: number;
 };
-const nodesOf = (doc: Y.Doc) => doc.getMap<Y.Map<unknown>>('nodes');
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-const str = (v: unknown) => (typeof v === 'string' ? v : '');
+export const nodesOf = (doc: Y.Doc) => doc.getMap<Y.Map<unknown>>('nodes');
+export const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+export const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
 /** Everything on the board that's part of a diagram, by its diagram. */
-function partsOf(doc: Y.Doc, diagramId: string): Placed[] {
+export function partsOf(doc: Y.Doc, diagramId: string): Placed[] {
   const found: Placed[] = [];
   nodesOf(doc).forEach((node, id) => {
     if (!(node instanceof Y.Map)) return;
@@ -546,14 +546,23 @@ export function flowchartMermaid(doc: Y.Doc, diagramId: string): string | null {
  * ones no longer written are removed, with their arrows. The arrows between steps and to remarks are drawn afresh.
  */
 export function rewriteFlowchart(doc: Y.Doc, diagramId: string, data: FlowData, author = 'assistant'): void {
+  rewriteLayout(doc, diagramId, layoutFlow(data), author);
+}
+
+/** A part's key in its diagram's layout: lanes, groups and remarks are prefixed, the diagram is 'diagram'. */
+const layoutKey = (p: Part) =>
+  p.role === 'diagram' ? 'diagram' : p.role === 'lane' ? `lane:${p.key}` : p.role === 'group' ? `group:${p.key}` : p.role === 'note' ? `note:${p.key}` : p.key;
+
+/**
+ * Rewrites an editable diagram on the board from a fresh layout of it, where it is: things kept by key stay the same
+ * board things (with their comments and votes), new ones are added, dropped ones go with their arrows, and the arrows
+ * inside the diagram are redrawn. Any kind of diagram: its layout's keys follow layoutKey.
+ */
+export function rewriteLayout(doc: Y.Doc, diagramId: string, layout: Layout, author = 'assistant'): void {
   const frame = nodesOf(doc).get(diagramId)!;
   const origin = { x: num(frame.get('x')), y: num(frame.get('y')) };
-  const layout = layoutFlow(data);
   const existing = new Map<string, Placed>();
-  for (const p of partsOf(doc, diagramId)) {
-    const key = p.part.role === 'diagram' ? 'diagram' : p.part.role === 'lane' ? `lane:${p.part.key}` : p.part.role === 'note' ? `note:${p.part.key}` : p.part.key;
-    existing.set(key, p);
-  }
+  for (const p of partsOf(doc, diagramId)) existing.set(layoutKey(p.part), p);
   doc.transact(() => {
     let z = topZ(doc);
     const ids = new Map<string, string>();
@@ -601,6 +610,14 @@ export function rewriteFlowchart(doc: Y.Doc, diagramId: string, data: FlowData, 
         n.set('look', f.look ?? 'lane');
         if (f.fill) n.set('fill', f.fill);
         place(n, f);
+      });
+    }
+    for (const t of layout.texts ?? []) {
+      if (!t.key || !t.part) continue;
+      make('text', t.key, t.part, (n) => {
+        n.set('text', t.text);
+        n.set('size', t.size ?? 'md');
+        place(n, { x: t.x, y: t.y, w: t.w ?? 240, h: TEXT_SIZES[t.size ?? 'md'] * 1.6 });
       });
     }
     for (const s of layout.shapes ?? []) {

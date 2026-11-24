@@ -24,6 +24,10 @@ const TYPES = {
     files: ['assets/shell/ortho-router.js', 'assets/types/flowchart/engine.js', 'assets/shell/mermaid-flow.js', 'assets/types/flowchart/mermaid.js'],
     exports: ['layoutDiagram', 'loopSides', 'routeEdgesOrthogonal', 'LE', 'fromMermaid', 'toMermaid'],
   },
+  usecase: {
+    files: ['assets/types/usecase/engine.js', 'assets/shell/mermaid-flow.js', 'assets/types/usecase/mermaid.js'],
+    exports: ['layoutDiagram', 'routeDiagram', 'fromMermaid', 'toMermaid'],
+  },
 };
 
 mkdirSync(out, { recursive: true });

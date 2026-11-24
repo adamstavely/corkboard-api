@@ -8637,7 +8637,9 @@
               "note",
               "diagram",
               "lane",
-              "step"
+              "group",
+              "step",
+              "legend"
             ]
           },
           "key": {
@@ -8843,7 +8845,8 @@
               "pill",
               "parallelogram",
               "delay",
-              "subprocess"
+              "subprocess",
+              "actor"
             ]
           },
           "color": {
