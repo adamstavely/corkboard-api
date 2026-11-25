@@ -84,6 +84,7 @@ import { ToolsController } from './web/tools.controller';
 import { ToolsService } from './web/tools.service';
 import { realWeb, WEB } from './web/web';
 import { MembersController } from './orgs/members.controller';
+import { OrgsController } from './orgs/orgs.controller';
 import { MembersService } from './orgs/members.service';
 import { OrgsService } from './orgs/orgs.service';
 import { SearchController } from './search/search.controller';
@@ -132,6 +133,7 @@ import { RetentionService } from './policies/retention.service';
     BoardsController,
     SearchController,
     MembersController,
+    OrgsController,
     ProvidersController,
     SiteModelsController,
     SiteSearchController,
