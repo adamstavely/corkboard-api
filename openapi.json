@@ -5420,6 +5420,89 @@
         ]
       }
     },
+    "/orgs": {
+      "post": {
+        "operationId": "OrgsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameOrgDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Anyone signed in: start a workspace of their own, which they own. Invite people to it from its members.",
+        "tags": [
+          "orgs"
+        ]
+      }
+    },
+    "/orgs/{orgId}": {
+      "patch": {
+        "operationId": "OrgsController_rename",
+        "parameters": [
+          {
+            "name": "orgId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameOrgDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owners: rename the workspace.",
+        "tags": [
+          "orgs"
+        ]
+      }
+    },
     "/orgs/{orgId}/models": {
       "get": {
         "operationId": "ProvidersController_list",
@@ -11008,6 +11091,19 @@
           "orgId",
           "orgName",
           "invitedByName"
+        ]
+      },
+      "NameOrgDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
         ]
       },
       "ProviderDto": {
